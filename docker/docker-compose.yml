@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  radio-monitor:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: radio-monitor:latest
+    container_name: radio-monitor
+    hostname: radio-monitor
+
+    # Port mapping (host:container)
+    ports:
+      - "5000:5000"
+
+    # Volume mounts for persistent data
+    volumes:
+      # Database and settings
+      - ./data:/app/data
+      # Optional: Mount settings file directly (read-only)
+      # - ../radio_monitor_settings.json:/app/radio_monitor_settings.json:ro
+      # Optional: Mount log directory
+      # - ./logs:/app/logs
+
+    # Environment variables
+    environment:
+      # Timezone (change to your timezone)
+      - TZ=America/Chicago
+      # Python options
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Resource limits (optional - uncomment if needed)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Networks
+    networks:
+      - radio-monitor-net
+
+# Optional: Nginx reverse proxy (for production/SSL)
+# Uncomment to enable
+# nginx:
+#   image: nginx:alpine
+#   container_name: radio-monitor-nginx
+#   ports:
+#     - "80:80"
+#     - "443:443"
+#   volumes:
+#     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+#     - ./nginx/ssl:/etc/nginx/ssl:ro
+#   depends_on:
+#     - radio-monitor
+#   restart: unless-stopped
+#   networks:
+#     - radio-monitor-net
+
+# Named volumes
+volumes:
+  data:
+
+# Networks
+networks:
+  radio-monitor-net:
+    driver: bridge

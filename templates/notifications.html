@@ -1,0 +1,914 @@
+{% extends "base_sidebar.html" %}
+
+{% block title %}Notifications - Radio Monitor{% endblock %}
+
+{% block custom_css %}
+<style>
+.notifications-container {
+    padding: 20px;
+}
+
+.notifications-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.notifications-header h1 {
+    margin: 0;
+    font-size: 24px;
+    color: #e0e0e0;
+}
+
+.notifications-tabs {
+    display: flex;
+    border-bottom: 1px solid #3a3a3a;
+    margin-bottom: 20px;
+}
+
+.notifications-tab {
+    padding: 12px 24px;
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.notifications-tab:hover {
+    color: #e0e0e0;
+}
+
+.notifications-tab.active {
+    color: #3498db;
+    border-bottom-color: #3498db;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.notifications-list {
+    display: grid;
+    gap: 15px;
+}
+
+.notification-card {
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 15px;
+}
+
+.notification-card.disabled {
+    opacity: 0.6;
+}
+
+.notification-card-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 10px;
+}
+
+.notification-card-header .type-icon {
+    width: 40px;
+    height: 40px;
+    background: #3a3a3a;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+}
+
+.notification-card-header .info {
+    flex: 1;
+}
+
+.notification-card-header .info h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #e0e0e0;
+}
+
+.notification-card-header .info .type {
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.notification-card-triggers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.trigger-badge {
+    background: #3a3a3a;
+    color: #888;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.notification-card-stats {
+    display: flex;
+    gap: 20px;
+    margin-top: 10px;
+    font-size: 14px;
+    color: #888;
+}
+
+.notification-card-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.btn {
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn:hover {
+    background: #2980b9;
+}
+
+.btn.btn-secondary {
+    background: #6c757d;
+}
+
+.btn.btn-secondary:hover {
+    background: #5a6268;
+}
+
+.btn.btn-success {
+    background: #2ecc71;
+}
+
+.btn.btn-success:hover {
+    background: #27ae60;
+}
+
+.btn.btn-danger {
+    background: #e74c3c;
+}
+
+.btn.btn-danger:hover {
+    background: #c0392b;
+}
+
+.btn.btn-sm {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #888;
+}
+
+.empty-state svg {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 20px;
+    opacity: 0.3;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    padding: 20px;
+    min-width: 500px;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #e0e0e0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 24px;
+    cursor: pointer;
+}
+
+.modal-close:hover {
+    color: #e0e0e0;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: #888;
+    font-size: 14px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    background: #1a1a1a;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    color: #e0e0e0;
+    padding: 8px 12px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.form-group .help-text {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+}
+
+.triggers-checkboxes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.trigger-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #e0e0e0;
+}
+
+.trigger-checkbox input[type="checkbox"] {
+    width: auto;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.history-table {
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.history-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.history-table thead {
+    background: #1a1a1a;
+}
+
+.history-table th {
+    text-align: left;
+    padding: 12px;
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+    border-bottom: 1px solid #3a3a3a;
+}
+
+.history-table td {
+    padding: 12px;
+    border-bottom: 1px solid #3a3a3a;
+    color: #e0e0e0;
+    font-size: 14px;
+}
+
+.history-table tbody tr:hover {
+    background: #3a3a3a;
+}
+
+.success-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.success-badge.true {
+    background: #2ecc71;
+    color: white;
+}
+
+.success-badge.false {
+    background: #e74c3c;
+    color: white;
+}
+
+.pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+.pagination .page-info {
+    color: #888;
+    font-size: 14px;
+}
+
+.pagination .page-controls {
+    display: flex;
+    gap: 10px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="notifications-container">
+    <div class="notifications-header">
+        <h1>Notifications</h1>
+        <button class="btn btn-success" id="addNotificationBtn">Add Notification</button>
+    </div>
+
+    <div class="notifications-tabs">
+        <button class="notifications-tab active" data-tab="notifications">Notifications</button>
+        <button class="notifications-tab" data-tab="history">History</button>
+    </div>
+
+    <div class="tab-content active" id="notifications-tab">
+        <div class="notifications-list" id="notificationsList">
+            <div class="empty-state">Loading notifications...</div>
+        </div>
+    </div>
+
+    <div class="tab-content" id="history-tab">
+        <div class="history-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Notification</th>
+                        <th>Type</th>
+                        <th>Event</th>
+                        <th>Title</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                    <tr><td colspan="6" class="empty-state">Loading history...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="pagination">
+            <div class="page-info" id="historyPageInfo">Showing 0-0 of 0</div>
+            <div class="page-controls">
+                <button class="btn btn-secondary" id="historyPrevBtn" disabled>Previous</button>
+                <button class="btn btn-secondary" id="historyNextBtn" disabled>Next</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Notification Modal -->
+<div class="modal" id="notificationModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modalTitle">Add Notification</h3>
+            <button class="modal-close" id="closeModalBtn">&times;</button>
+        </div>
+        <form id="notificationForm">
+            <div class="form-group">
+                <label for="notificationType">Type *</label>
+                <select id="notificationType" required>
+                    <option value="">Select type...</option>
+                    <option value="discord">Discord</option>
+                    <option value="slack">Slack</option>
+                    <option value="email">Email</option>
+                    <option value="telegram">Telegram</option>
+                    <option value="gotify">Gotify</option>
+                    <option value="ntfy">Ntfy.sh</option>
+                    <option value="mattermost">Mattermost</option>
+                    <option value="rocketchat">Rocket.Chat</option>
+                    <option value="matrix">Matrix</option>
+                    <option value="pushover">Pushover</option>
+                    <option value="pushbullet">Pushbullet</option>
+                    <option value="prowl">Prowl</option>
+                    <option value="boxcar">Boxcar</option>
+                    <option value="mqtt">MQTT</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="notificationName">Name *</label>
+                <input type="text" id="notificationName" required placeholder="My Discord Notification">
+            </div>
+            <div id="configFields"></div>
+            <div class="form-group">
+                <label>Triggers *</label>
+                <div class="triggers-checkboxes" id="triggersContainer">
+                    <label class="trigger-checkbox">
+                        <input type="checkbox" value="on_scrape_complete"> Scrape Complete
+                    </label>
+                    <label class="trigger-checkbox">
+                        <input type="checkbox" value="on_scrape_error"> Scrape Error
+                    </label>
+                    <label class="trigger-checkbox">
+                        <input type="checkbox" value="on_import_complete"> Import Complete
+                    </label>
+                    <label class="trigger-checkbox">
+                        <input type="checkbox" value="on_import_error"> Import Error
+                    </label>
+                    <label class="trigger-checkbox">
+                        <input type="checkbox" value="on_playlist_update"> Playlist Update
+                    </label>
+                    <label class="trigger-checkbox">
+                        <input type="checkbox" value="on_playlist_error"> Playlist Error
+                    </label>
+                    <label class="trigger-checkbox">
+                        <input type="checkbox" value="on_high_failure_rate"> High Failure Rate
+                    </label>
+                    <label class="trigger-checkbox">
+                        <input type="checkbox" value="on_station_health"> Station Health Issue
+                    </label>
+                    <label class="trigger-checkbox">
+                        <input type="checkbox" value="on_system_error"> System Error
+                    </label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="notificationEnabled" checked> Enabled
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="cancelBtn">Cancel</button>
+                <button type="submit" class="btn">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block custom_js %}
+<script>
+class NotificationsView {
+    constructor() {
+        this.notifications = [];
+        this.notificationTypes = {};
+        this.editingNotificationId = null;
+        this.historyOffset = 0;
+        this.historyPageSize = 50;
+        this.historyTotal = 0;
+
+        this.initElements();
+        this.bindEvents();
+        this.loadNotificationTypes();
+        this.loadNotifications();
+        this.loadHistory();
+    }
+
+    initElements() {
+        this.tabs = document.querySelectorAll('.notifications-tab');
+        this.tabContents = document.querySelectorAll('.tab-content');
+        this.notificationsList = document.getElementById('notificationsList');
+        this.historyTableBody = document.getElementById('historyTableBody');
+        this.addNotificationBtn = document.getElementById('addNotificationBtn');
+        this.notificationModal = document.getElementById('notificationModal');
+        this.notificationForm = document.getElementById('notificationForm');
+        this.modalTitle = document.getElementById('modalTitle');
+        this.notificationType = document.getElementById('notificationType');
+        this.configFields = document.getElementById('configFields');
+        this.closeModalBtn = document.getElementById('closeModalBtn');
+        this.cancelBtn = document.getElementById('cancelBtn');
+        this.historyPageInfo = document.getElementById('historyPageInfo');
+        this.historyPrevBtn = document.getElementById('historyPrevBtn');
+        this.historyNextBtn = document.getElementById('historyNextBtn');
+    }
+
+    bindEvents() {
+        this.tabs.forEach(tab => {
+            tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
+        });
+
+        this.addNotificationBtn.addEventListener('click', () => this.showAddModal());
+        this.closeModalBtn.addEventListener('click', () => this.hideModal());
+        this.cancelBtn.addEventListener('click', () => this.hideModal());
+        this.notificationType.addEventListener('change', () => this.updateConfigFields());
+        this.notificationForm.addEventListener('submit', (e) => this.onSubmit(e));
+        this.historyPrevBtn.addEventListener('click', () => this.previousHistoryPage());
+        this.historyNextBtn.addEventListener('click', () => this.nextHistoryPage());
+    }
+
+    switchTab(tabName) {
+        this.tabs.forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.tab === tabName);
+        });
+        this.tabContents.forEach(content => {
+            content.classList.toggle('active', content.id === `${tabName}-tab`);
+        });
+    }
+
+    async loadNotificationTypes() {
+        try {
+            const response = await fetch('/notifications/api/types');
+            const data = await response.json();
+            this.notificationTypes = data.types;
+        } catch (error) {
+            console.error('Failed to load notification types:', error);
+        }
+    }
+
+    async loadNotifications() {
+        try {
+            const response = await fetch('/notifications/api/notifications');
+            const data = await response.json();
+            this.notifications = data.notifications;
+            this.renderNotifications();
+        } catch (error) {
+            console.error('Failed to load notifications:', error);
+            this.notificationsList.innerHTML = '<div class="empty-state">Error loading notifications</div>';
+        }
+    }
+
+    renderNotifications() {
+        if (this.notifications.length === 0) {
+            this.notificationsList.innerHTML = `
+                <div class="empty-state">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h12v2H6zm0 4h8v2H6z"/>
+                    </svg>
+                    <div>No notifications configured</div>
+                    <p>Click "Add Notification" to create one</p>
+                </div>
+            `;
+            return;
+        }
+
+        this.notificationsList.innerHTML = this.notifications.map(notif => {
+            const typeInfo = this.notificationTypes[notif.notification_type] || {};
+            const enabled = notif.enabled ? '' : 'disabled';
+            const enabledBadge = notif.enabled ? 'Enabled' : 'Disabled';
+            const enabledClass = notif.enabled ? 'true' : 'false';
+
+            return `
+                <div class="notification-card ${enabled}">
+                    <div>
+                        <div class="notification-card-header">
+                            <div class="type-icon">${this.getTypeIcon(notif.notification_type)}</div>
+                            <div class="info">
+                                <h3>${this.escapeHtml(notif.name)}</h3>
+                                <div class="type">${typeInfo.name || notif.notification_type}</div>
+                            </div>
+                            <span class="success-badge ${enabledClass}">${enabledBadge}</span>
+                        </div>
+                        <div class="notification-card-triggers">
+                            ${notif.triggers.map(t => `<span class="trigger-badge">${this.formatTrigger(t)}</span>`).join('')}
+                        </div>
+                        <div class="notification-card-stats">
+                            <span>Last sent: ${notif.last_triggered ? this.formatDate(notif.last_triggered) : 'Never'}</span>
+                            <span>Failures: ${notif.failure_count}</span>
+                        </div>
+                    </div>
+                    <div class="notification-card-actions">
+                        <button class="btn btn-sm" onclick="notificationsView.testNotification(${notif.id})">Test</button>
+                        <button class="btn btn-sm btn-secondary" onclick="notificationsView.editNotification(${notif.id})">Edit</button>
+                        <button class="btn btn-sm btn-danger" onclick="notificationsView.deleteNotification(${notif.id})">Delete</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    async loadHistory() {
+        try {
+            const params = new URLSearchParams({
+                limit: this.historyPageSize,
+                offset: this.historyOffset
+            });
+            const response = await fetch(`/notifications/api/history?${params}`);
+            const data = await response.json();
+            this.renderHistory(data.history);
+            this.historyTotal = data.total;
+            this.updateHistoryPagination();
+        } catch (error) {
+            console.error('Failed to load history:', error);
+        }
+    }
+
+    renderHistory(history) {
+        if (history.length === 0) {
+            this.historyTableBody.innerHTML = '<tr><td colspan="6" class="empty-state">No notification history</td></tr>';
+            return;
+        }
+
+        this.historyTableBody.innerHTML = history.map(entry => `
+            <tr>
+                <td>${this.formatDate(entry.sent_at)}</td>
+                <td>${this.escapeHtml(entry.notification_name || 'Unknown')}</td>
+                <td>${entry.notification_type || ''}</td>
+                <td>${this.formatTrigger(entry.event_type)}</td>
+                <td>${this.escapeHtml(entry.title)}</td>
+                <td><span class="success-badge ${entry.success}">${entry.success ? 'Success' : 'Failed'}</span></td>
+            </tr>
+        `).join('');
+    }
+
+    updateHistoryPagination() {
+        const start = this.historyOffset + 1;
+        const end = Math.min(this.historyOffset + this.historyPageSize, this.historyTotal);
+        this.historyPageInfo.textContent = `Showing ${start}-${end} of ${this.historyTotal}`;
+        this.historyPrevBtn.disabled = this.historyOffset === 0;
+        this.historyNextBtn.disabled = end >= this.historyTotal;
+    }
+
+    previousHistoryPage() {
+        if (this.historyOffset > 0) {
+            this.historyOffset = Math.max(0, this.historyOffset - this.historyPageSize);
+            this.loadHistory();
+        }
+    }
+
+    nextHistoryPage() {
+        if (this.historyOffset + this.historyPageSize < this.historyTotal) {
+            this.historyOffset += this.historyPageSize;
+            this.loadHistory();
+        }
+    }
+
+    showAddModal() {
+        this.editingNotificationId = null;
+        this.modalTitle.textContent = 'Add Notification';
+        this.notificationForm.reset();
+        this.notificationType.value = '';
+        this.configFields.innerHTML = '';
+        this.notificationModal.classList.add('show');
+    }
+
+    async editNotification(id) {
+        this.editingNotificationId = id;
+        this.modalTitle.textContent = 'Edit Notification';
+
+        try {
+            const response = await fetch(`/notifications/api/notifications/${id}`);
+            const notif = await response.json();
+
+            this.notificationType.value = notif.notification_type;
+            document.getElementById('notificationName').value = notif.name;
+            document.getElementById('notificationEnabled').checked = notif.enabled;
+
+            // Set triggers
+            document.querySelectorAll('#triggersContainer input[type="checkbox"]').forEach(cb => {
+                cb.checked = notif.triggers.includes(cb.value);
+            });
+
+            this.updateConfigFields(notif.config);
+            this.notificationModal.classList.add('show');
+        } catch (error) {
+            console.error('Failed to load notification:', error);
+            alert('Failed to load notification');
+        }
+    }
+
+    hideModal() {
+        this.notificationModal.classList.remove('show');
+    }
+
+    updateConfigFields(existingConfig = {}) {
+        const type = this.notificationType.value;
+        const typeInfo = this.notificationTypes[type];
+
+        if (!typeInfo) {
+            this.configFields.innerHTML = '';
+            return;
+        }
+
+        this.configFields.innerHTML = typeInfo.config_fields.map(field => {
+            const value = existingConfig[field.name] || field.default || '';
+            let inputHtml = '';
+
+            if (field.type === 'url' || field.type === 'email' || field.type === 'text') {
+                inputHtml = `<input type="${field.type}" name="${field.name}" value="${this.escapeHtml(value)}" ${field.required ? 'required' : ''}>`;
+            } else if (field.type === 'number') {
+                inputHtml = `<input type="number" name="${field.name}" value="${value}" ${field.required ? 'required' : ''}>`;
+            } else if (field.type === 'password') {
+                inputHtml = `<input type="password" name="${field.name}" value="${this.escapeHtml(value)}" ${field.required ? 'required' : ''}>`;
+            }
+
+            return `
+                <div class="form-group">
+                    <label>${field.label} *</label>
+                    ${inputHtml}
+                </div>
+            `;
+        }).join('');
+    }
+
+    async onSubmit(e) {
+        e.preventDefault();
+
+        const formData = new FormData(this.notificationForm);
+        const config = {};
+        this.configFields.querySelectorAll('input, select, textarea').forEach(input => {
+            config[input.name] = input.value;
+        });
+
+        const triggers = [];
+        document.querySelectorAll('#triggersContainer input[type="checkbox"]:checked').forEach(cb => {
+            triggers.push(cb.value);
+        });
+
+        if (triggers.length === 0) {
+            alert('Please select at least one trigger');
+            return;
+        }
+
+        const data = {
+            notification_type: this.notificationType.value,
+            name: document.getElementById('notificationName').value,
+            config: config,
+            triggers: triggers,
+            enabled: document.getElementById('notificationEnabled').checked
+        };
+
+        try {
+            let response;
+            if (this.editingNotificationId) {
+                response = await fetch(`/notifications/api/notifications/${this.editingNotificationId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+            } else {
+                response = await fetch('/notifications/api/notifications', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+            }
+
+            const result = await response.json();
+
+            if (result.success || response.ok) {
+                this.hideModal();
+                this.loadNotifications();
+            } else {
+                alert('Failed to save notification: ' + (result.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Failed to save notification:', error);
+            alert('Failed to save notification');
+        }
+    }
+
+    async testNotification(id) {
+        try {
+            const response = await fetch(`/notifications/api/notifications/${id}/test`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                alert('Test notification sent successfully!');
+                this.loadNotifications();
+            } else {
+                alert('Failed to send test notification: ' + (data.message || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Failed to test notification:', error);
+            alert('Failed to send test notification');
+        }
+    }
+
+    async deleteNotification(id) {
+        if (!confirm('Are you sure you want to delete this notification?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/notifications/api/notifications/${id}`, {
+                method: 'DELETE'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                this.loadNotifications();
+            } else {
+                alert('Failed to delete notification: ' + (data.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Failed to delete notification:', error);
+            alert('Failed to delete notification');
+        }
+    }
+
+    getTypeIcon(type) {
+        const icons = {
+            'discord': '💬',
+            'slack': '💼',
+            'email': '📧',
+            'telegram': '✈️'
+        };
+        return icons[type] || '🔔';
+    }
+
+    formatTrigger(trigger) {
+        const triggers = {
+            'on_scrape_complete': 'Scrape Complete',
+            'on_scrape_error': 'Scrape Error',
+            'on_import_complete': 'Import Complete',
+            'on_import_error': 'Import Error',
+            'on_playlist_update': 'Playlist Update',
+            'on_playlist_error': 'Playlist Error',
+            'on_high_failure_rate': 'High Failure Rate',
+            'on_station_health': 'Station Health',
+            'on_system_error': 'System Error'
+        };
+        return triggers[trigger] || trigger;
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleString();
+    }
+}
+
+// Initialize
+const notificationsView = new NotificationsView();
+</script>
+{% endblock %}

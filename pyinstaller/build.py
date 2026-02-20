@@ -1,0 +1,210 @@
+"""
+PyInstaller Build Script for Radio Monitor 1.1.0 (Selenium Removed)
+
+This script builds a Windows executable from the Radio Monitor Python source code.
+
+Usage:
+    python build.py
+
+Output:
+    dist/pyinstaller/Radio Monitor/Radio Monitor.exe
+
+Requirements:
+    - PyInstaller: pip install pyinstaller
+    - Icon file: static/favicon.ico
+
+Version 1.1.0 Changes:
+    - Removed Selenium dependency (WTMX station no longer supported)
+    - Removed lxml dependency (BeautifulSoup uses built-in html.parser)
+    - Reduced EXE size from ~60 MB to ~40 MB
+"""
+
+import PyInstaller.__main__
+import os
+import sys
+import shutil
+
+# Get the project root directory
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+
+print("=" * 70)
+print("Radio Monitor 1.1.0 (Selenium Removed) - PyInstaller Build Script")
+print("=" * 70)
+print(f"Project root: {PROJECT_ROOT}")
+print(f"Working dir: {os.getcwd()}")
+print()
+
+# Clean previous builds
+print("Step 1: Cleaning previous builds...")
+for dir_name in ['build', 'dist/pyinstaller']:
+    dir_path = os.path.join(PROJECT_ROOT, dir_name)
+    if os.path.exists(dir_path):
+        print(f"  Removing: {dir_path}")
+        shutil.rmtree(dir_path)
+
+# Remove old spec file if it exists
+spec_file = os.path.join(SCRIPT_DIR, 'Radio Monitor.spec')
+if os.path.exists(spec_file):
+    print(f"  Removing: {spec_file}")
+    os.remove(spec_file)
+
+print("  [OK] Clean complete\n")
+
+# PyInstaller options
+# See https://pyinstaller.org/en/stable/usage.html for all options
+options = [
+    # Entry point (absolute path) - use wrapper that defaults to GUI mode
+    os.path.join(PROJECT_ROOT, 'radio_monitor_exe.py'),
+
+    # Output options
+    '--name=Radio Monitor',          # Executable name
+    '--onedir',                       # Directory mode (not single file)
+    '--noconsole',                    # NO console window (logs go to file only)
+    '--clean',                        # Clean PyInstaller cache before building
+
+    # Icon (using favicon.ico from static directory)
+    f'--icon={os.path.join(PROJECT_ROOT, "static", "favicon.ico")}',
+
+    # Include data files (absolute paths)
+    # Format: --add-data="source;destination" (Windows uses ; separator)
+    f'--add-data={os.path.join(PROJECT_ROOT, "templates")};templates',
+    f'--add-data={os.path.join(PROJECT_ROOT, "radio_monitor")};radio_monitor',
+    f'--add-data={os.path.join(PROJECT_ROOT, "prompts")};prompts',
+    f'--add-data={os.path.join(PROJECT_ROOT, "static")};static',
+    f'--add-data={os.path.join(PROJECT_ROOT, "radio_monitor_settings.json.template")};.',
+    f'--add-data={os.path.join(SCRIPT_DIR, "README.txt")};.',
+
+    # Hidden imports (auto-detection might miss these)
+    '--hidden-import=flask',
+    '--hidden-import=werkzeug',
+    '--hidden-import=jinja2',
+    '--hidden-import=markupsafe',
+    '--hidden-import=itsdangerous',
+    '--hidden-import=click',
+    '--hidden-import=apscheduler',
+    '--hidden-import=apscheduler.schedulers.background',
+    '--hidden-import=apscheduler.triggers.cron',
+    # Selenium removed in v1.1.0 (WTMX station no longer supported)
+    # lxml removed in v1.1.0 (BeautifulSoup uses built-in html.parser)
+    '--hidden-import=beautifulsoup4',
+    '--hidden-import=apprise',
+    '--hidden-import=PIL',
+    '--hidden-import=PIL.Image',
+    '--hidden-import=pkg_resources',
+    '--hidden-import=requests',
+    '--hidden-import=urllib3',
+
+    # Exclude unused modules (reduces size)
+    '--exclude-module=matplotlib',      # Not used
+    '--exclude-module=numpy',           # Not used
+    '--exclude-module=pandas',          # Not used
+    '--exclude-module=scipy',           # Not used
+    '--exclude-module=pytest',          # Dev dependency
+    '--exclude-module=unittest',        # Dev dependency
+    '--exclude-module=tkinter',         # GUI not used
+    '--exclude-module=IPython',         # Dev dependency
+    '--exclude-module=pygments',        # Optional
+    '--exclude-module=pydoc',           # Not used
+
+    # Optimization options
+    '--strip',                          # Remove debug symbols (smaller size)
+    '--noupx',                          # Don't use UPX compression (avoids antivirus false positives)
+
+    # Runtime options
+    '--runtime-tmpdir=.',               # Use local directory for temp files
+
+    # Workpath (where build files go) - absolute path
+    f'--workpath={os.path.join(PROJECT_ROOT, "build", "pyinstaller")}',
+
+    # Distpath (where output goes) - absolute path
+    f'--distpath={os.path.join(PROJECT_ROOT, "dist", "pyinstaller")}',
+]
+
+print("Step 2: Building Windows executable...")
+print("This may take several minutes...")
+print()
+
+try:
+    PyInstaller.__main__.run(options)
+
+    print()
+    print("Step 3: Creating batch file and cleaning up...")
+
+    output_dir = os.path.join(PROJECT_ROOT, 'dist', 'pyinstaller', 'Radio Monitor')
+
+    # Create the batch file
+    batch_content = """@echo off
+REM Radio Monitor Launcher
+REM This starts the application in the background (no console window)
+start "" /B "Radio Monitor.exe"
+REM Opens browser to the web interface
+timeout /t 2 /nobreak >nul
+start http://127.0.0.1:5000
+"""
+    batch_file = os.path.join(output_dir, 'Start Radio Monitor.bat')
+    with open(batch_file, 'w') as f:
+        f.write(batch_content)
+    print(f"  Created: {batch_file}")
+
+    # Remove debug batch file if it exists (non-functional in --noconsole mode)
+    debug_batch = os.path.join(output_dir, 'Start with Debug Console.bat')
+    if os.path.exists(debug_batch):
+        os.remove(debug_batch)
+        print(f"  Removed: {debug_batch} (non-functional in silent mode)")
+
+    print("  [OK] Batch file setup complete\n")
+
+    print("=" * 70)
+    print("[OK] Build complete!")
+    print("=" * 70)
+    print()
+    print(f"Output directory: {output_dir}")
+    print()
+    print("To run the application:")
+    print(f'  "{os.path.join("dist", "pyinstaller", "Radio Monitor", "Radio Monitor.exe")}"')
+    print(f'  Or double-click: Start Radio Monitor.bat')
+    print()
+    print("Viewing logs:")
+    print(f'  Open: radio_monitor.log (in exe folder)')
+    print()
+    print("Distribution:")
+    print("  1. Navigate to: dist/pyinstaller/")
+    print("  2. Zip the 'Radio Monitor' folder")
+    print("  3. Distribute the ZIP file")
+    print()
+    print("User installation:")
+    print("  1. Extract ZIP file")
+    print("  2. Double-click: Radio Monitor.exe or Start Radio Monitor.bat")
+    print()
+
+    # Calculate size
+    output_dir = os.path.join(PROJECT_ROOT, 'dist', 'pyinstaller', 'Radio Monitor')
+    if os.path.exists(output_dir):
+        total_size = 0
+        for dirpath, dirnames, filenames in os.walk(output_dir):
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                if os.path.exists(filepath):
+                    total_size += os.path.getsize(filepath)
+
+        size_mb = total_size / (1024 * 1024)
+        print(f"Total size: {size_mb:.1f} MB")
+        print()
+
+except Exception as e:
+    print()
+    print("=" * 70)
+    print("[X] Build failed!")
+    print("=" * 70)
+    print(f"Error: {e}")
+    print()
+    print("Common issues:")
+    print("  1. Missing icon.ico:")
+    print("     - Remove '--icon=pyinstaller/icon.ico' from options")
+    print("  2. Missing dependencies:")
+    print("     - Run: pip install -r requirements.txt")
+    print("  3. PyInstaller not installed:")
+    print("     - Run: pip install pyinstaller")
+    print()
+    sys.exit(1)

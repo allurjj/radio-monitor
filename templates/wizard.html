@@ -1,0 +1,894 @@
+{% extends "base_wizard.html" %}
+
+{% block title %}Setup Wizard - Radio Monitor 1.0{% endblock %}
+
+{% block custom_css %}
+<style>
+    .wizard-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .wizard-step {
+        display: none;
+    }
+
+    .wizard-step.active {
+        display: block;
+    }
+
+    .progress-indicator {
+        margin-bottom: 2rem;
+    }
+
+    .progress-indicator .step {
+        display: inline-block;
+        width: 40px;
+        height: 40px;
+        line-height: 40px;
+        text-align: center;
+        border-radius: 50%;
+        background-color: #dee2e6;
+        color: #6c757d;
+        margin: 0 10px;
+        font-weight: bold;
+    }
+
+    .progress-indicator .step.active {
+        background-color: #0d6efd;
+        color: white;
+    }
+
+    .progress-indicator .step.completed {
+        background-color: #198754;
+        color: white;
+    }
+
+    .connection-test {
+        margin-top: 0.5rem;
+    }
+
+    .test-result {
+        margin-top: 0.5rem;
+        padding: 0.75rem;
+        border-radius: 0.375rem;
+        display: none;
+    }
+
+    .test-result.success {
+        background-color: #d1e7dd;
+        color: #0f5132;
+        border: 1px solid #badbcc;
+    }
+
+    .test-result.error {
+        background-color: #f8d7da;
+        color: #842029;
+        border: 1px solid #f5c2c7;
+    }
+
+    .station-checkbox {
+        margin-right: 0.5rem;
+    }
+
+    .summary-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .summary-section h5 {
+        color: #6c757d;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .summary-section p {
+        font-size: 1.125rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .summary-section ul {
+        list-style: none;
+        padding-left: 0;
+    }
+
+    .summary-section li {
+        padding: 0.25rem 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <div class="text-center mb-4">
+        <h1><i class="bi bi-broadcast"></i> Radio Monitor 1.0</h1>
+        <p class="text-muted">Setup Wizard</p>
+    </div>
+
+    <!-- Progress Indicator -->
+    <div class="progress-indicator text-center">
+        <span class="step active" data-step="1">1</span>
+        <span class="step" data-step="2">2</span>
+        <span class="step" data-step="3">3</span>
+        <span class="step" data-step="4">4</span>
+        <span class="step" data-step="5">5</span>
+    </div>
+
+    <!-- Step 1: Welcome -->
+    <div class="wizard-step active" id="step1">
+        <div class="card card-standard">
+            <div class="card-body text-center py-5">
+                <h2>Welcome to Radio Monitor 1.0!</h2>
+                <p class="lead mb-4">
+                    Track radio airplay, import artists to Lidarr, and create Plex playlists automatically.
+                </p>
+                <p class="text-muted mb-4">
+                    This wizard will guide you through the initial setup process in just a few minutes.
+                </p>
+                <h5 class="mb-3">You'll need:</h5>
+                <ul class="list-unstyled mb-4">
+                    <li><i class="bi bi-check-circle text-success"></i> Lidarr URL and API key</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Plex URL and access token</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Radio stations to monitor</li>
+                </ul>
+                <button class="btn btn-primary btn-lg" onclick="nextStep(1)">
+                    Get Started <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Lidarr Configuration -->
+    <div class="wizard-step" id="step2">
+        <div class="card card-standard">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="bi bi-cloud-download"></i> Lidarr Configuration</h4>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    Configure your Lidarr connection. Radio artists will be automatically imported to Lidarr.
+                </p>
+
+                <form id="lidarr-form">
+                    <div class="mb-3">
+                        <label for="lidarr-url" class="form-label">Lidarr URL</label>
+                        <input type="url" class="form-control" id="lidarr-url"
+                               value="http://localhost:8686"
+                               placeholder="http://localhost:8686" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="lidarr-api-key" class="form-label">API Key</label>
+                        <input type="password" class="form-control" id="lidarr-api-key"
+                               placeholder="Your Lidarr API key" required>
+                        <div class="form-text">
+                            Find your API key in Lidarr: Settings → General → API Key
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="lidarr-root-folder" class="form-label">Root Folder</label>
+                        <select class="form-select" id="lidarr-root-folder" required>
+                            <option value="" disabled selected>Connect to Lidarr first...</option>
+                        </select>
+                        <div class="form-text">
+                            Select the root folder where Lidarr will store music
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="lidarr-quality-profile" class="form-label">Quality Profile</label>
+                                <select class="form-select" id="lidarr-quality-profile" required>
+                                    <option value="" disabled selected>Connect to Lidarr first...</option>
+                                </select>
+                                <div class="form-text">
+                                    Quality profile for imported music
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="lidarr-metadata-profile" class="form-label">Metadata Profile</label>
+                                <select class="form-select" id="lidarr-metadata-profile" required>
+                                    <option value="" disabled selected>Connect to Lidarr first...</option>
+                                </select>
+                                <div class="form-text">
+                                    Metadata profile for imported music
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="connection-test">
+                        <button type="button" class="btn btn-outline-primary" onclick="testLidarrConnection()">
+                            <i class="bi bi-wifi"></i> Test Connection
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary ms-2" onclick="alert('JavaScript is working!')">
+                            <i class="bi bi-bug"></i> Test JS
+                        </button>
+                        <div id="lidarr-test-result" class="test-result"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer d-flex justify-content-between">
+                <button class="btn btn-secondary" onclick="prevStep(2)">
+                    <i class="bi bi-arrow-left"></i> Back
+                </button>
+                <button class="btn btn-primary" id="step2-next" onclick="nextStep(2)" disabled>
+                    Next <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Plex Configuration -->
+    <div class="wizard-step" id="step3">
+        <div class="card card-standard">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="bi bi-music-note-list"></i> Plex Configuration</h4>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    Configure your Plex connection. Playlists will be automatically created from radio play data.
+                </p>
+
+                <form id="plex-form">
+                    <div class="mb-3">
+                        <label for="plex-url" class="form-label">Plex URL</label>
+                        <input type="url" class="form-control" id="plex-url"
+                               value="http://localhost:32400"
+                               placeholder="http://localhost:32400" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="plex-token" class="form-label">Plex Token</label>
+                        <input type="password" class="form-control" id="plex-token"
+                               placeholder="Your Plex access token" required>
+                        <div class="form-text">
+                            Get your token from <a href="https://plex.tv/api/v2/user" target="_blank">https://plex.tv/api/v2/user</a>
+                            (look for <code>authToken</code>)
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="plex-library" class="form-label">Music Library</label>
+                        <select class="form-select" id="plex-library" required>
+                            <option value="" disabled selected>Connect to Plex first...</option>
+                        </select>
+                        <div class="form-text">
+                            Select your Plex music library for playlists
+                        </div>
+                    </div>
+
+                    <div class="connection-test">
+                        <button type="button" class="btn btn-outline-primary" onclick="testPlexConnection()">
+                            <i class="bi bi-wifi"></i> Test Connection
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary ms-2" onclick="alert('JavaScript is working!')">
+                            <i class="bi bi-bug"></i> Test JS
+                        </button>
+                        <div id="plex-test-result" class="test-result"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer d-flex justify-content-between">
+                <button class="btn btn-secondary" onclick="prevStep(3)">
+                    <i class="bi bi-arrow-left"></i> Back
+                </button>
+                <button class="btn btn-primary" id="step3-next" onclick="nextStep(3)" disabled>
+                    Next <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 4: Monitor Settings -->
+    <div class="wizard-step" id="step4">
+        <div class="card card-standard">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="bi bi-broadcast"></i> Monitor Settings</h4>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    Configure how often to scrape and which stations to monitor.
+                </p>
+
+                <form id="monitor-form">
+                    <div class="mb-3">
+                        <label for="scrape-interval" class="form-label">Scrape Interval (minutes)</label>
+                        <input type="number" class="form-control" id="scrape-interval"
+                               value="10" min="1" max="60" required>
+                        <div class="form-text">
+                            How often to check for new songs (recommended: 10 minutes)
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Stations to Monitor</label>
+                        <div class="form-text mb-2">Select all stations you want to monitor:</div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input station-checkbox" type="checkbox"
+                                           id="station-wtmx" value="wtmx" checked>
+                                    <label class="form-check-label" for="station-wtmx">
+                                        WTMX 101.9fm Chicago (The Mix)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input station-checkbox" type="checkbox"
+                                           id="station-us99" value="us99" checked>
+                                    <label class="form-check-label" for="station-us99">
+                                        US99.5 Chicago (Country)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input station-checkbox" type="checkbox"
+                                           id="station-wls" value="wls" checked>
+                                    <label class="form-check-label" for="station-wls">
+                                        WLS 890am Chicago (Talk)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input station-checkbox" type="checkbox"
+                                           id="station-rock955" value="rock955" checked>
+                                    <label class="form-check-label" for="station-rock955">
+                                        Rock 95.5 Chicago
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input station-checkbox" type="checkbox"
+                                           id="station-q101" value="q101" checked>
+                                    <label class="form-check-label" for="station-q101">
+                                        Q101 Chicago (Alternative)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input station-checkbox" type="checkbox"
+                                           id="station-b96" value="b96" checked>
+                                    <label class="form-check-label" for="station-b96">
+                                        B96 Chicago (Pop/Hip-Hop)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input station-checkbox" type="checkbox"
+                                           id="station-wlite" value="wlite" checked>
+                                    <label class="form-check-label" for="station-wlite">
+                                        WLIT 93.9fm Chicago (Lite FM)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input station-checkbox" type="checkbox"
+                                           id="station-wiil" value="wiil" checked>
+                                    <label class="form-check-label" for="station-wiil">
+                                        WIIL 95.1fm Chicago (Rock)
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer d-flex justify-content-between">
+                <button class="btn btn-secondary" onclick="prevStep(4)">
+                    <i class="bi bi-arrow-left"></i> Back
+                </button>
+                <button class="btn btn-primary" onclick="nextStep(4)">
+                    Next <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 5: Ready to Start -->
+    <div class="wizard-step" id="step5">
+        <div class="card card-standard">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="bi bi-check-circle"></i> Ready to Start!</h4>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-4">
+                    Review your settings and start monitoring radio stations.
+                </p>
+
+                <div class="summary-section">
+                    <h5>Lidarr</h5>
+                    <p><strong>URL:</strong> <span id="summary-lidarr-url"></span></p>
+                    <p><strong>Root Folder:</strong> <span id="summary-lidarr-root"></span></p>
+                </div>
+
+                <div class="summary-section">
+                    <h5>Plex</h5>
+                    <p><strong>URL:</strong> <span id="summary-plex-url"></span></p>
+                    <p><strong>Music Library:</strong> <span id="summary-plex-library"></span></p>
+                </div>
+
+                <div class="summary-section">
+                    <h5>Monitor</h5>
+                    <p><strong>Scrape Interval:</strong> <span id="summary-interval"></span> minutes</p>
+                    <p><strong>Stations:</strong></p>
+                    <ul id="summary-stations">
+                    </ul>
+                </div>
+
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    After clicking "Start Monitoring", you can always change these settings in the Settings page.
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-between">
+                <button class="btn btn-secondary" onclick="prevStep(5)">
+                    <i class="bi bi-arrow-left"></i> Back
+                </button>
+                <button class="btn btn-success btn-lg" onclick="saveSettings()">
+                    <i class="bi bi-play-circle"></i> Start Monitoring
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="position-fixed top-0 start-0 w-100 h-100 bg-white bg-opacity-75 align-items-center justify-content-center" style="display: none !important; z-index: 9999;">
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3" id="loading-text">Testing connection...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block custom_js %}
+<script>
+// Current step
+let currentStep = 1;
+let lidarrTestPassed = false;
+let plexTestPassed = false;
+
+// Wizard data
+let wizardData = {
+    lidarr: {},
+    plex: {},
+    monitor: {}
+};
+
+function showStep(stepNum) {
+    // Hide all steps
+    document.querySelectorAll('.wizard-step').forEach(step => {
+        step.classList.remove('active');
+    });
+
+    // Show current step
+    document.getElementById(`step${stepNum}`).classList.add('active');
+
+    // Update progress indicator
+    document.querySelectorAll('.progress-indicator .step').forEach((step, index) => {
+        step.classList.remove('active', 'completed');
+        if (index + 1 < stepNum) {
+            step.classList.add('completed');
+        } else if (index + 1 === stepNum) {
+            step.classList.add('active');
+        }
+    });
+
+    currentStep = stepNum;
+}
+
+function nextStep(currentStepNum) {
+    // Validate current step before proceeding
+    if (currentStepNum === 2) {
+        // Validate Lidarr
+        const url = document.getElementById('lidarr-url').value.trim();
+        const apiKey = document.getElementById('lidarr-api-key').value.trim();
+        const rootFolder = document.getElementById('lidarr-root-folder').value.trim();
+
+        if (!url || !apiKey || !rootFolder) {
+            alert('Please fill in all required fields.');
+            return;
+        }
+
+        if (!lidarrTestPassed) {
+            alert('Please test your Lidarr connection before proceeding.');
+            return;
+        }
+
+        // Save data
+        wizardData.lidarr = {
+            url: url,
+            api_key: apiKey,
+            root_folder_path: rootFolder,
+            quality_profile_id: parseInt(document.getElementById('lidarr-quality-profile').value),
+            metadata_profile_id: parseInt(document.getElementById('lidarr-metadata-profile').value),
+            monitor_new_artists: true,
+            search_for_missing_albums: true
+        };
+    }
+
+    if (currentStepNum === 3) {
+        // Validate Plex
+        const url = document.getElementById('plex-url').value.trim();
+        const token = document.getElementById('plex-token').value.trim();
+        const library = document.getElementById('plex-library').value.trim();
+
+        if (!url || !token || !library) {
+            alert('Please fill in all required fields.');
+            return;
+        }
+
+        if (!plexTestPassed) {
+            alert('Please test your Plex connection before proceeding.');
+            return;
+        }
+
+        // Save data
+        wizardData.plex = {
+            url: url,
+            token: token,
+            music_library_name: library
+        };
+    }
+
+    if (currentStepNum === 4) {
+        // Validate Monitor
+        const interval = document.getElementById('scrape-interval').value;
+        const stations = [];
+
+        document.querySelectorAll('.station-checkbox:checked').forEach(checkbox => {
+            stations.push(checkbox.value);
+        });
+
+        if (stations.length === 0) {
+            alert('Please select at least one station to monitor.');
+            return;
+        }
+
+        // Save data
+        wizardData.monitor = {
+            database_file: 'radio_songs.db',
+            scrape_interval_minutes: parseInt(interval),
+            stations: stations
+        };
+
+        // Update summary
+        document.getElementById('summary-lidarr-url').textContent = wizardData.lidarr.url;
+        document.getElementById('summary-lidarr-root').textContent = wizardData.lidarr.root_folder_path;
+        document.getElementById('summary-plex-url').textContent = wizardData.plex.url;
+        document.getElementById('summary-plex-library').textContent = wizardData.plex.music_library_name;
+        document.getElementById('summary-interval').textContent = wizardData.monitor.scrape_interval_minutes;
+
+        const stationsList = document.getElementById('summary-stations');
+        stationsList.innerHTML = '';
+        wizardData.monitor.stations.forEach(station => {
+            const li = document.createElement('li');
+            li.textContent = station;
+            stationsList.appendChild(li);
+        });
+    }
+
+    // Proceed to next step
+    showStep(currentStepNum + 1);
+}
+
+function prevStep(currentStepNum) {
+    showStep(currentStepNum - 1);
+}
+
+function showLoading(message) {
+    const overlay = document.getElementById('loading-overlay');
+    document.getElementById('loading-text').textContent = message;
+    overlay.style.setProperty('display', 'flex', 'important');
+}
+
+function hideLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    overlay.style.setProperty('display', 'none', 'important');
+}
+
+async function testLidarrConnection() {
+    const url = document.getElementById('lidarr-url').value.trim();
+    const apiKey = document.getElementById('lidarr-api-key').value.trim();
+
+    if (!url || !apiKey) {
+        alert('Please enter URL and API key first.');
+        return;
+    }
+
+    console.log('Starting Lidarr connection test...');
+    showLoading('Testing Lidarr connection...');
+
+    // Add timeout to the fetch request
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+        console.log('Fetch timeout triggered');
+        controller.abort();
+    }, 15000); // 15 second timeout
+
+    // Safety fallback - always hide loading after 20 seconds
+    const safetyTimeoutId = setTimeout(() => {
+        console.log('Safety timeout triggered - forcing hideLoading');
+        hideLoading();
+        const resultDiv = document.getElementById('lidarr-test-result');
+        resultDiv.textContent = 'Request timeout - Please check your network connection';
+        resultDiv.className = 'test-result error';
+        resultDiv.style.display = 'block';
+    }, 20000);
+
+    try {
+        console.log('Sending fetch request...');
+        const response = await fetch('/api/wizard/test/lidarr', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: url,
+                api_key: apiKey
+            }),
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        clearTimeout(safetyTimeoutId);
+        console.log('Got response:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('Response data:', data);
+        const resultDiv = document.getElementById('lidarr-test-result');
+
+        if (data.success) {
+            resultDiv.textContent = data.message;
+            resultDiv.className = 'test-result success';
+            resultDiv.style.display = 'block';
+            lidarrTestPassed = true;
+            document.getElementById('step2-next').disabled = false;
+
+            // Auto-fill form fields from Lidarr configuration
+            console.log('Checking for auto-fill data...');
+            console.log('Response keys:', Object.keys(data));
+            console.log('root_folders:', data.root_folders);
+            console.log('quality_profiles:', data.quality_profiles);
+            console.log('metadata_profiles:', data.metadata_profiles);
+
+            let autoFilledSomething = false;
+
+            // Populate root folder dropdown
+            if (data.root_folders && data.root_folders.length > 0) {
+                const rootFolderSelect = document.getElementById('lidarr-root-folder');
+                rootFolderSelect.innerHTML = ''; // Clear existing options
+
+                data.root_folders.forEach(folder => {
+                    const option = document.createElement('option');
+                    option.value = folder.path;
+                    // Show free space if available
+                    const freeSpace = folder.freeSpace ? ` (${folder.freeSpace})` : '';
+                    option.textContent = `${folder.path}${freeSpace}`;
+                    if (folder.path === data.default_root_folder) {
+                        option.selected = true;
+                    }
+                    rootFolderSelect.appendChild(option);
+                });
+                console.log('Populated root folder dropdown with', data.root_folders.length, 'options');
+                autoFilledSomething = true;
+            }
+
+            // Populate quality profile dropdown
+            if (data.quality_profiles && data.quality_profiles.length > 0) {
+                const qualitySelect = document.getElementById('lidarr-quality-profile');
+                qualitySelect.innerHTML = ''; // Clear existing options
+
+                data.quality_profiles.forEach(profile => {
+                    const option = document.createElement('option');
+                    option.value = profile.id;
+                    option.textContent = profile.name;
+                    if (profile.id === data.default_quality_profile) {
+                        option.selected = true;
+                    }
+                    qualitySelect.appendChild(option);
+                });
+                console.log('Populated quality profile dropdown with', data.quality_profiles.length, 'options');
+                autoFilledSomething = true;
+            }
+
+            // Populate metadata profile dropdown
+            if (data.metadata_profiles && data.metadata_profiles.length > 0) {
+                const metadataSelect = document.getElementById('lidarr-metadata-profile');
+                metadataSelect.innerHTML = ''; // Clear existing options
+
+                data.metadata_profiles.forEach(profile => {
+                    const option = document.createElement('option');
+                    option.value = profile.id;
+                    option.textContent = profile.name;
+                    if (profile.id === data.default_metadata_profile) {
+                        option.selected = true;
+                    }
+                    metadataSelect.appendChild(option);
+                });
+                console.log('Populated metadata profile dropdown with', data.metadata_profiles.length, 'options');
+                autoFilledSomething = true;
+            }
+
+            // Show success message with auto-fill info
+            if (autoFilledSomething) {
+                resultDiv.textContent = data.message + ' - Configuration loaded automatically!';
+            }
+        } else {
+            resultDiv.textContent = data.message;
+            resultDiv.className = 'test-result error';
+            resultDiv.style.display = 'block';
+            lidarrTestPassed = false;
+            document.getElementById('step2-next').disabled = true;
+        }
+    } catch (error) {
+        clearTimeout(timeoutId);
+        clearTimeout(safetyTimeoutId);
+        console.error('Error in testLidarrConnection:', error);
+        const resultDiv = document.getElementById('lidarr-test-result');
+
+        let errorMessage = 'Error: ';
+        if (error.name === 'AbortError') {
+            errorMessage += 'Connection timeout (15s). Check if Lidarr is running.';
+        } else {
+            errorMessage += error.message;
+        }
+
+        resultDiv.textContent = errorMessage;
+        resultDiv.className = 'test-result error';
+        resultDiv.style.display = 'block';
+        lidarrTestPassed = false;
+        document.getElementById('step2-next').disabled = true;
+    } finally {
+        clearTimeout(safetyTimeoutId);
+        console.log('Finally block - hiding loading');
+        hideLoading();
+    }
+}
+
+async function testPlexConnection() {
+    const url = document.getElementById('plex-url').value.trim();
+    const token = document.getElementById('plex-token').value.trim();
+
+    if (!url || !token) {
+        alert('Please enter URL and token first.');
+        return;
+    }
+
+    console.log('Starting Plex connection test...');
+    showLoading('Testing Plex connection...');
+
+    // Add timeout to the fetch request
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+        console.log('Fetch timeout triggered');
+        controller.abort();
+    }, 15000); // 15 second timeout
+
+    // Safety fallback - always hide loading after 20 seconds
+    const safetyTimeoutId = setTimeout(() => {
+        console.log('Safety timeout triggered - forcing hideLoading');
+        hideLoading();
+        const resultDiv = document.getElementById('plex-test-result');
+        resultDiv.textContent = 'Request timeout - Please check your network connection';
+        resultDiv.className = 'test-result error';
+        resultDiv.style.display = 'block';
+    }, 20000);
+
+    try {
+        console.log('Sending fetch request...');
+        const response = await fetch('/api/wizard/test/plex', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: url,
+                token: token
+            }),
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        clearTimeout(safetyTimeoutId);
+        console.log('Got response:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('Response data:', data);
+        const resultDiv = document.getElementById('plex-test-result');
+
+        if (data.success) {
+            resultDiv.textContent = data.message;
+            resultDiv.className = 'test-result success';
+            resultDiv.style.display = 'block';
+            plexTestPassed = true;
+            document.getElementById('step3-next').disabled = false;
+
+            // Populate Plex library dropdown
+            if (data.libraries && data.libraries.length > 0) {
+                const librarySelect = document.getElementById('plex-library');
+                librarySelect.innerHTML = ''; // Clear existing options
+
+                data.libraries.forEach(lib => {
+                    const option = document.createElement('option');
+                    option.value = lib.name;
+                    option.textContent = lib.name;  // All are music libraries
+                    if (lib.name === data.default_library) {
+                        option.selected = true;
+                    }
+                    librarySelect.appendChild(option);
+                });
+                console.log('Populated Plex library dropdown with', data.libraries.length, 'options');
+                resultDiv.textContent = data.message + ' - Libraries loaded automatically!';
+            }
+        } else {
+            resultDiv.textContent = data.message;
+            resultDiv.className = 'test-result error';
+            resultDiv.style.display = 'block';
+            plexTestPassed = false;
+            document.getElementById('step3-next').disabled = true;
+        }
+    } catch (error) {
+        clearTimeout(timeoutId);
+        clearTimeout(safetyTimeoutId);
+        console.error('Error in testPlexConnection:', error);
+        const resultDiv = document.getElementById('plex-test-result');
+
+        let errorMessage = 'Error: ';
+        if (error.name === 'AbortError') {
+            errorMessage += 'Connection timeout (15s). Check if Plex is running.';
+        } else {
+            errorMessage += error.message;
+        }
+
+        resultDiv.textContent = errorMessage;
+        resultDiv.className = 'test-result error';
+        resultDiv.style.display = 'block';
+        plexTestPassed = false;
+        document.getElementById('step3-next').disabled = true;
+    } finally {
+        clearTimeout(safetyTimeoutId);
+        console.log('Finally block - hiding loading');
+        hideLoading();
+    }
+}
+
+async function saveSettings() {
+    showLoading('Saving settings...');
+
+    try {
+        const response = await fetch('/api/wizard/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(wizardData)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('Settings saved successfully! Redirecting to dashboard...');
+            window.location.href = '/';
+        } else {
+            alert('Error saving settings: ' + data.message);
+            hideLoading();
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+        hideLoading();
+    }
+}
+</script>
+{% endblock %}

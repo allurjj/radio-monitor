@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Radio Monitor 1.0{% endblock %}</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+
+    <!-- Sidebar CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/sidebar.css') }}">
+
+    <!-- UI Polish CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-polish.css') }}">
+
+    <!-- Theme System CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/typography.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}">
+
+    <!-- Phase 7 Enhancement CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/empty-state.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/skeleton.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/toast.css') }}">
+
+    <!-- Prevent theme flash - apply theme before page renders -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+
+    {% block extra_css %}{% endblock %}
+
+    <style>
+        {% block custom_css %}{% endblock %}
+    </style>
+</head>
+<body>
+    <!-- Restart Required Banner (hidden by default) -->
+    <div id="restart-banner" class="alert alert-warning alert-dismissible m-0 rounded-0"
+         role="alert" style="display: none;">
+        <div class="d-flex align-items-start">
+            <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+            <div class="flex-grow-1">
+                <strong>Restart Required</strong>
+                <div id="restart-reasons" class="mt-1 mb-2">
+                    <!-- Reasons will be inserted here -->
+                </div>
+                <p class="mb-2">
+                    Some changes require restarting the application to take effect.
+                    Please restart Radio Monitor.
+                </p>
+                <button type="button" class="btn btn-sm btn-warning me-2"
+                        onclick="showRestartInstructions()">
+                    <i class="bi bi-info-circle"></i> How to Restart
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-warning"
+                        onclick="dismissRestartBanner()">
+                    Dismiss
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex" id="wrapper">
+        <!-- Sidebar -->
+        <div id="sidebar-wrapper">
+            <div class="sidebar-branding">
+                <div class="sidebar-logo">
+                    <i class="bi bi-broadcast"></i>
+                </div>
+                <div class="sidebar-title">
+                    <span class="app-name">Radio Monitor</span>
+                    <span class="version">1.0</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Monitoring</div>
+                    <a href="/" class="nav-link {% if request.endpoint == 'dashboard.dashboard' %}active{% endif %}">
+                        <i class="bi bi-speedometer2"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="/monitor" class="nav-link {% if request.endpoint == 'monitor.monitor_page' %}active{% endif %}">
+                        <i class="bi bi-play-circle"></i>
+                        <span>Monitor</span>
+                    </a>
+                    <a href="/charts" class="nav-link {% if request.endpoint == 'dashboard.charts' %}active{% endif %}">
+                        <i class="bi bi-graph-up"></i>
+                        <span>Charts</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Library</div>
+                    <a href="/artists" class="nav-link {% if request.endpoint and 'artist' in request.endpoint %}active{% endif %}">
+                        <i class="bi bi-person"></i>
+                        <span>Artists</span>
+                    </a>
+                    <a href="/songs" class="nav-link {% if request.endpoint and 'song' in request.endpoint %}active{% endif %}">
+                        <i class="bi bi-music-note"></i>
+                        <span>Songs</span>
+                    </a>
+                    <a href="/stations" class="nav-link {% if request.endpoint and 'station' in request.endpoint %}active{% endif %}">
+                        <i class="bi bi-broadcast-pin"></i>
+                        <span>Stations</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Integrations</div>
+                    <a href="/lidarr" class="nav-link {% if request.endpoint == 'lidarr.lidarr_page' %}active{% endif %}">
+                        <i class="bi bi-cloud-download"></i>
+                        <span>Lidarr</span>
+                    </a>
+                    <a href="/plex" class="nav-link {% if request.endpoint == 'plex.plex_page' %}active{% endif %}">
+                        <i class="bi bi-music-note-list"></i>
+                        <span>Plex</span>
+                    </a>
+                    <a href="/ai-playlists" class="nav-link {% if request.endpoint and 'ai_playlists' in request.endpoint %}active{% endif %}">
+                        <i class="bi bi-magic"></i>
+                        <span>AI Playlists</span>
+                        <span class="badge bg-danger ms-auto" style="font-size: 0.65rem;">Experimental</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">System</div>
+                    <a href="/activity" class="nav-link {% if request.endpoint == 'activity.activity_page' %}active{% endif %}">
+                        <i class="bi bi-clock-history"></i>
+                        <span>Activity</span>
+                    </a>
+                    <a href="/logs" class="nav-link {% if request.endpoint and 'logs' in request.endpoint %}active{% endif %}">
+                        <i class="bi bi-file-text"></i>
+                        <span>Logs</span>
+                    </a>
+                    <a href="/settings" class="nav-link {% if request.endpoint == 'settings_routes.settings_page' %}active{% endif %}">
+                        <i class="bi bi-gear"></i>
+                        <span>Settings</span>
+                    </a>
+                    <a href="#" data-bs-toggle="modal" data-bs-target="#authModal" class="nav-link">
+                        <i class="bi bi-shield-lock"></i>
+                        <span>Authentication</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Notifications</div>
+                    <a href="/notifications" class="nav-link {% if request.endpoint and 'notifications' in request.endpoint %}active{% endif %}">
+                        <i class="bi bi-bell"></i>
+                        <span>Notifications</span>
+                    </a>
+                    <a href="/plex-failures" class="nav-link {% if request.endpoint and 'plex_failures' in request.endpoint %}active{% endif %}">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <span>Plex Failures</span>
+                    </a>
+                </div>
+            </nav>
+        </div>
+        <!-- /#sidebar-wrapper -->
+
+        <!-- Page Content -->
+        <div id="page-content-wrapper">
+            <!-- Top Bar -->
+            <nav class="navbar navbar-light bg-white border-bottom">
+                <div class="container-fluid">
+                    <button class="btn btn-link" id="sidebar-toggle">
+                        <i class="bi bi-list"></i>
+                    </button>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <!-- Search -->
+                        <div class="search-box">
+                            <input type="text" class="form-control" placeholder="Search (Ctrl+K)" id="global-search">
+                            <i class="bi bi-search"></i>
+                        </div>
+
+                        <!-- Theme Toggle Button -->
+                        <button class="btn btn-link" id="theme-toggle" title="Toggle theme (Light/Dark)">
+                            <i class="bi bi-sun-fill" id="theme-icon"></i>
+                        </button>
+
+                        <!-- Status Icons -->
+                        <div class="topbar-status-icons ms-3">
+                            <div class="status-icon" id="status-monitor" title="Monitor Status">
+                                <i class="bi bi-activity"></i>
+                                <span class="status-dot online"></span>
+                            </div>
+                            <div class="status-icon" id="status-lidarr" title="Lidarr Status">
+                                <i class="bi bi-disc"></i>
+                                <span class="status-dot online"></span>
+                            </div>
+                            <div class="status-icon" id="status-plex" title="Plex Status">
+                                <i class="bi bi-play-circle"></i>
+                                <span class="status-dot online"></span>
+                            </div>
+                            <div class="status-icon" id="status-scraper" title="Scraper Status">
+                                <i class="bi bi-broadcast"></i>
+                                <span class="status-dot warning"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="container-fluid">
+                {% block content %}{% endblock %}
+            </main>
+
+            <!-- Footer -->
+            <footer class="bg-light border-top mt-auto">
+                <div class="container-fluid py-3">
+                    <div class="row align-items-center">
+                        <div class="col-md-6 text-center text-md-start">
+                            <small class="text-muted">
+                                Radio Monitor 1.0 | <a href="https://github.com/yourusername/radio-monitor" target="_blank">GitHub</a>
+                            </small>
+                        </div>
+                        <div class="col-md-6 text-center text-md-end">
+                            <small class="text-muted" id="system-uptime">Loading uptime...</small>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+        <!-- /#page-content-wrapper -->
+    </div>
+    <!-- /#wrapper -->
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <style>
+    /* Search results dropdown styles */
+    #search-results-dropdown {
+        min-width: 300px;
+        max-width: 500px;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        border: 1px solid rgba(0, 0, 0, 0.15);
+    }
+
+    #search-results-dropdown .dropdown-header {
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: #6c757d;
+        padding: 0.5rem 1rem;
+    }
+
+    #search-results-dropdown .dropdown-item {
+        padding: 0.5rem 1rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    #search-results-dropdown .dropdown-item:hover {
+        background-color: #f8f9fa;
+    }
+    </style>
+    </script>
+
+    <!-- Global Status Checking -->
+    <script>
+    // Check monitor status
+    function checkMonitorStatus() {
+        fetch('/api/monitor/status')
+            .then(response => response.json())
+            .then(data => {
+                const statusText = document.getElementById('sidebar-status-text');
+                const statusIndicator = document.getElementById('sidebar-status-indicator');
+                if (!statusText || !statusIndicator) return;
+
+                if (data.error) {
+                    statusText.textContent = 'Error';
+                    statusIndicator.className = 'status-indicator offline';
+                } else if (data.running) {
+                    statusText.textContent = 'Running';
+                    statusIndicator.className = 'status-indicator online';
+                } else {
+                    statusText.textContent = 'Stopped';
+                    statusIndicator.className = 'status-indicator offline';
+                }
+            })
+            .catch(error => {
+                console.error('Error checking monitor status:', error);
+                const statusText = document.getElementById('sidebar-status-text');
+                const statusIndicator = document.getElementById('sidebar-status-indicator');
+                if (statusText) statusText.textContent = 'Error';
+                if (statusIndicator) statusIndicator.className = 'status-indicator offline';
+            });
+    }
+
+    // Check system uptime
+    function checkSystemUptime() {
+        fetch('/api/system/status')
+            .then(response => response.json())
+            .then(data => {
+                const uptimeElement = document.getElementById('system-uptime');
+                if (uptimeElement && data.uptime) {
+                    uptimeElement.textContent = 'Uptime: ' + data.uptime;
+                }
+            })
+            .catch(error => console.error('Error checking system status:', error));
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check status immediately
+        checkMonitorStatus();
+        checkSystemUptime();
+
+        // Check every 30 seconds
+        setInterval(checkMonitorStatus, 30000);
+        setInterval(checkSystemUptime, 60000);
+
+        // Sidebar toggle
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        const wrapper = document.getElementById('wrapper');
+
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', function(e) {
+                e.preventDefault();
+                wrapper.classList.toggle('toggled');
+            });
+        }
+
+        // Global search keyboard shortcut (Ctrl+K)
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                const searchInput = document.getElementById('global-search');
+                if (searchInput) {
+                    searchInput.focus();
+                }
+            }
+        });
+
+        // Global search functionality
+        const searchInput = document.getElementById('global-search');
+        if (searchInput) {
+            let searchTimeout;
+            let searchResultsDropdown = null;
+
+            searchInput.addEventListener('input', function(e) {
+                clearTimeout(searchTimeout);
+                const query = e.target.value.trim();
+
+                if (query.length < 2) {
+                    // Hide dropdown if query is too short
+                    if (searchResultsDropdown) {
+                        searchResultsDropdown.remove();
+                        searchResultsDropdown = null;
+                    }
+                    return;
+                }
+
+                searchTimeout = setTimeout(function() {
+                    performGlobalSearch(query, searchInput);
+                }, 300); // Debounce
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                if (searchResultsDropdown && !searchInput.contains(e.target) && !searchResultsDropdown.contains(e.target)) {
+                    searchResultsDropdown.remove();
+                    searchResultsDropdown = null;
+                }
+            });
+        }
+    });
+
+    // Global search function
+    function performGlobalSearch(query, inputElement) {
+        fetch(`/api/search?q=${encodeURIComponent(query)}&limit=5`)
+            .then(response => response.json())
+            .then(data => {
+                displaySearchResults(data, inputElement);
+            })
+            .catch(error => {
+                console.error('Error performing search:', error);
+            });
+    }
+
+    function displaySearchResults(data, inputElement) {
+        // Remove existing dropdown
+        const existingDropdown = document.getElementById('search-results-dropdown');
+        if (existingDropdown) {
+            existingDropdown.remove();
+        }
+
+        if (!data.results || data.total === 0) {
+            return;
+        }
+
+        // Create dropdown
+        const dropdown = document.createElement('div');
+        dropdown.id = 'search-results-dropdown';
+        dropdown.className = 'dropdown-menu show';
+        dropdown.style.position = 'absolute';
+        dropdown.style.top = '100%';
+        dropdown.style.left = '0';
+        dropdown.style.right = '0';
+        dropdown.style.maxHeight = '400px';
+        dropdown.style.overflowY = 'auto';
+        dropdown.style.zIndex = '1000';
+
+        let hasResults = false;
+
+        // Artists
+        if (data.results.artists && data.results.artists.length > 0) {
+            hasResults = true;
+            const section = document.createElement('div');
+            section.innerHTML = '<h6 class="dropdown-header">Artists</h6>';
+            dropdown.appendChild(section);
+
+            data.results.artists.forEach(artist => {
+                const item = document.createElement('a');
+                item.className = 'dropdown-item';
+                item.href = artist.url;
+                item.innerHTML = `<i class="bi bi-person me-2"></i>${artist.name} <small class="text-muted">(${artist.song_count} songs)</small>`;
+                dropdown.appendChild(item);
+            });
+        }
+
+        // Songs
+        if (data.results.songs && data.results.songs.length > 0) {
+            hasResults = true;
+            const section = document.createElement('div');
+            section.innerHTML = '<h6 class="dropdown-header">Songs</h6>';
+            dropdown.appendChild(section);
+
+            data.results.songs.forEach(song => {
+                const item = document.createElement('a');
+                item.className = 'dropdown-item';
+                item.href = song.url;
+                item.innerHTML = `<i class="bi bi-music-note me-2"></i>${song.title} <small class="text-muted">by ${song.artist}</small>`;
+                dropdown.appendChild(item);
+            });
+        }
+
+        // Stations
+        if (data.results.stations && data.results.stations.length > 0) {
+            hasResults = true;
+            const section = document.createElement('div');
+            section.innerHTML = '<h6 class="dropdown-header">Stations</h6>';
+            dropdown.appendChild(section);
+
+            data.results.stations.forEach(station => {
+                const item = document.createElement('a');
+                item.className = 'dropdown-item';
+                item.href = station.url;
+                item.innerHTML = `<i class="bi bi-broadcast me-2"></i>${station.name} <small class="text-muted">(${station.genre || 'N/A'})</small>`;
+                dropdown.appendChild(item);
+            });
+        }
+
+        // Playlists
+        if (data.results.playlists && data.results.playlists.length > 0) {
+            hasResults = true;
+            const section = document.createElement('div');
+            section.innerHTML = '<h6 class="dropdown-header">Playlists</h6>';
+            dropdown.appendChild(section);
+
+            data.results.playlists.forEach(playlist => {
+                const item = document.createElement('a');
+                item.className = 'dropdown-item';
+                item.href = playlist.url;
+                const icon = playlist.is_auto ? 'bi-list-stars' : 'bi-list-ul';
+                item.innerHTML = `<i class="bi ${icon} me-2"></i>${playlist.name}`;
+                dropdown.appendChild(item);
+            });
+        }
+
+        if (hasResults) {
+            // Add to parent of input
+            inputElement.parentElement.style.position = 'relative';
+            inputElement.parentElement.appendChild(dropdown);
+        }
+    }
+    </script>
+
+    <!-- UI Polish Components -->
+    <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/loading.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/keyboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/confirm.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/performance.js') }}"></script>
+
+    <!-- Theme System JavaScript -->
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+
+    <!-- Sidebar Status Updates -->
+    <script src="{{ url_for('static', filename='js/sidebar-status.js') }}"></script>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Authentication Modal -->
+    <div class="modal fade" id="authModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-shield-lock"></i> Authentication</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="auth-status-loading" class="text-center">
+                        <div class="spinner-border" role="status"></div>
+                        <p class="mt-2">Loading authentication status...</p>
+                    </div>
+
+                    <div id="auth-status-content" style="display: none;">
+                        <!-- Auth Disabled State -->
+                        <div id="auth-disabled" style="display: none;">
+                            <p class="text-muted">Authentication is currently disabled.</p>
+                            <p class="text-info">
+                                <i class="bi bi-info-circle"></i>
+                                Enable authentication to protect your Radio Monitor with a password.
+                            </p>
+                            <div class="alert alert-warning">
+                                <strong>Warning:</strong> Without authentication, anyone on your network
+                                can access your Radio Monitor and change settings.
+                            </div>
+                            <button type="button" class="btn btn-primary w-100" onclick="enableAuth()">
+                                <i class="bi bi-shield-plus"></i> Enable Authentication
+                            </button>
+                        </div>
+
+                        <!-- Auth Enabled State -->
+                        <div id="auth-enabled" style="display: none;">
+                            <p class="text-success">
+                                <i class="bi bi-shield-check"></i>
+                                Authentication is enabled for user: <strong id="auth-username"></strong>
+                            </p>
+
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-outline-primary w-100 mb-2" onclick="changePassword()">
+                                    <i class="bi bi-key"></i> Change Password
+                                </button>
+                                <button type="button" class="btn btn-outline-danger w-100" onclick="disableAuth()">
+                                    <i class="bi bi-shield-x"></i> Disable Authentication
+                                </button>
+                            </div>
+
+                            <div class="alert alert-info mb-0">
+                                <small>
+                                    <i class="bi bi-info-circle"></i>
+                                    <strong>Password Recovery:</strong> If you forget your password,
+                                    delete <code>radio_monitor_auth.json</code> and restart the app.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div class="modal fade" id="changePasswordModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-key"></i> Change Password</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="change-password-form">
+                        <div class="mb-3">
+                            <label for="current-password" class="form-label">Current Password</label>
+                            <input type="password" class="form-control" id="current-password" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="new-password" class="form-label">New Password</label>
+                            <input type="password" class="form-control" id="new-password"
+                                   required minlength="8">
+                            <div class="form-text">Must be at least 8 characters</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirm-new-password" class="form-label">Confirm New Password</label>
+                            <input type="password" class="form-control" id="confirm-new-password"
+                                   required minlength="8">
+                        </div>
+                        <div id="password-result" style="display: none;"></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="submitChangePassword()">
+                        Change Password
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Restart Instructions Modal -->
+    <div class="modal fade" id="restartInstructionsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-arrow-counterclockwise"></i> How to Restart
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>Option 1: Command Line</h6>
+                    <ol>
+                        <li>Go to the terminal/command prompt running Radio Monitor</li>
+                        <li>Press <kbd>Ctrl+C</kbd> to stop the application</li>
+                        <li>Type <code>python -m radio_monitor.cli --gui</code> and press Enter</li>
+                    </ol>
+
+                    <h6 class="mt-3">Option 2: Service (Linux)</h6>
+                    <ol>
+                        <li>Run: <code>sudo systemctl restart radio-monitor</code></li>
+                    </ol>
+
+                    <h6 class="mt-3">Option 3: Windows Service</h6>
+                    <ol>
+                        <li>Open Services (Run: <code>services.msc</code>)</li>
+                        <li>Find "Radio Monitor" service</li>
+                        <li>Right-click → Restart</li>
+                    </ol>
+
+                    <div class="alert alert-info mt-3">
+                        <small>
+                            <i class="bi bi-info-circle"></i>
+                            After restarting, reconnect to the new address if you changed
+                            the host or port setting.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% block extra_js %}{% endblock %}
+    {% block custom_js %}{% endblock %}
+
+    <!-- Authentication & Restart Warning JavaScript -->
+    <script>
+    // ========== Restart Warning Banner ==========
+    // Check if restart is required on page load
+    document.addEventListener("DOMContentLoaded", function() {
+        // Check localStorage for restart flag
+        const restartRequired = localStorage.getItem("restart_required");
+
+        if (restartRequired === "true") {
+            showRestartBanner();
+
+            // Load reasons from localStorage
+            const reasons = JSON.parse(localStorage.getItem("restart_reasons")) || "[]";
+            const reasonsDiv = document.getElementById("restart-reasons");
+
+            if (reasons.length > 0) {
+                var reasonsHtml = reasons.map(function(r) { return "<li>" + r + "</li>"; }).join("");
+                reasonsDiv.innerHTML = "<strong>Reasons:</strong><ul class=\"mb-0 mt-1\">" + reasonsHtml + "</ul>";
+            } else {
+                reasonsDiv.innerHTML = "";
+            }
+        }
+    });
+
+    function showRestartBanner() {
+        const banner = document.getElementById("restart-banner");
+        banner.style.display = "block";
+
+        // Auto-scroll to top
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function dismissRestartBanner() {
+        // Hide the banner
+        const banner = document.getElementById("restart-banner");
+        banner.style.display = "none";
+
+        // Clear the localStorage flag so it doesn't show again
+        localStorage.removeItem("restart_required");
+        localStorage.removeItem("restart_reasons");
+    }
+
+    function showRestartInstructions() {
+        const modal = new bootstrap.Modal(document.getElementById("restartInstructionsModal"));
+        modal.show();
+    }
+
+    // ========== Authentication Modals ==========
+    // Authentication modal JavaScript
+    document.getElementById("authModal").addEventListener("shown.bs.modal", loadAuthStatus);
+
+    function loadAuthStatus() {
+        document.getElementById("auth-status-loading").style.display = "block";
+        document.getElementById("auth-status-content").style.display = "none";
+
+        fetch("/api/auth/status")
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("auth-status-loading").style.display = "none";
+                document.getElementById("auth-status-content").style.display = "block";
+
+                if (data.enabled) {
+                    document.getElementById("auth-enabled").style.display = "block";
+                    document.getElementById("auth-disabled").style.display = "none";
+                    document.getElementById("auth-username").textContent = data.username;
+                } else {
+                    document.getElementById("auth-enabled").style.display = "none";
+                    document.getElementById("auth-disabled").style.display = "block";
+                }
+            })
+            .catch(error => {
+                console.error("Error loading auth status:", error);
+                document.getElementById("auth-status-loading").innerHTML =
+                    "<div class=\"alert alert-danger\">Error loading authentication status</div>";
+            });
+    }
+
+    function enableAuth() {
+        window.location.href = "/auth/setup";
+    }
+
+    function disableAuth() {
+        if (!confirm("Are you sure you want to disable authentication?\\n\\n" +
+                    "Anyone on your network will be able to access Radio Monitor.")) {
+            return;
+        }
+
+        fetch("/api/auth/disable", { method: "POST" })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reload auth status
+                    loadAuthStatus();
+                } else {
+                    alert("Error: " + data.message);
+                }
+            })
+            .catch(error => {
+                alert("Error: " + error.message);
+            });
+    }
+
+    function changePassword() {
+        bootstrap.Modal.getInstance(document.getElementById("authModal")).hide();
+        const modal = new bootstrap.Modal(document.getElementById("changePasswordModal"));
+        modal.show();
+    }
+
+    function submitChangePassword() {
+        const current = document.getElementById("current-password").value;
+        const newPassword = document.getElementById("new-password").value;
+        const confirm = document.getElementById("confirm-new-password").value;
+        const resultDiv = document.getElementById("password-result");
+
+        if (newPassword !== confirm) {
+            resultDiv.innerHTML = "<div class=\"alert alert-danger\">Passwords do not match</div>";
+            resultDiv.style.display = "block";
+            return;
+        }
+
+        if (newPassword.length < 8) {
+            resultDiv.innerHTML = "<div class=\"alert alert-danger\">Password must be at least 8 characters</div>";
+            resultDiv.style.display = "block";
+            return;
+        }
+
+        resultDiv.innerHTML = "<div class=\"spinner-border spinner-border-sm\"></div>";
+        resultDiv.style.display = "block";
+
+        fetch("/api/auth/change-password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                current_password: current,
+                new_password: newPassword
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                resultDiv.innerHTML = "<div class=\"alert alert-success\">" + data.message + "</div>";
+                setTimeout(() => {
+                    bootstrap.Modal.getInstance(document.getElementById("changePasswordModal")).hide();
+                    document.getElementById("change-password-form").reset();
+                    resultDiv.style.display = "none";
+                }, 2000);
+            } else {
+                resultDiv.innerHTML = "<div class=\"alert alert-danger\">" + data.message + "</div>";
+            }
+        })
+        .catch(error => {
+            resultDiv.innerHTML = "<div class=\"alert alert-danger\">Error: " + error.message + "</div>";
+        });
+    }
+    </script>
+</body>
+</html>

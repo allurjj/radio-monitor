@@ -1,0 +1,489 @@
+{% extends "base_sidebar.html" %}
+
+{% block title %}Songs - Radio Monitor 1.0{% endblock %}
+
+{% block custom_css %}
+<style>
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 25px !important;
+    transition: background-color 0.15s ease;
+}
+
+.sortable:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.sort-indicator {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.3;
+    font-size: 0.8em;
+    transition: opacity 0.2s ease;
+}
+
+.sorted-asc .sort-indicator::after {
+    content: '▲';
+    opacity: 1;
+}
+
+.sorted-desc .sort-indicator::after {
+    content: '▼';
+    opacity: 1;
+}
+
+.sorted-asc .sort-indicator::after,
+.sorted-desc .sort-indicator::after {
+    opacity: 1;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-music-note"></i> Songs</h1>
+        <p class="text-muted">Browse and manage songs from monitored radio stations</p>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-body">
+                <button class="btn btn-outline-secondary mb-3" id="toggle-advanced-search" type="button">
+                    <i class="bi bi-sliders"></i> Advanced Filters
+                </button>
+
+                <div id="advanced-search" style="display: none;">
+                    <div class="card mb-3 bg-light">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-3 text-muted">Date & Play Count Filters</h6>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">Last Seen After</label>
+                                    <input type="date" class="form-control" id="filter-date-after">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Last Seen Before</label>
+                                    <input type="date" class="form-control" id="filter-date-before">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Min Plays</label>
+                                    <input type="number" class="form-control" id="filter-plays-min" min="0" placeholder="Any">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Max Plays</label>
+                                    <input type="number" class="form-control" id="filter-plays-max" min="0" placeholder="Any">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Search Songs</label>
+                        <input type="text" class="form-control" id="search-songs" placeholder="Search by title or artist..." value="{{ filters.search or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Artist</label>
+                        <input type="text" class="form-control" id="filter-artist" placeholder="Filter by artist..." value="{{ filters.artist_name or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Station</label>
+                        <select class="form-select" id="filter-station">
+                            <option value="">All Stations</option>
+                            {% for station in stations %}
+                            <option value="{{ station[0] }}" {% if filters.station_id == station[0] %}selected{% endif %}>{{ station[1] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">&nbsp;</label>
+                        <div>
+                            <button class="btn btn-primary me-2" id="btn-apply-filters">
+                                <i class="bi bi-filter"></i> Apply
+                            </button>
+                            <button class="btn btn-outline-secondary" id="btn-clear-filters">
+                                <i class="bi bi-x"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Songs Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-ul"></i>
+                    Songs
+                    <span class="badge bg-secondary ms-2">{{ pagination.total }} total</span>
+                </h5>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-outline-primary btn-sm" id="export-csv">
+                        <i class="bi bi-download"></i> Export CSV
+                    </button>
+                    <select class="form-select form-select-sm" id="page-size" style="width: auto;">
+                        <option value="25" {% if pagination.limit == 25 %}selected{% endif %}>25 per page</option>
+                        <option value="50" {% if pagination.limit == 50 %}selected{% endif %}>50 per page</option>
+                        <option value="100" {% if pagination.limit == 100 %}selected{% endif %}>100 per page</option>
+                        <option value="200" {% if pagination.limit == 200 %}selected{% endif %}>200 per page</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-standard mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="sortable {% if sort == 'title' %}sorted-{{ direction }}{% endif %}"
+                                    onclick="sortByColumn('title')">
+                                    Title
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th class="sortable {% if sort == 'artist_name' %}sorted-{{ direction }}{% endif %}"
+                                    onclick="sortByColumn('artist_name')">
+                                    Artist
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th class="sortable text-center {% if sort == 'play_count' %}sorted-{{ direction }}{% endif %}"
+                                    onclick="sortByColumn('play_count')">
+                                    Plays
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th>Stations</th>
+                                <th class="sortable {% if sort == 'last_seen' %}sorted-{{ direction }}{% endif %}"
+                                    onclick="sortByColumn('last_seen')">
+                                    Last Seen
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if songs %}
+                                {% for song in songs %}
+                                <tr data-mbid="{{ song.artist_mbid }}">
+                                    <td>
+                                        <a href="/songs/{{ song.id }}" class="text-decoration-none">
+                                            <strong>{{ song.song_title }}</strong>
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {% if song.artist_mbid %}
+                                        <a href="/artists/{{ song.artist_mbid }}" class="text-decoration-none">
+                                            {{ song.artist_name }}
+                                        </a>
+                                        {% if song.lidarr_imported_at %}
+                                        <i class="bi bi-check-circle text-success ms-1" title="Artist imported to Lidarr"></i>
+                                        {% endif %}
+                                        {% else %}
+                                        {{ song.artist_name }}
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">{{ song.play_count }}</td>
+                                    <td class="text-truncate" style="max-width: 150px;" title="{{ song.station_names or 'Unknown' }}">
+                                        {{ song.station_names or 'Unknown' }}
+                                    </td>
+                                    <td>
+                                        {% if song.last_seen_at %}
+                                            {{ song.last_seen_at[:10] }}
+                                        {% else %}
+                                            <span class="text-muted">Never</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="/songs/{{ song.id }}" class="btn btn-sm btn-outline-primary" title="View Details">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="6">
+                                        <div class="empty-state">
+                                            <i class="bi bi-music-note empty-state-icon"></i>
+                                            <h3 class="empty-state-title">No songs found</h3>
+                                            <p class="empty-state-description">Try adjusting your filters or search terms to find what you're looking for.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Pagination -->
+            {% if pagination.pages > 1 %}
+            <div class="card-footer">
+                <nav>
+                    <ul class="pagination pagination-sm mb-0 justify-content-center">
+                        {% if pagination.page > 1 %}
+                        <li class="page-item">
+                            <a class="page-link" href="#" data-page="{{ pagination.page - 1 }}">Previous</a>
+                        </li>
+                        {% endif %}
+
+                        {% for p in range(1, pagination.pages + 1) %}
+                            {% if p == pagination.page %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ p }}</span>
+                            </li>
+                            {% elif p <= 3 or p > pagination.pages - 3 or (p >= pagination.page - 1 and p <= pagination.page + 1) %}
+                            <li class="page-item">
+                                <a class="page-link" href="#" data-page="{{ p }}">{{ p }}</a>
+                            </li>
+                            {% elif p == 4 or p == pagination.pages - 3 %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if pagination.page < pagination.pages %}
+                        <li class="page-item">
+                            <a class="page-link" href="#" data-page="{{ pagination.page + 1 }}">Next</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block custom_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Export CSV button
+    document.getElementById('export-csv').addEventListener('click', function() {
+        exportTableToCSV('songs');
+    });
+
+    // Toggle advanced search
+    document.getElementById('toggle-advanced-search').addEventListener('click', function() {
+        const search = document.getElementById('advanced-search');
+        const icon = this.querySelector('i');
+        if (search.style.display === 'none') {
+            search.style.display = 'block';
+            icon.classList.remove('bi-sliders');
+            icon.classList.add('bi-sliders-horizontal');
+        } else {
+            search.style.display = 'none';
+            icon.classList.remove('bi-sliders-horizontal');
+            icon.classList.add('bi-sliders');
+        }
+    });
+
+    // Apply filters button
+    document.getElementById('btn-apply-filters').addEventListener('click', function() {
+        applyFilters();
+    });
+
+    // Clear filters button
+    document.getElementById('btn-clear-filters').addEventListener('click', function() {
+        document.getElementById('search-songs').value = '';
+        document.getElementById('filter-artist').value = '';
+        document.getElementById('filter-station').value = '';
+        document.getElementById('filter-date-after').value = '';
+        document.getElementById('filter-date-before').value = '';
+        document.getElementById('filter-plays-min').value = '';
+        document.getElementById('filter-plays-max').value = '';
+        applyFilters();
+    });
+
+    // Page size selector
+    document.getElementById('page-size').addEventListener('change', function() {
+        applyFilters();
+    });
+
+    // Pagination links
+    document.querySelectorAll('.page-link[data-page]').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const page = this.getAttribute('data-page');
+            const url = new URL(window.location);
+            url.searchParams.set('page', page);
+            window.location.href = url.toString();
+        });
+    });
+
+    // Enter key on search boxes
+    document.getElementById('search-songs').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') applyFilters();
+    });
+    document.getElementById('filter-artist').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') applyFilters();
+    });
+});
+
+function applyFilters() {
+    const search = document.getElementById('search-songs').value;
+    const artist = document.getElementById('filter-artist').value;
+    const station = document.getElementById('filter-station').value;
+    const limit = document.getElementById('page-size').value;
+
+    const dateAfter = document.getElementById('filter-date-after').value;
+    const dateBefore = document.getElementById('filter-date-before').value;
+    const playsMin = document.getElementById('filter-plays-min').value;
+    const playsMax = document.getElementById('filter-plays-max').value;
+
+    const url = new URL(window.location);
+    url.searchParams.set('page', '1');
+    url.searchParams.set('limit', limit);
+
+    // Get current sort and direction from URL (preserve them)
+    const currentSort = url.searchParams.get('sort') || 'title';
+    const currentDirection = url.searchParams.get('direction') || 'asc';
+    url.searchParams.set('sort', currentSort);
+    url.searchParams.set('direction', currentDirection);
+
+    if (search) {
+        url.searchParams.set('search', search);
+    } else {
+        url.searchParams.delete('search');
+    }
+
+    if (artist) {
+        url.searchParams.set('artist_name', artist);
+    } else {
+        url.searchParams.delete('artist_name');
+    }
+
+    if (station) {
+        url.searchParams.set('station_id', station);
+    } else {
+        url.searchParams.delete('station_id');
+    }
+
+    if (dateAfter) {
+        url.searchParams.set('last_seen_after', dateAfter);
+    } else {
+        url.searchParams.delete('last_seen_after');
+    }
+
+    if (dateBefore) {
+        url.searchParams.set('last_seen_before', dateBefore);
+    } else {
+        url.searchParams.delete('last_seen_before');
+    }
+
+    if (playsMin) {
+        url.searchParams.set('plays_min', playsMin);
+    } else {
+        url.searchParams.delete('plays_min');
+    }
+
+    if (playsMax) {
+        url.searchParams.set('plays_max', playsMax);
+    } else {
+        url.searchParams.delete('plays_max');
+    }
+
+    window.location.href = url.toString();
+}
+
+// Column sorting
+function sortByColumn(column) {
+    // Get current sort params from URL
+    const url = new URL(window.location);
+    const currentSort = url.searchParams.get('sort') || 'title';
+    const currentDirection = url.searchParams.get('direction') || 'asc';
+
+    // Determine new direction
+    let newDirection = 'asc';
+    if (column === currentSort) {
+        // Same column - toggle direction
+        newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+    }
+    // Different column - default to asc
+
+    // Update URL params
+    url.searchParams.set('sort', column);
+    url.searchParams.set('direction', newDirection);
+
+    // Navigate to new URL
+    window.location.href = url.toString();
+}
+
+// Initialize sort indicators on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Get current sort from URL
+    const url = new URL(window.location);
+    const sort = url.searchParams.get('sort') || 'title';
+    const direction = url.searchParams.get('direction') || 'asc';
+
+    // Update old dropdown if it still exists (during transition)
+    const sortBySelect = document.getElementById('sort-by');
+    if (sortBySelect) {
+        sortBySelect.value = sort;
+    }
+});
+
+// Export table to CSV
+function exportTableToCSV(pageName) {
+    const table = document.querySelector('table');
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+
+    // Skip empty state rows
+    const dataRows = rows.filter(row => !row.querySelector('.empty-state'));
+
+    if (dataRows.length === 0) {
+        Toast.warning('No data to export');
+        return;
+    }
+
+    // Build CSV
+    const headers = Array.from(table.querySelectorAll('thead th'))
+        .map(th => th.textContent.trim())
+        .join(',');
+
+    const data = dataRows.map(row => {
+        const cells = Array.from(row.querySelectorAll('td'));
+        return cells.map(cell => {
+            const text = cell.textContent.trim();
+            return `"${text.replace(/"/g, '""')}"`;
+        }).join(',');
+    });
+
+    const csv = [headers, ...data].join('\n');
+
+    // Create download
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const date = new Date().toISOString().slice(0, 10);
+    a.download = `radio-monitor-${pageName}-${date}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    Toast.success(`Exported ${dataRows.length} rows to CSV`);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,601 @@
+{% extends "base_sidebar.html" %}
+
+{% block title %}{{ artist.name }} - Radio Monitor 1.0{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/artists">Artists</a></li>
+                <li class="breadcrumb-item active">{{ artist.name }}</li>
+            </ol>
+        </nav>
+        <h1><i class="bi bi-person"></i> {{ artist.name }}</h1>
+        <p class="text-muted">
+            MBID: <code class="text-muted">{{ artist.mbid }}</code>
+            {% if artist.mbid and artist.mbid.startswith('PENDING-') %}
+            <span class="badge bg-warning text-dark ms-2">PENDING MusicBrainz Resolution</span>
+            {% endif %}
+        </p>
+    </div>
+</div>
+
+<!-- Artist Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card card-standard text-center">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Total Songs</h6>
+                <h3 class="card-title mb-0">{{ artist.song_count }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-standard text-center">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Total Plays</h6>
+                <h3 class="card-title mb-0">{{ artist.total_plays }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-standard text-center">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">First Seen</h6>
+                <h5 class="card-title mb-0">{{ artist.first_seen_at[:10] if artist.first_seen_at else 'N/A' }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-standard text-center">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Last Seen</h6>
+                <h5 class="card-title mb-0">{{ artist.last_seen_at[:10] if artist.last_seen_at else 'Never' }}</h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs -->
+<div class="row">
+    <div class="col-12">
+        <ul class="nav nav-tabs" id="artistTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button">
+                    <i class="bi bi-info-circle"></i> Overview
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="songs-tab" data-bs-toggle="tab" data-bs-target="#songs" type="button">
+                    <i class="bi bi-music-note-list"></i> Songs ({{ artist.song_count }})
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button">
+                    <i class="bi bi-clock-history"></i> Play History
+                </button>
+            </li>
+        </ul>
+        <div class="tab-content" id="artistTabsContent">
+            <!-- Overview Tab -->
+            <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                <div class="card card-standard mt-3">
+                    <div class="card-body">
+                        <h5>Artist Information</h5>
+                        <table class="table table-borderless table-standard">
+                            <tr>
+                                <th width="30%">MusicBrainz ID</th>
+                                <td>
+                                    <code>{{ artist.mbid }}</code>
+                                    {% if artist.mbid and not artist.mbid.startswith('PENDING-') %}
+                                    <a href="https://musicbrainz.org/artist/{{ artist.mbid }}" target="_blank" class="ms-2">
+                                        <i class="bi bi-box-arrow-up-right"></i> View on MusicBrainz
+                                    </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>First Station</th>
+                                <td>{{ artist.station_name or 'Unknown' }}</td>
+                            </tr>
+                            <tr>
+                                <th>First Seen</th>
+                                <td>{{ artist.first_seen_at }}</td>
+                            </tr>
+                            <tr>
+                                <th>Last Seen</th>
+                                <td>{{ artist.last_seen_at }}</td>
+                            </tr>
+                            <tr>
+                                <th>Lidarr Import Status</th>
+                                <td>
+                                    {% if artist.lidarr_imported_at %}
+                                    <span class="badge bg-success">Imported on {{ artist.lidarr_imported_at[:10] }}</span>
+                                    {% elif artist.needs_lidarr_import %}
+                                    <span class="badge bg-warning text-dark">Needs Import</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Not Required</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </table>
+
+                        <hr>
+
+                        <h5>Actions</h5>
+                        <div class="btn-group">
+                            {% if artist.mbid and not artist.mbid.startswith('PENDING-') %}
+                            {% if artist.lidarr_imported_at %}
+                            <button class="btn btn-success" disabled>
+                                <i class="bi bi-check-circle"></i> Imported to Lidarr
+                            </button>
+                            {% else %}
+                            <button class="btn btn-primary" id="btn-import-artist" data-mbid="{{ artist.mbid }}" data-name="{{ artist.name }}">
+                                <i class="bi bi-cloud-download" id="import-icon"></i> <span id="import-text">Import to Lidarr</span>
+                            </button>
+                            {% endif %}
+                            {% endif %}
+                            <a href="/artists" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Back to Artists
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Songs Tab -->
+            <div class="tab-pane fade" id="songs" role="tabpanel">
+                <div class="card card-standard mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-music-note-list"></i> Songs by {{ artist.name }}</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-standard mb-0" id="songs-table">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="sortable" data-column="title" data-type="text">
+                                            Song Title
+                                            <span class="sort-indicator"></span>
+                                        </th>
+                                        <th class="sortable text-center" data-column="plays" data-type="number">
+                                            Plays
+                                            <span class="sort-indicator"></span>
+                                        </th>
+                                        <th class="sortable" data-column="firstSeen" data-type="date">
+                                            First Seen
+                                            <span class="sort-indicator"></span>
+                                        </th>
+                                        <th class="sortable" data-column="lastSeen" data-type="date">
+                                            Last Seen
+                                            <span class="sort-indicator"></span>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if songs %}
+                                        {% for song in songs %}
+                                        <tr>
+                                            <td>{{ song.song_title }}</td>
+                                            <td class="text-center">{{ song.play_count }}</td>
+                                            <td>{{ song.first_seen_at[:10] if song.first_seen_at else 'N/A' }}</td>
+                                            <td>{{ song.last_seen_at[:10] if song.last_seen_at else 'Never' }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-5">
+                                                <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                                                <p>No songs found for this artist.</p>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Tab -->
+            <div class="tab-pane fade" id="history" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Play History (Last 90 Days)</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-standard mb-0" id="history-table">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="sortable" data-column="date" data-type="text">
+                                            Date
+                                            <span class="sort-indicator"></span>
+                                        </th>
+                                        <th class="sortable" data-column="station" data-type="text">
+                                            Station
+                                            <span class="sort-indicator"></span>
+                                        </th>
+                                        <th class="sortable text-center" data-column="plays" data-type="number">
+                                            Plays
+                                            <span class="sort-indicator"></span>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if history %}
+                                        {% for entry in history %}
+                                        <tr>
+                                            <td>{{ entry.date }}</td>
+                                            <td>{{ entry.station_name or 'Unknown' }}</td>
+                                            <td class="text-center">{{ entry.play_count }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="3" class="text-center text-muted py-5">
+                                                <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                                                <p>No play history found for this artist.</p>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block custom_js %}
+<style>
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+
+/* Sortable table styles */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 25px !important;
+    transition: background-color 0.15s ease;
+}
+
+.sortable:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.sort-indicator {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.3;
+    font-size: 0.8em;
+    transition: opacity 0.2s ease;
+}
+
+.sorted-asc .sort-indicator::after {
+    content: '▲';
+    opacity: 1;
+}
+
+.sorted-desc .sort-indicator::after {
+    content: '▼';
+    opacity: 1;
+}
+</style>
+
+<script>
+// Handle tab switching with URL hash
+document.addEventListener('DOMContentLoaded', function() {
+    const tabs = document.getElementById('artistTabs');
+    const hash = window.location.hash;
+
+    if (hash) {
+        const tabEl = document.querySelector(`#artistTabs [data-bs-target="${hash}"]`);
+        if (tabEl) {
+            const tab = new bootstrap.Tab(tabEl);
+            tab.show();
+        }
+    }
+
+    // Update URL hash when tab changes
+    tabs.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function(e) {
+            const target = e.target.getAttribute('data-bs-target');
+            history.replaceState(null, null, target);
+        });
+    });
+
+    // Handle import button click
+    const importButton = document.getElementById('btn-import-artist');
+    if (importButton) {
+        importButton.addEventListener('click', function() {
+            const mbid = this.getAttribute('data-mbid');
+            const name = this.getAttribute('data-name');
+            const icon = document.getElementById('import-icon');
+            const text = document.getElementById('import-text');
+
+            // Disable button and show loading
+            this.disabled = true;
+            icon.className = 'bi bi-arrow-clockwise spin';
+            text.textContent = 'Importing...';
+
+            // Import to Lidarr
+            fetch(`/api/lidarr/import/${mbid}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success message
+                    if (typeof showToast === 'function') {
+                        showToast(data.message, 'success');
+                    } else {
+                        alert(data.message);
+                    }
+
+                    // Change button to success state
+                    this.className = 'btn btn-success';
+                    this.disabled = true;
+                    icon.className = 'bi bi-check-circle';
+                    text.textContent = data.already_exists ? 'Already in Lidarr' : 'Imported!';
+
+                    // Update the status badge in the table - find the row with "Lidarr Import Status" label
+                    const tableCells = document.querySelectorAll('table th');
+                    let statusCell = null;
+                    for (let th of tableCells) {
+                        if (th.textContent.includes('Lidarr Import Status')) {
+                            statusCell = th.nextElementSibling;
+                            break;
+                        }
+                    }
+                    if (statusCell) {
+                        statusCell.innerHTML = '<span class="badge bg-success">Imported just now</span>';
+                    }
+                } else {
+                    // Show error message
+                    if (typeof showToast === 'function') {
+                        showToast(data.message, 'error');
+                    } else {
+                        alert(data.message);
+                    }
+
+                    // Re-enable button
+                    this.disabled = false;
+                    icon.className = 'bi bi-cloud-download';
+                    text.textContent = 'Import to Lidarr';
+                }
+            })
+            .catch(error => {
+                console.error('Error importing artist:', error);
+                if (typeof showToast === 'function') {
+                    showToast('Failed to import artist', 'error');
+                } else {
+                    alert('Failed to import artist');
+                }
+
+                // Re-enable button
+                this.disabled = false;
+                icon.className = 'bi bi-cloud-download';
+                text.textContent = 'Import to Lidarr';
+            });
+        });
+    }
+
+    // Songs tab sorting
+    let songsData = [];
+    let songsSort = { column: null, direction: 'asc' };
+
+    // Parse songs data from table on page load
+    function initSongsSorting() {
+        const tbody = document.querySelector('#songs-table tbody');
+        if (!tbody) return;
+
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 4) {
+                songsData.push({
+                    title: cells[0].textContent.trim(),
+                    plays: parseInt(cells[1].textContent.trim()) || 0,
+                    firstSeen: cells[2].textContent.trim(),
+                    lastSeen: cells[3].textContent.trim(),
+                    row: row
+                });
+            }
+        });
+
+        // Add click handlers to sortable headers
+        document.querySelectorAll('#songs-table th.sortable').forEach(th => {
+            th.addEventListener('click', function() {
+                const column = this.getAttribute('data-column');
+                sortSongs(column);
+            });
+        });
+    }
+
+    function sortSongs(column) {
+        // Toggle direction if same column
+        if (songsSort.column === column) {
+            songsSort.direction = songsSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            songsSort.column = column;
+            songsSort.direction = 'asc';
+        }
+
+        const type = document.querySelector(`#songs-table th[data-column="${column}"]`).getAttribute('data-type');
+
+        // Sort data
+        songsData.sort((a, b) => {
+            let aVal = a[column];
+            let bVal = b[column];
+
+            if (type === 'number') {
+                aVal = parseInt(aVal) || 0;
+                bVal = parseInt(bVal) || 0;
+            } else if (type === 'date') {
+                // Handle "N/A" and "Never" values
+                if (aVal === 'N/A' || aVal === 'Never') aVal = '0000-00-00';
+                if (bVal === 'N/A' || bVal === 'Never') bVal = '0000-00-00';
+            }
+
+            if (songsSort.direction === 'asc') {
+                return aVal > bVal ? 1 : (aVal < bVal ? -1 : 0);
+            } else {
+                return aVal < bVal ? 1 : (aVal > bVal ? -1 : 0);
+            }
+        });
+
+        // Update table
+        const tbody = document.querySelector('#songs-table tbody');
+        tbody.innerHTML = '';
+        songsData.forEach(item => {
+            tbody.appendChild(item.row);
+        });
+
+        // Update indicators
+        updateSongsSortIndicators();
+    }
+
+    function updateSongsSortIndicators() {
+        document.querySelectorAll('#songs-table th.sortable').forEach(th => {
+            th.classList.remove('sorted-asc', 'sorted-desc');
+        });
+
+        if (songsSort.column) {
+            const currentHeader = document.querySelector(`#songs-table th[data-column="${songsSort.column}"]`);
+            if (currentHeader) {
+                currentHeader.classList.add(`sorted-${songsSort.direction}`);
+            }
+        }
+    }
+
+    // History tab sorting
+    let historyData = [];
+    let historySort = { column: null, direction: 'asc' };
+
+    function initHistorySorting() {
+        const tbody = document.querySelector('#history-table tbody');
+        if (!tbody) return;
+
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 3) {
+                historyData.push({
+                    date: cells[0].textContent.trim(),
+                    station: cells[1].textContent.trim(),
+                    plays: parseInt(cells[2].textContent.trim()) || 0,
+                    row: row
+                });
+            }
+        });
+
+        // Add click handlers to sortable headers
+        document.querySelectorAll('#history-table th.sortable').forEach(th => {
+            th.addEventListener('click', function() {
+                const column = this.getAttribute('data-column');
+                sortHistory(column);
+            });
+        });
+    }
+
+    function sortHistory(column) {
+        // Toggle direction if same column
+        if (historySort.column === column) {
+            historySort.direction = historySort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            historySort.column = column;
+            historySort.direction = 'asc';
+        }
+
+        const type = document.querySelector(`#history-table th[data-column="${column}"]`).getAttribute('data-type');
+
+        // Sort data
+        historyData.sort((a, b) => {
+            let aVal = a[column];
+            let bVal = b[column];
+
+            if (type === 'number') {
+                aVal = parseInt(aVal) || 0;
+                bVal = parseInt(bVal) || 0;
+            }
+
+            if (historySort.direction === 'asc') {
+                return aVal > bVal ? 1 : (aVal < bVal ? -1 : 0);
+            } else {
+                return aVal < bVal ? 1 : (aVal > bVal ? -1 : 0);
+            }
+        });
+
+        // Update table
+        const tbody = document.querySelector('#history-table tbody');
+        tbody.innerHTML = '';
+        historyData.forEach(item => {
+            tbody.appendChild(item.row);
+        });
+
+        // Update indicators
+        updateHistorySortIndicators();
+    }
+
+    function updateHistorySortIndicators() {
+        document.querySelectorAll('#history-table th.sortable').forEach(th => {
+            th.classList.remove('sorted-asc', 'sorted-desc');
+        });
+
+        if (historySort.column) {
+            const currentHeader = document.querySelector(`#history-table th[data-column="${historySort.column}"]`);
+            if (currentHeader) {
+                currentHeader.classList.add(`sorted-${historySort.direction}`);
+            }
+        }
+    }
+
+    // Initialize sorting when tabs are shown
+    const songsTab = document.getElementById('songs-tab');
+    if (songsTab && !songsTab.hasAttribute('data-sorting-initialized')) {
+        songsTab.addEventListener('shown.bs.tab', function() {
+            if (songsData.length === 0) {
+                initSongsSorting();
+            }
+        });
+        songsTab.setAttribute('data-sorting-initialized', 'true');
+    }
+
+    const historyTab = document.getElementById('history-tab');
+    if (historyTab && !historyTab.hasAttribute('data-sorting-initialized')) {
+        historyTab.addEventListener('shown.bs.tab', function() {
+            if (historyData.length === 0) {
+                initHistorySorting();
+            }
+        });
+        historyTab.setAttribute('data-sorting-initialized', 'true');
+    }
+
+    // Also initialize if already visible on page load (e.g., from URL hash)
+    if (window.location.hash === '#songs' && songsData.length === 0) {
+        setTimeout(initSongsSorting, 100);
+    }
+    if (window.location.hash === '#history' && historyData.length === 0) {
+        setTimeout(initHistorySorting, 100);
+    }
+});
+</script>
+{% endblock %}

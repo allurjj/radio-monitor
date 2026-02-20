@@ -1,0 +1,458 @@
+/**
+ * Radio Monitor 1.0 - Sidebar Styles
+ * *arr-style dark sidebar with responsive design
+ */
+
+:root {
+    --sidebar-width: 250px;
+    --sidebar-collapsed-width: 0px;
+    --sidebar-bg-dark: #1a1a1a;
+    --sidebar-bg-darker: #141414;
+    --sidebar-text-primary: #e0e0e0;
+    --sidebar-text-secondary: #a0a0a0;
+    --sidebar-accent: #4a9eff;
+    --sidebar-hover: #2a2a2a;
+    --sidebar-border: #333333;
+    --topbar-height: 56px;
+    --footer-height: 60px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    overflow-x: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+#wrapper {
+    display: flex;
+    width: 100%;
+    min-height: 100vh;
+    align-items: stretch;
+}
+
+/* ==================== SIDEBAR ==================== */
+
+#sidebar-wrapper {
+    min-width: var(--sidebar-width);
+    max-width: var(--sidebar-width);
+    width: var(--sidebar-width);
+    background-color: var(--sidebar-bg-dark);
+    border-right: 1px solid var(--sidebar-border);
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    position: fixed;
+    height: 100vh;
+    overflow-y: auto;
+    z-index: 1000;
+}
+
+#sidebar-wrapper .sidebar-branding {
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--sidebar-border);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: linear-gradient(135deg, var(--sidebar-bg-dark) 0%, var(--sidebar-bg-darker) 100%);
+    min-height: var(--topbar-height);
+}
+
+#sidebar-wrapper .sidebar-logo {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--sidebar-accent);
+    border-radius: 8px;
+    color: white;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+#sidebar-wrapper .sidebar-title {
+    display: flex;
+    flex-direction: column;
+}
+
+#sidebar-wrapper .sidebar-title .app-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--sidebar-text-primary);
+    line-height: 1.2;
+}
+
+#sidebar-wrapper .sidebar-title .version {
+    font-size: 0.75rem;
+    color: var(--sidebar-text-secondary);
+    font-weight: 500;
+}
+
+/* Sidebar Navigation */
+
+#sidebar-wrapper .sidebar-nav {
+    flex: 1;
+    padding: 1rem 0;
+    overflow-y: auto;
+}
+
+#sidebar-wrapper .nav-section {
+    margin-bottom: 1.5rem;
+}
+
+#sidebar-wrapper .nav-section:last-child {
+    margin-bottom: 0;
+}
+
+#sidebar-wrapper .nav-section-title {
+    padding: 0.5rem 1.25rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--sidebar-text-secondary);
+}
+
+#sidebar-wrapper .nav-link {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1.25rem;
+    color: var(--sidebar-text-primary);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    gap: 0.75rem;
+    border-left: 3px solid transparent;
+}
+
+#sidebar-wrapper .nav-link:hover {
+    background-color: var(--sidebar-hover);
+    color: white;
+}
+
+#sidebar-wrapper .nav-link.active {
+    background-color: var(--sidebar-hover);
+    border-left-color: var(--sidebar-accent);
+    color: white;
+    font-weight: 500;
+}
+
+#sidebar-wrapper .nav-link i {
+    font-size: 1.1rem;
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+#sidebar-wrapper .nav-link span {
+    font-size: 0.95rem;
+}
+
+/* Sidebar Footer */
+
+#sidebar-wrapper .sidebar-footer {
+    padding: 1rem;
+    border-top: 1px solid var(--sidebar-border);
+    background-color: var(--sidebar-bg-darker);
+}
+
+#sidebar-wrapper .monitor-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+}
+
+#sidebar-wrapper .status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+#sidebar-wrapper .status-indicator.online {
+    background-color: #28a745;
+    box-shadow: 0 0 8px rgba(40, 167, 69, 0.6);
+}
+
+#sidebar-wrapper .status-indicator.offline {
+    background-color: #dc3545;
+}
+
+#sidebar-wrapper .status-indicator.unknown {
+    background-color: #6c757d;
+}
+
+#sidebar-wrapper .status-text {
+    font-size: 0.85rem;
+    color: var(--sidebar-text-primary);
+    font-weight: 500;
+}
+
+/* Sidebar Scrollbar Styling */
+
+#sidebar-wrapper::-webkit-scrollbar {
+    width: 6px;
+}
+
+#sidebar-wrapper::-webkit-scrollbar-track {
+    background: var(--sidebar-bg-dark);
+}
+
+#sidebar-wrapper::-webkit-scrollbar-thumb {
+    background: var(--sidebar-border);
+    border-radius: 3px;
+}
+
+#sidebar-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #444;
+}
+
+/* ==================== PAGE CONTENT ==================== */
+
+#page-content-wrapper {
+    width: 100%;
+    margin-left: var(--sidebar-width);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    transition: all 0.3s ease;
+}
+
+/* Top Bar */
+
+#page-content-wrapper .navbar {
+    height: var(--topbar-height);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+#page-content-wrapper .navbar .btn-link {
+    color: #495057;
+    text-decoration: none;
+    padding: 0.5rem;
+    font-size: 1.25rem;
+}
+
+#page-content-wrapper .navbar .btn-link:hover {
+    color: #212529;
+    background-color: #f8f9fa;
+}
+
+#page-content-wrapper .search-box {
+    position: relative;
+    width: 300px;
+}
+
+#page-content-wrapper .search-box input {
+    padding-left: 2.5rem;
+    border-radius: 20px;
+    border: 1px solid #dee2e6;
+    font-size: 0.9rem;
+}
+
+#page-content-wrapper .search-box input:focus {
+    border-color: var(--sidebar-accent);
+    box-shadow: 0 0 0 0.2rem rgba(74, 158, 255, 0.15);
+}
+
+#page-content-wrapper .search-box i {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6c757d;
+    pointer-events: none;
+}
+
+/* Main Content */
+
+#page-content-wrapper main {
+    flex: 1;
+    padding: 2rem;
+    width: 100%;
+    max-width: 100%;
+}
+
+/* Ensure containers use full width */
+#page-content-wrapper .container-fluid,
+#page-content-wrapper .container {
+    max-width: 100%;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* Ensure rows use full width */
+#page-content-wrapper .row {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* Footer */
+
+#page-content-wrapper footer {
+    flex-shrink: 0;
+}
+
+/* ==================== SIDEBAR TOGGLE (COLLAPSED STATE) ==================== */
+
+#wrapper.toggled #sidebar-wrapper {
+    margin-left: calc(var(--sidebar-width) * -1);
+}
+
+#wrapper.toggled #page-content-wrapper {
+    margin-left: 0;
+}
+
+/* ==================== RESPONSIVE DESIGN ==================== */
+
+@media (max-width: 768px) {
+    #sidebar-wrapper {
+        margin-left: calc(var(--sidebar-width) * -1);
+    }
+
+    #page-content-wrapper {
+        margin-left: 0;
+    }
+
+    #wrapper.toggled #sidebar-wrapper {
+        margin-left: 0;
+    }
+
+    #wrapper.toggled #page-content-wrapper {
+        margin-left: 0;
+    }
+
+    /* Overlay when sidebar is open on mobile */
+    #wrapper.toggled::after {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+    }
+}
+
+@media (max-width: 576px) {
+    #page-content-wrapper .search-box {
+        width: 200px;
+    }
+
+    #page-content-wrapper main {
+        padding: 1rem;
+    }
+}
+
+/* ==================== PRINT STYLES ==================== */
+
+@media print {
+    #sidebar-wrapper {
+        display: none;
+    }
+
+    #page-content-wrapper {
+        margin-left: 0;
+    }
+
+    #page-content-wrapper .navbar {
+        display: none;
+    }
+}
+
+/* ==========================================
+   TOPBAR STATUS ICONS
+   ========================================== */
+
+/* Status Icons Container in Top Bar */
+.topbar-status-icons {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Individual Status Icon */
+.topbar-status-icons .status-icon {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    cursor: help;
+    transition: all 0.2s ease;
+}
+
+/* Light mode background */
+.topbar-status-icons .status-icon {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+.topbar-status-icons .status-icon:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+    transform: scale(1.05);
+}
+
+/* Icon styling */
+.topbar-status-icons .status-icon i {
+    font-size: 18px;
+    color: var(--text-primary, #212529);
+}
+
+/* Status Dot */
+.topbar-status-icons .status-dot {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid;
+    transition: all 0.3s ease;
+}
+
+/* Status Colors - Same for both themes */
+.topbar-status-icons .status-dot.online {
+    background-color: #28a745;
+    border-color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 8px rgba(40, 167, 69, 0.6);
+}
+
+.topbar-status-icons .status-dot.offline {
+    background-color: #dc3545;
+    border-color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 10px rgba(220, 53, 69, 0.8);
+    animation: pulse-red-topbar 2s ease-in-out infinite;
+}
+
+.topbar-status-icons .status-dot.warning {
+    background-color: #ffc107;
+    border-color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 6px rgba(255, 193, 7, 0.5);
+}
+
+/* Pulsing animation for offline status */
+@keyframes pulse-red-topbar {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.8;
+        transform: scale(1.1);
+    }
+}
+
+/* Responsive - Hide on very small screens */
+@media (max-width: 576px) {
+    .topbar-status-icons {
+        display: none;
+    }
+}
+

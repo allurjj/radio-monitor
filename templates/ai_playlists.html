@@ -1,0 +1,816 @@
+{% extends "base_sidebar.html" %}
+
+{% block title %}AI Playlists (Experimental) - Radio Monitor 1.0{% endblock %}
+
+{% block custom_css %}
+<style>
+    .experimental-badge {
+        background-color: #6c757d;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        display: inline-block;
+        margin-left: 0.5rem;
+    }
+
+    .instructions-textarea {
+        min-height: 120px;
+        resize: vertical;
+    }
+
+    .status-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+
+    .status-badge.success {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    .status-badge.failed {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    .status-badge.warning {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+
+    .status-badge.partial {
+        background-color: #ffeaa7;
+        color: #d63031;
+    }
+
+    .countdown-timer {
+        font-family: monospace;
+        font-size: 0.9rem;
+        color: #0d6efd;
+        font-weight: 600;
+    }
+
+    .results-alert {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 300px;
+        max-width: 500px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .stations-container {
+        max-height: 150px;
+        overflow-y: auto;
+    }
+
+    .stations-container::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .stations-container::-webkit-scrollbar-thumb {
+        background-color: #dee2e6;
+        border-radius: 3px;
+    }
+
+    /* Loading spinner */
+    .spinner-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .spinner-border-sm {
+        width: 1rem;
+        height: 1rem;
+        border-width: 0.15em;
+    }
+
+    /* Table styles */
+    .history-table {
+        font-size: 0.9rem;
+    }
+
+    .history-table th {
+        font-weight: 600;
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .history-table td {
+        vertical-align: middle;
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #6c757d;
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1><i class="bi bi-magic"></i> AI Playlists <span class="experimental-badge">Experimental</span></h1>
+        <p class="text-muted">Create intelligent, themed playlists using AI-powered song selection based on your radio data</p>
+    </div>
+</div>
+
+<!-- Results Alert (fixed position, auto-dismissing) -->
+<div class="results-alert" id="results-alert" style="display: none;">
+    <div class="alert alert-dismissible fade show" role="alert">
+        <strong id="results-message"></strong>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+</div>
+
+<!-- History Table -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Generations</h5>
+                <div>
+                    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#aiPlaylistModal">
+                        <i class="bi bi-plus-circle"></i> Create AI Playlist
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <select class="form-select form-select-sm" id="status-filter">
+                            <option value="">All Status</option>
+                            <option value="success">Success</option>
+                            <option value="failed">Failed</option>
+                            <option value="warning">Warning</option>
+                            <option value="partial">Partial</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover history-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Playlist Name</th>
+                                <th>Status</th>
+                                <th>Requested</th>
+                                <th>Returned</th>
+                                <th>Added</th>
+                                <th>Skipped</th>
+                                <th>Model</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body">
+                            <tr>
+                                <td colspan="9" class="empty-state">
+                                    <i class="bi bi-inbox"></i>
+                                    <p>No playlist generations yet. Click "Create AI Playlist" to get started!</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <nav id="history-pagination" style="display: none;">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item" id="prev-page">
+                            <a class="page-link" href="#" onclick="loadHistoryPage(currentPage - 1); return false;">Previous</a>
+                        </li>
+                        <li class="page-item active">
+                            <span class="page-link" id="current-page-label">Page 1</span>
+                        </li>
+                        <li class="page-item" id="next-page">
+                            <a class="page-link" href="#" onclick="loadHistoryPage(currentPage + 1); return false;">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AI Playlist Modal -->
+<div class="modal fade" id="aiPlaylistModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-magic"></i> Create AI Playlist</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="ai-playlist-form">
+                    <!-- Filters Row -->
+                    <div class="row">
+                        <!-- Stations -->
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    Stations
+                                    <button type="button" class="btn btn-sm btn-link p-0 ms-2" id="btn-select-all-stations">Select All</button>
+                                    <span class="text-muted">|</span>
+                                    <button type="button" class="btn btn-sm btn-link p-0" id="btn-deselect-all-stations">Deselect All</button>
+                                    <span class="text-muted">(<span id="stations-selected-count">0</span> selected)</span>
+                                </label>
+                                <div class="border rounded p-2 stations-container" id="stations-container">
+                                    <p class="text-muted mb-0">Loading stations...</p>
+                                </div>
+                                <div class="form-text">Leave empty to use all stations</div>
+                            </div>
+                        </div>
+
+                        <!-- Min Plays -->
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="min-plays" class="form-label">Minimum Plays</label>
+                                <input type="number" class="form-control" id="min-plays" value="1" min="0">
+                                <div class="form-text">Songs must have at least this many plays</div>
+                            </div>
+                        </div>
+
+                        <!-- Max Songs -->
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="max-songs" class="form-label">Max Songs</label>
+                                <input type="number" class="form-control" id="max-songs" value="50" min="1" max="1500" required>
+                                <div class="form-text">Maximum songs in playlist (1-1500)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Date Range Row -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="first-seen" class="form-label">First Seen (From)</label>
+                                <input type="date" class="form-control" id="first-seen">
+                                <div class="form-text">Filter by first seen date (optional)</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="last-seen" class="form-label">Last Seen (To)</label>
+                                <input type="date" class="form-control" id="last-seen">
+                                <div class="form-text">Filter by last seen date (optional)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Playlist Name -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="playlist-name" class="form-label">Playlist Name</label>
+                                <input type="text" class="form-control" id="playlist-name" placeholder="My Awesome Playlist" required>
+                                <div class="form-text">Name for the playlist in Plex</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="rate-limit-countdown" class="form-label">Rate Limit</label>
+                                <div class="form-control-plaintext">
+                                    <span id="rate-limit-countdown" class="countdown-timer">Ready to generate</span>
+                                </div>
+                                <div class="form-text">1 request per minute (prevents API spam)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Instructions Textarea -->
+                    <div class="mb-3">
+                        <label for="instructions" class="form-label">Instructions to AI</label>
+                        <textarea class="form-control instructions-textarea" id="instructions"
+                                  placeholder="Describe the mood or theme you want (e.g., 'Upbeat party songs', 'Chill evening vibes', '90s nostalgia', 'High energy workout tracks')..." required></textarea>
+                        <div class="form-text">
+                            <i class="bi bi-lightbulb"></i> Be specific! Try: "Upbeat songs for driving", "Relaxing evening music", "90s rock anthems"
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btn-cancel">Cancel</button>
+                <button type="submit" class="btn btn-primary" form="ai-playlist-form" id="btn-generate">
+                    <i class="bi bi-magic"></i> Generate AI Playlist
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Details Modal -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailsModalTitle">Generation Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailsModalBody">
+                <!-- Details will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block custom_js %}
+<script>
+// Global state
+let stations = [];
+let currentPage = 1;
+let totalPages = 1;
+let lastRequestTime = null;
+let countdownInterval = null;
+
+// Load stations from API
+async function loadStations() {
+    try {
+        const response = await fetch('/api/stations');
+        const data = await response.json();
+
+        if (data.items) {
+            stations = data.items;
+            renderStations();
+        }
+    } catch (error) {
+        console.error('Error loading stations:', error);
+        showResults('danger', 'Failed to load stations');
+    }
+}
+
+// Render stations checkboxes
+function renderStations() {
+    const container = document.getElementById('stations-container');
+    container.innerHTML = '';
+
+    if (stations.length === 0) {
+        container.innerHTML = '<p class="text-muted mb-0">No stations available</p>';
+        return;
+    }
+
+    stations.forEach(station => {
+        const div = document.createElement('div');
+        div.className = 'form-check';
+        div.innerHTML = `
+            <input class="form-check-input station-checkbox" type="checkbox"
+                   value="${station.id}" id="station-${station.id}">
+            <label class="form-check-label" for="station-${station.id}">
+                ${station.name} ${station.callsign ? `(${station.callsign})` : ''}
+            </label>
+        `;
+        container.appendChild(div);
+    });
+
+    updateSelectedCount();
+}
+
+// Update selected stations count
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.station-checkbox:checked');
+    document.getElementById('stations-selected-count').textContent = checkboxes.length;
+}
+
+// Select all stations
+document.getElementById('btn-select-all-stations').addEventListener('click', function() {
+    document.querySelectorAll('.station-checkbox').forEach(cb => cb.checked = true);
+    updateSelectedCount();
+});
+
+// Deselect all stations
+document.getElementById('btn-deselect-all-stations').addEventListener('click', function() {
+    document.querySelectorAll('.station-checkbox').forEach(cb => cb.checked = false);
+    updateSelectedCount();
+});
+
+// Update count when checkboxes change
+document.getElementById('stations-container').addEventListener('change', function(e) {
+    if (e.target.classList.contains('station-checkbox')) {
+        updateSelectedCount();
+    }
+});
+
+// Form submission
+document.getElementById('ai-playlist-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    // Check rate limit
+    if (lastRequestTime) {
+        const timeDiff = (Date.now() - lastRequestTime) / 1000;
+        if (timeDiff < 60) {
+            showResults('warning', `Please wait ${Math.ceil(60 - timeDiff)} seconds before generating another playlist`);
+            return;
+        }
+    }
+
+    // Gather form data
+    const selectedStations = Array.from(document.querySelectorAll('.station-checkbox:checked'))
+                                   .map(cb => cb.value);
+
+    const formData = {
+        playlist_name: document.getElementById('playlist-name').value.trim(),
+        instructions: document.getElementById('instructions').value.trim(),
+        stations: selectedStations,
+        min_plays: parseInt(document.getElementById('min-plays').value) || 0,
+        first_seen: document.getElementById('first-seen').value || null,
+        last_seen: document.getElementById('last-seen').value || null,
+        max_songs: parseInt(document.getElementById('max-songs').value) || 50
+    };
+
+    // Validate max_songs
+    if (formData.max_songs < 1 || formData.max_songs > 1500) {
+        showResults('danger', 'Max songs must be between 1 and 1500');
+        return;
+    }
+
+    // Show loading state
+    const submitBtn = document.getElementById('btn-generate');
+    const cancelBtn = document.getElementById('btn-cancel');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<span class="spinner-container"><span class="spinner-border spinner-border-sm" role="status"></span> Querying AI...</span>';
+    submitBtn.disabled = true;
+    cancelBtn.disabled = true;
+
+    try {
+        const response = await fetch('/api/ai-playlists/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            // Success
+            if (data.status === 'success') {
+                showResults('success', data.message);
+            } else if (data.status === 'warning') {
+                showResults('warning', data.message);
+            } else if (data.status === 'partial') {
+                showResults('info', data.message);
+            }
+
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('aiPlaylistModal'));
+            modal.hide();
+
+            // Reset form
+            document.getElementById('ai-playlist-form').reset();
+            document.querySelectorAll('.station-checkbox').forEach(cb => cb.checked = false);
+            updateSelectedCount();
+
+            // Update last request time and start countdown
+            lastRequestTime = Date.now();
+            startCountdown();
+
+            // Reload history
+            loadHistoryPage(1);
+        } else {
+            // Error
+            showResults('danger', data.message || 'Failed to generate playlist');
+        }
+    } catch (error) {
+        console.error('Error generating playlist:', error);
+        showResults('danger', 'Failed to communicate with server');
+    } finally {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+        cancelBtn.disabled = false;
+    }
+});
+
+// Show results message
+function showResults(type, message) {
+    const alertDiv = document.getElementById('results-alert');
+    const messageDiv = document.getElementById('results-message');
+    const alertInner = alertDiv.querySelector('.alert');
+
+    // Remove existing classes
+    alertInner.className = 'alert alert-dismissible fade show';
+
+    // Add appropriate class
+    if (type === 'success') {
+        alertInner.classList.add('alert-success');
+    } else if (type === 'warning') {
+        alertInner.classList.add('alert-warning');
+    } else if (type === 'info') {
+        alertInner.classList.add('alert-info');
+    } else {
+        alertInner.classList.add('alert-danger');
+    }
+
+    messageDiv.textContent = message;
+    alertDiv.style.display = 'block';
+
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        alertDiv.style.display = 'none';
+    }, 5000);
+}
+
+// Start countdown timer
+function startCountdown() {
+    const countdownEl = document.getElementById('rate-limit-countdown');
+
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+
+    countdownInterval = setInterval(() => {
+        if (!lastRequestTime) {
+            countdownEl.textContent = 'Ready to generate';
+            clearInterval(countdownInterval);
+            return;
+        }
+
+        const elapsed = (Date.now() - lastRequestTime) / 1000;
+        const remaining = Math.max(0, 60 - elapsed);
+
+        if (remaining <= 0) {
+            countdownEl.textContent = 'Ready to generate';
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+            lastRequestTime = null;
+        } else {
+            countdownEl.textContent = `${Math.ceil(remaining)}s until next request`;
+        }
+    }, 1000);
+}
+
+// Load history page
+async function loadHistoryPage(page) {
+    const statusFilter = document.getElementById('status-filter').value;
+    let url = `/api/ai-playlists/history?page=${page}&limit=20`;
+    if (statusFilter) {
+        url += `&status=${statusFilter}`;
+    }
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.items) {
+            renderHistoryTable(data.items);
+            updatePagination(data.total, data.page, data.limit);
+            currentPage = data.page;
+        }
+    } catch (error) {
+        console.error('Error loading history:', error);
+    }
+}
+
+// Render history table
+function renderHistoryTable(items) {
+    const tbody = document.getElementById('history-table-body');
+
+    if (items.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <p>No playlist generations found.</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = '';
+
+    items.forEach(item => {
+        const tr = document.createElement('tr');
+
+        const date = new Date(item.timestamp);
+        const formattedDate = date.toLocaleString();
+
+        let statusBadge = '';
+        if (item.status === 'success') {
+            statusBadge = '<span class="status-badge success">Success</span>';
+        } else if (item.status === 'failed') {
+            statusBadge = '<span class="status-badge failed">Failed</span>';
+        } else if (item.status === 'warning') {
+            statusBadge = '<span class="status-badge warning">Warning</span>';
+        } else if (item.status === 'partial') {
+            statusBadge = '<span class="status-badge partial">Partial</span>';
+        }
+
+        const modelName = item.model.split('/')[1]?.split(':')[0] || item.model;
+
+        tr.innerHTML = `
+            <td>${formattedDate}</td>
+            <td>${item.playlist_name}</td>
+            <td>${statusBadge}</td>
+            <td>${item.songs_requested || '-'}</td>
+            <td>${item.songs_returned || '-'}</td>
+            <td>${item.songs_added_to_plex || '-'}</td>
+            <td>${item.songs_skipped || '-'}</td>
+            <td>${modelName}</td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewDetails(${item.id})" title="View Details">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteAIPlaylist(${item.id}, '${item.playlist_name.replace(/'/g, "\\'")}')" title="Delete">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+    });
+}
+
+// Update pagination controls
+function updatePagination(total, page, limit) {
+    const pagination = document.getElementById('history-pagination');
+    const prevPage = document.getElementById('prev-page');
+    const nextPage = document.getElementById('next-page');
+    const currentLabel = document.getElementById('current-page-label');
+
+    totalPages = Math.ceil(total / limit);
+
+    if (total <= limit) {
+        pagination.style.display = 'none';
+        return;
+    }
+
+    pagination.style.display = 'block';
+    currentLabel.textContent = `Page ${page}`;
+
+    // Update previous button
+    if (page > 1) {
+        prevPage.classList.remove('disabled');
+        prevPage.querySelector('a').style.pointerEvents = 'auto';
+    } else {
+        prevPage.classList.add('disabled');
+        prevPage.querySelector('a').style.pointerEvents = 'none';
+    }
+
+    // Update next button
+    if (page < totalPages) {
+        nextPage.classList.remove('disabled');
+        nextPage.querySelector('a').style.pointerEvents = 'auto';
+    } else {
+        nextPage.classList.add('disabled');
+        nextPage.querySelector('a').style.pointerEvents = 'none';
+    }
+}
+
+// View generation details
+async function viewDetails(id) {
+    try {
+        // Load all pages to find the item
+        let found = null;
+        let page = 1;
+
+        while (!found && page <= totalPages) {
+            const statusFilter = document.getElementById('status-filter').value;
+            let url = `/api/ai-playlists/history?page=${page}&limit=20`;
+            if (statusFilter) {
+                url += `&status=${statusFilter}`;
+            }
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            const item = data.items.find(i => i.id === id);
+            if (item) {
+                found = item;
+                break;
+            }
+
+            page++;
+        }
+
+        if (!found) {
+            showResults('danger', 'Generation details not found');
+            return;
+        }
+
+        // Build modal content
+        const date = new Date(found.timestamp);
+        const formattedDate = date.toLocaleString();
+
+        let filtersHtml = '';
+        if (found.filters_json) {
+            try {
+                const filters = JSON.parse(found.filters_json);
+                filtersHtml = `
+                    <p><strong>Filters:</strong></p>
+                    <ul>
+                        <li>Stations: ${filters.stations?.length ? filters.stations.join(', ') : 'All stations'}</li>
+                        <li>Min Plays: ${filters.min_plays || 1}</li>
+                        <li>First Seen: ${filters.first_seen || 'Not specified'}</li>
+                        <li>Last Seen: ${filters.last_seen || 'Not specified'}</li>
+                        <li>Max Songs: ${filters.max_songs || 50}</li>
+                    </ul>
+                `;
+            } catch (e) {
+                console.error('Error parsing filters:', e);
+            }
+        }
+
+        const modalBody = document.getElementById('detailsModalBody');
+        modalBody.innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Timestamp:</strong> ${formattedDate}</p>
+                    <p><strong>Playlist Name:</strong> ${found.playlist_name}</p>
+                    <p><strong>Status:</strong> ${found.status}</p>
+                    <p><strong>Model:</strong> ${found.model}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Songs Requested:</strong> ${found.songs_requested || '-'}</p>
+                    <p><strong>Songs Returned:</strong> ${found.songs_returned || '-'}</p>
+                    <p><strong>Songs Added to Plex:</strong> ${found.songs_added_to_plex || '-'}</p>
+                    <p><strong>Songs Skipped:</strong> ${found.songs_skipped || '-'}</p>
+                    <p><strong>Songs Hallucinated:</strong> ${found.songs_hallucinated || 0}</p>
+                </div>
+            </div>
+            <hr>
+            <div class="mb-3">
+                <p><strong>Instructions:</strong></p>
+                <p class="text-muted">${found.instructions || 'N/A'}</p>
+            </div>
+            ${filtersHtml}
+            ${found.error_message ? `<hr><p><strong>Error:</strong> <span class="text-danger">${found.error_message}</span></p>` : ''}
+            ${found.plex_url ? `<hr><p><strong>Plex URL:</strong> <a href="${found.plex_url}" target="_blank">${found.plex_url}</a></p>` : ''}
+        `;
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
+        modal.show();
+
+    } catch (error) {
+        console.error('Error loading details:', error);
+        showResults('danger', 'Failed to load generation details');
+    }
+}
+
+// Delete AI playlist
+async function deleteAIPlaylist(id, playlistName) {
+    if (!confirm(`Delete "${playlistName}" from both Plex and the history?\n\nThis will permanently remove the playlist from Plex and delete this generation record.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/ai-playlists/delete/${id}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showResults('success', data.message || 'Playlist deleted successfully');
+            loadHistoryPage(currentPage); // Refresh current page
+        } else {
+            showResults('danger', data.message || data.error || 'Failed to delete playlist');
+        }
+    } catch (error) {
+        console.error('Error deleting playlist:', error);
+        showResults('danger', 'Failed to communicate with server');
+    }
+}
+
+// Status filter change
+document.getElementById('status-filter').addEventListener('change', function() {
+    loadHistoryPage(1);
+});
+
+// Reset form when modal is hidden
+document.getElementById('aiPlaylistModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('ai-playlist-form').reset();
+    document.querySelectorAll('.station-checkbox').forEach(cb => cb.checked = false);
+    updateSelectedCount();
+});
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadStations();
+    loadHistoryPage(1);
+});
+</script>
+{% endblock %}

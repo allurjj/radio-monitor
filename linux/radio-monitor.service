@@ -1,0 +1,46 @@
+[Unit]
+Description=Radio Monitor - Music Discovery Service
+Documentation=https://github.com/allurjj/radio-monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=radio
+Group=radio
+WorkingDirectory=/opt/radio-monitor
+
+# Set PATH to include virtual environment
+Environment="PATH=/opt/radio-monitor/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+
+# ExecStart: Command to start the application
+ExecStart=/opt/radio-monitor/venv/bin/python -m radio_monitor.cli --gui
+
+# ExecStop: Command to stop gracefully
+ExecStop=/bin/kill -SIGTERM $MAINPID
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=radio-monitor
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/radio-monitor
+ReadWritePaths=/var/log/radio-monitor
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,114 @@
+{% extends "base_sidebar.html" %}
+
+{% block title %}Stations - Radio Monitor 1.0{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-broadcast-pin"></i> Stations</h1>
+        <p class="text-muted">Manage radio stations and monitor their health</p>
+    </div>
+</div>
+
+<!-- Station Cards Grid -->
+<div class="row">
+    {% if stations %}
+        {% for station in stations %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card card-standard h-100 station-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-broadcast"></i>
+                        {{ station.name }}
+                    </h5>
+                    <span class="badge bg-{{ station.status_class }}">
+                        {% if station.enabled %}
+                            {% if station.consecutive_failures == 0 %}
+                            <i class="bi bi-check-circle"></i> Healthy
+                            {% else %}
+                            <i class="bi bi-exclamation-triangle"></i> {{ station.consecutive_failures }} failures
+                            {% endif %}
+                        {% else %}
+                        <i class="bi bi-x-circle"></i> Disabled
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr>
+                            <th width="40%">Genre</th>
+                            <td>{{ station.genre or 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Market</th>
+                            <td>{{ station.market or 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Scraper</th>
+                            <td>
+                                <span class="badge bg-info">iHeartRadio</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>MBID Support</th>
+                            <td>
+                                {% if station.has_mbid %}
+                                <span class="badge bg-success"><i class="bi bi-check"></i> Yes</span>
+                                {% else %}
+                                <span class="badge bg-secondary"><i class="bi bi-x"></i> No</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if station.last_failure_at %}
+                        <tr>
+                            <th>Last Failure</th>
+                            <td class="text-danger">
+                                {{ station.last_failure_at[:10] }}
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+                <div class="card-footer d-flex justify-content-between align-items-center">
+                    <div class="btn-group btn-group-sm">
+                        <a href="/stations/{{ station.id }}" class="btn btn-outline-primary" title="View Details">
+                            <i class="bi bi-eye"></i> Details
+                        </a>
+                        <a href="/monitor" class="btn btn-outline-secondary" title="Monitor Settings">
+                            <i class="bi bi-gear"></i>
+                        </a>
+                    </div>
+                    <a href="{{ station.url }}" target="_blank" class="btn btn-sm btn-link" title="Visit Station Website">
+                        <i class="bi bi-box-arrow-up-right"></i> Website
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-12">
+            <div class="card card-standard">
+                <div class="card-body">
+                    <div class="empty-state">
+                        <i class="bi bi-broadcast empty-state-icon"></i>
+                        <h3 class="empty-state-title">No stations configured</h3>
+                        <p class="empty-state-description">Add radio stations in the Monitor settings to start tracking music.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block custom_css %}
+<style>
+.station-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.station-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+</style>
+{% endblock %}

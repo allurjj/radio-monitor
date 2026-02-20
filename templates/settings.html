@@ -1,0 +1,1579 @@
+{% extends "base_sidebar.html" %}
+
+{# TEMPLATE UPDATED: 2026-02-09 15:30 - Phase 1 #}
+{% block title %}Settings - Radio Monitor 1.0{% endblock %}
+
+{% block custom_css %}
+<style>
+    .test-result {
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        border-radius: 0.375rem;
+        display: none;
+        font-size: 0.875rem;
+    }
+
+    .test-result.success {
+        background-color: #d1e7dd;
+        color: #0f5132;
+        border: 1px solid #badbcc;
+    }
+
+    .test-result.error {
+        background-color: #f8d7da;
+        color: #842029;
+        border: 1px solid #f5c2c7;
+    }
+
+    .station-table tr.disabled-station {
+        background-color: #e9ecef;
+        opacity: 0.7;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1><i class="bi bi-gear"></i> Settings</h1>
+        <p class="text-muted">Configure Radio Monitor settings</p>
+    </div>
+</div>
+
+<form id="settings-form">
+    <!-- Lidarr Section -->
+    <div class="card card-standard">
+        <h2><i class="bi bi-cloud-download"></i> Lidarr</h2>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="lidarr-url" class="form-label">Lidarr URL</label>
+                    <input type="url" class="form-control" id="lidarr-url" required>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="lidarr-api-key" class="form-label">API Key</label>
+                    <input type="password" class="form-control" id="lidarr-api-key" required>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="lidarr-root-folder" class="form-label">Root Folder Path</label>
+                    <div class="input-group">
+                        <select class="form-select" id="lidarr-root-folder" required>
+                            <option value="">Loading...</option>
+                        </select>
+                        <button class="btn btn-outline-secondary" type="button" id="btn-refresh-root-folders" title="Refresh root folders">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="mb-3">
+                    <label for="lidarr-quality-profile" class="form-label">Quality Profile</label>
+                    <div class="input-group">
+                        <select class="form-select" id="lidarr-quality-profile" required>
+                            <option value="">Loading...</option>
+                        </select>
+                        <button class="btn btn-outline-secondary" type="button" id="btn-refresh-quality-profiles" title="Refresh quality profiles">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="mb-3">
+                    <label for="lidarr-metadata-profile" class="form-label">Metadata Profile</label>
+                    <div class="input-group">
+                        <select class="form-select" id="lidarr-metadata-profile" required>
+                            <option value="">Loading...</option>
+                        </select>
+                        <button class="btn btn-outline-secondary" type="button" id="btn-refresh-metadata-profiles" title="Refresh metadata profiles">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-4">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="lidarr-monitor-new">
+                    <label class="form-check-label" for="lidarr-monitor-new">
+                        Monitor new artists
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="lidarr-search-missing">
+                    <label class="form-check-label" for="lidarr-search-missing">
+                        Search for missing albums
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="lidarr-auto-import">
+                    <label class="form-check-label" for="lidarr-auto-import">
+                        Auto-import artists
+                    </label>
+                    <div class="form-text text-warning">
+                        <i class="bi bi-exclamation-triangle"></i> Automatically imports all discovered artists to Lidarr
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <label for="lidarr-min-plays" class="form-label">Minimum Plays for Auto-Import</label>
+                <input type="number" class="form-control" id="lidarr-min-plays" min="1" max="1000" value="5">
+                <div class="form-text text-muted">
+                    <i class="bi bi-info-circle"></i> Only auto-import artists with at least this many total plays (default: 5)
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label for="lidarr-min-songs" class="form-label">Minimum Songs for Auto-Import</label>
+                <input type="number" class="form-control" id="lidarr-min-songs" min="1" max="50" value="1">
+                <div class="form-text text-muted">
+                    <i class="bi bi-info-circle"></i> Only auto-import artists with at least this many different songs (default: 1)
+                </div>
+            </div>
+        </div>
+        <div class="mt-3">
+            <button type="button" class="btn btn-outline-primary" id="btn-test-lidarr">
+                <i class="bi bi-wifi"></i> Test Connection
+            </button>
+            <div id="lidarr-test-result" class="test-result"></div>
+        </div>
+    </div>
+
+    <!-- Plex Section -->
+    <div class="card card-standard">
+        <h2><i class="bi bi-music-note-list"></i> Plex</h2>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="plex-url" class="form-label">Plex URL</label>
+                    <input type="url" class="form-control" id="plex-url" required>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="plex-token" class="form-label">Plex Token</label>
+                    <input type="password" class="form-control" id="plex-token" required>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <div class="mb-3">
+                    <label for="plex-library" class="form-label">Music Library Name</label>
+                    <div class="input-group">
+                        <select class="form-select" id="plex-library" required>
+                            <option value="">Loading...</option>
+                        </select>
+                        <button class="btn btn-outline-secondary" type="button" id="btn-refresh-plex-libraries" title="Refresh libraries">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mt-3">
+            <button type="button" class="btn btn-outline-primary" id="btn-test-plex">
+                <i class="bi bi-wifi"></i> Test Connection
+            </button>
+            <div id="plex-test-result" class="test-result"></div>
+        </div>
+    </div>
+
+    <!-- OpenRouter AI Section (Experimental) -->
+    <div class="card card-standard border-warning">
+        <div class="card-header bg-warning text-dark">
+            <h2 class="mb-0"><i class="bi bi-cpu"></i> OpenRouter AI <span class="badge bg-danger">Experimental</span></h2>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">
+                Configure OpenRouter.ai for AI-powered playlist generation.
+                <a href="https://openrouter.ai/keys" target="_blank">Get your API key here</a>.
+            </p>
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <strong>Experimental Feature:</strong> AI playlist generation is cutting-edge technology.
+                Results may vary based on the AI model and your instructions.
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="openrouter-api-key" class="form-label">API Key</label>
+                        <input type="password" class="form-control" id="openrouter-api-key">
+                        <div class="form-text">
+                            <i class="bi bi-info-circle"></i> API key from https://openrouter.ai/keys
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="openrouter-model" class="form-label">AI Model</label>
+                        <input type="text" class="form-control" id="openrouter-model" value="qwen/qwen3-next-80b-a3b-instruct:free">
+                        <div class="form-text">
+                            <i class="bi bi-info-circle"></i> Model must support free tier (default: qwen/qwen3-next-80b-a3b-instruct:free)
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="openrouter-timeout" class="form-label">Timeout (seconds)</label>
+                        <input type="number" class="form-control" id="openrouter-timeout" min="5" max="300" value="120">
+                        <div class="form-text">API request timeout (default: 120)</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="openrouter-max-retries" class="form-label">Max Retries</label>
+                        <input type="number" class="form-control" id="openrouter-max-retries" min="0" max="10" value="3">
+                        <div class="form-text">Retry failed requests (default: 3)</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="openrouter-rate-limit" class="form-label">Rate Limit (per minute)</label>
+                        <input type="number" class="form-control" id="openrouter-rate-limit" min="1" max="10" value="1" disabled>
+                        <div class="form-text">Requests per minute (default: 1, currently disabled)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="openrouter-max-tokens" class="form-label">Max Output Tokens</label>
+                        <input type="number" class="form-control" id="openrouter-max-tokens"
+                               min="1000" max="200000" step="1000" value="100000">
+                        <div class="form-text">
+                            Maximum tokens AI can return (1000-200000). Higher values allow larger playlists.<br>
+                            <strong>Recommended:</strong> 100000 for models with 1M+ context, 8000 for smaller models.
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="openrouter-max-songs-input" class="form-label">Max Input Songs</label>
+                        <input type="number" class="form-control" id="openrouter-max-songs-input"
+                               min="100" max="10000" step="100" value="5000">
+                        <div class="form-text">
+                            Maximum songs to send to AI (100-10000). Larger libraries need more tokens.<br>
+                            <strong>At 5000 songs:</strong> ~150,000 input tokens. Requires model with 200k+ context.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monitor Section -->
+    <div class="card card-standard">
+        <h2><i class="bi bi-broadcast"></i> Monitor</h2>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="monitor-database" class="form-label">Database File</label>
+                    <input type="text" class="form-control" id="monitor-database" required>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="monitor-interval" class="form-label">Scrape Interval (minutes)</label>
+                    <input type="number" class="form-control" id="monitor-interval" min="1" max="60" required>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Database Section -->
+    <div class="card card-standard">
+        <h2><i class="bi bi-database"></i> Database</h2>
+        <div class="row">
+            <div class="col-md-4">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="db-backup-enabled">
+                    <label class="form-check-label" for="db-backup-enabled">
+                        Enable automatic backups
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="db-retention" class="form-label">Backup Retention (days)</label>
+                    <input type="number" class="form-control" id="db-retention" min="1" max="365" value="7">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="db-backup-path" class="form-label">Backup Path</label>
+                    <input type="text" class="form-control" id="db-backup-path" value="backups/">
+                </div>
+            </div>
+        </div>
+
+        <!-- Backup Actions -->
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-primary" id="btn-backup-create">
+                        <i class="bi bi-save"></i> Create Backup
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="btn-backup-list">
+                        <i class="bi bi-list-ul"></i> List Backups
+                    </button>
+                    <button type="button" class="btn btn-outline-warning" id="btn-vacuum-db">
+                        <i class="bi bi-arrow-clockwise"></i> Vacuum Database
+                    </button>
+                </div>
+
+                <!-- Backup List (hidden by default) -->
+                <div id="backup-list" style="display: none;" class="mt-3">
+                    <h6>Available Backups:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Size (MB)</th>
+                                    <th>Created</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="backups-table-body">
+                                <tr>
+                                    <td colspan="6" class="text-center">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Database Sharing Section -->
+    <div class="card card-standard">
+        <h2><i class="bi bi-share"></i> Database Sharing</h2>
+        <p class="text-muted">Export your database to share with friends, or import a database from a friend.</p>
+
+        <div class="row">
+            <!-- Export Database -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-box-arrow-up-right"></i> Export Database for Sharing</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small">
+                            Exports a clean copy of your database with:
+                            <ul class="mb-0">
+                                <li>All discovery data (artists, songs, play counts)</li>
+                                <li>Removed: Playlists, activity logs, Plex failures, notifications</li>
+                                <li>Reset: Lidarr import status (friends need to do their own import)</li>
+                            </ul>
+                            <div class="mt-2">
+                                <small class="text-info">
+                                    <i class="bi bi-info-circle"></i>
+                                    File is saved to your backup directory. You can then share it with friends via cloud storage, email, etc.
+                                </small>
+                            </div>
+                        </p>
+                        <div class="mb-3">
+                            <label for="export-filename" class="form-label">Filename</label>
+                            <input type="text" class="form-control" id="export-filename"
+                                   placeholder="radio_monitor_shared.db">
+                        </div>
+                        <button type="button" class="btn btn-primary" id="btn-export-db">
+                            <i class="bi bi-download"></i> Export Database
+                        </button>
+                        <div id="export-result" class="mt-2"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Import Database -->
+            <div class="col-md-6">
+                <div class="card border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill"></i> Import Shared Database</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small">
+                            Import a database shared by a friend.
+                            <br><br>
+                            <strong>⚠️ WARNING:</strong> This will <strong>OVERWRITE</strong> your current database!
+                            <br>
+                            All your data will be replaced with the imported database.
+                        </p>
+                        <div class="mb-3">
+                            <label for="import-source-path" class="form-label">Source Path</label>
+                            <input type="text" class="form-control" id="import-source-path"
+                                   placeholder="backups/radio_monitor_shared.db">
+                            <div class="form-text">Path to the shared database file</div>
+                        </div>
+                        <button type="button" class="btn btn-warning" id="btn-import-db">
+                            <i class="bi bi-upload"></i> Import Database
+                        </button>
+                        <div id="import-result" class="mt-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GUI Section -->
+    <div class="card card-standard">
+        <h2><i class="bi bi-window"></i> GUI</h2>
+        <div class="row">
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="gui-host" class="form-label">Host</label>
+                    <input type="text" class="form-control" id="gui-host" value="0.0.0.0" required>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="gui-port" class="form-label">Port</label>
+                    <input type="number" class="form-control" id="gui-port" min="1" max="65535" value="5000" required>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" id="gui-debug">
+                    <label class="form-check-label" for="gui-debug">
+                        Debug mode
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logging Section -->
+    <div class="card card-standard">
+        <h2><i class="bi bi-journal-text"></i> Logging</h2>
+        <div class="row">
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="log-file" class="form-label">Log File</label>
+                    <input type="text" class="form-control" id="log-file" value="radio_monitor.log">
+                    <small class="form-text text-muted">Path to log file (relative or absolute)</small>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="log-console-level" class="form-label">Console Level</label>
+                    <select class="form-select" id="log-console-level">
+                        <option value="DEBUG">Debug</option>
+                        <option value="INFO" selected>Info</option>
+                        <option value="WARNING">Warning</option>
+                        <option value="ERROR">Error</option>
+                    </select>
+                    <small class="form-text text-muted">Messages shown in terminal</small>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="log-file-level" class="form-label">File Level</label>
+                    <select class="form-select" id="log-file-level">
+                        <option value="DEBUG">Debug</option>
+                        <option value="INFO">Info</option>
+                        <option value="WARNING">Warning</option>
+                        <option value="ERROR" selected>Error</option>
+                    </select>
+                    <small class="form-text text-muted">Messages saved to log file</small>
+                </div>
+            </div>
+        </div>
+        <div class="alert alert-info mb-0" role="alert">
+            <i class="bi bi-info-circle"></i>
+            <strong>Tip:</strong> Set File Level to <strong>WARNING</strong> or <strong>INFO</strong> to see more logs in the Log Viewer page.
+            Current setting (<strong>ERROR</strong>) only shows errors and critical issues.
+        </div>
+    </div>
+
+    <!-- Stations Section -->
+    <div class="card card-standard">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2><i class="bi bi-broadcast"></i> Stations</h2>
+            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addStationModal">
+                <i class="bi bi-plus-circle"></i> Add Station
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover station-table">
+                <thead>
+                    <tr>
+                        <th>Enabled</th>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Genre</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="stations-table-body">
+                    <tr>
+                        <td colspan="6" class="text-center">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Application Control Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="bi bi-power"></i> Application Control</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        <strong>Shutdown the Radio Monitor application.</strong><br>
+                        The web interface will become unavailable. You can restart the application from:
+                    </p>
+                    <ul class="text-muted small">
+                        <li><strong>Windows (.exe):</strong> Double-click <code>Radio Monitor.exe</code></li>
+                        <li><strong>Windows (source):</strong> Run <code>pythonw.exe -m radio_monitor.cli --gui</code></li>
+                        <li><strong>Linux:</strong> <code>sudo systemctl start radio-monitor</code></li>
+                        <li><strong>Docker:</strong> <code>docker-compose up -d</code></li>
+                    </ul>
+                    <button type="button" class="btn btn-danger" id="btn-shutdown-app">
+                        <i class="bi bi-power"></i> Shutdown Application
+                    </button>
+                    <div id="shutdown-result" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Button -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-primary btn-lg" id="btn-save-all">
+                    <i class="bi bi-save"></i> Save All Settings
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="btn-reset">
+                    <i class="bi bi-arrow-counterclockwise"></i> Reset
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Add Station Modal -->
+<div class="modal fade" id="addStationModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-circle text-success"></i> Add New Station</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="add-station-form">
+                    <div class="mb-3">
+                        <label for="station-id" class="form-label">Station ID *</label>
+                        <input type="text" class="form-control" id="station-id" placeholder="e.g., us99" required>
+                        <div class="form-text">
+                            <strong>Unique identifier for the station (lowercase letters and numbers only, no spaces)</strong><br>
+                            Examples: <code>us99</code>, <code>wls</code>, <code>kiis-fm</code><br>
+                            This ID is used internally and in URLs. Pick something short and memorable!
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="station-name" class="form-label">Station Name *</label>
+                        <input type="text" class="form-control" id="station-name" placeholder="e.g., US99 99.5fm Chicago" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="station-url" class="form-label">Website/Stream URL *</label>
+                        <input type="url" class="form-control" id="station-url" placeholder="https://..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="station-genre" class="form-label">Genre *</label>
+                        <select class="form-select" id="station-genre" required>
+                            <option value="">Select Genre</option>
+                            <option value="Pop">Pop</option>
+                            <option value="Rock">Rock</option>
+                            <option value="Hip-Hop">Hip-Hop</option>
+                            <option value="Country">Country</option>
+                            <option value="R&B">R&B</option>
+                            <option value="Alternative">Alternative</option>
+                            <option value="Urban/Pop">Urban/Pop</option>
+                            <option value="Adult Contemporary">Adult Contemporary</option>
+                            <option value="Classic Hits">Classic Hits</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="station-market" class="form-label">Market *</label>
+                        <input type="text" class="form-control" id="station-market" placeholder="e.g., Chicago" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="station-scraper-type" class="form-label">Scraper Type *</label>
+                        <select class="form-select" id="station-scraper-type" required>
+                            <option value="iheart">iHeartRadio</option>
+                            <!-- WTMX option removed in v1.1.0 (Selenium dependency removed) -->
+                        </select>
+                        <div class="form-text">Only iHeartRadio scraper is supported</div>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="station-has-mbid">
+                        <label class="form-check-label" for="station-has-mbid">
+                            Station provides MusicBrainz IDs
+                        </label>
+                        <div class="form-text">Check if station website includes artist MBIDs</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="station-wait-time" class="form-label">Wait Time (seconds)</label>
+                        <input type="number" class="form-control" id="station-wait-time" min="5" max="60" value="10" required>
+                        <div class="form-text">Page load wait time (default: 10 seconds)</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="addStation()">
+                    <i class="bi bi-plus-circle"></i> Add Station
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-check-circle text-success"></i> Settings Saved</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="success-modal-message">Your settings have been saved successfully.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block custom_js %}
+<script>
+let currentSettings = {};
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Set default export filename with today's date
+    const today = new Date();
+    const dateStr = today.getFullYear() +
+        String(today.getMonth() + 1).padStart(2, '0') +
+        String(today.getDate()).padStart(2, '0');
+    const exportInput = document.getElementById('export-filename');
+    if (exportInput && !exportInput.value) {
+        exportInput.value = `radio_monitor_shared_${dateStr}.db`;
+    }
+
+    loadSettings();
+    loadStations();
+
+    // Add event listeners for refresh buttons
+    document.getElementById('btn-refresh-root-folders').addEventListener('click', loadLidarrRootFolders);
+    document.getElementById('btn-refresh-quality-profiles').addEventListener('click', loadLidarrQualityProfiles);
+    document.getElementById('btn-refresh-metadata-profiles').addEventListener('click', loadLidarrMetadataProfiles);
+    document.getElementById('btn-refresh-plex-libraries').addEventListener('click', loadPlexLibraries);
+});
+
+function loadSettings() {
+    fetch('/api/settings')
+        .then(response => response.json())
+        .then(settings => {
+            currentSettings = settings;
+            populateForm(settings);
+            // Load dropdowns AFTER form is populated (so dataset values are set)
+            loadLidarrOptions();
+            loadPlexOptions();
+        })
+        .catch(error => {
+            console.error('Error loading settings:', error);
+            alert('Error loading settings: ' + error.message);
+        });
+}
+
+function populateForm(settings) {
+    console.log('=== populateForm called ===');
+    console.log('Settings received:', settings);
+
+    // Lidarr
+    if (settings.lidarr) {
+        document.getElementById('lidarr-url').value = settings.lidarr.url || '';
+        document.getElementById('lidarr-api-key').value = settings.lidarr.api_key || '';
+
+        // For root folder, store the path (already a string)
+        const rootFolderPath = settings.lidarr.root_folder_path || '';
+        document.getElementById('lidarr-root-folder').dataset.value = rootFolderPath;
+        console.log('Root folder set to:', rootFolderPath);
+
+        // For quality/metadata profiles, prioritize name matching over ID matching
+        const qualityId = settings.lidarr.quality_profile_id || '';
+        const qualityName = settings.lidarr.quality_profile_name || '';
+        document.getElementById('lidarr-quality-profile').dataset.id = qualityId;
+        document.getElementById('lidarr-quality-profile').dataset.name = qualityName;
+        console.log('Quality profile dataset - ID:', qualityId, 'Name:', qualityName);
+
+        const metadataId = settings.lidarr.metadata_profile_id || '';
+        const metadataName = settings.lidarr.metadata_profile_name || '';
+        document.getElementById('lidarr-metadata-profile').dataset.id = metadataId;
+        document.getElementById('lidarr-metadata-profile').dataset.name = metadataName;
+        console.log('Metadata profile dataset - ID:', metadataId, 'Name:', metadataName);
+
+        document.getElementById('lidarr-monitor-new').checked = settings.lidarr.monitor_new_artists || false;
+        document.getElementById('lidarr-search-missing').checked = settings.lidarr.search_for_missing_albums || false;
+        document.getElementById('lidarr-auto-import').checked = settings.lidarr.auto_import || false;
+        document.getElementById('lidarr-min-plays').value = settings.lidarr.min_plays_for_import || 5;
+        document.getElementById('lidarr-min-songs').value = settings.lidarr.min_songs_for_import || 1;
+    }
+
+    // Plex
+    if (settings.plex) {
+        document.getElementById('plex-url').value = settings.plex.url || '';
+        document.getElementById('plex-token').value = settings.plex.token || '';
+        // Store library name for later use after options are loaded
+        const plexLibrary = settings.plex.music_library_name || '';
+        document.getElementById('plex-library').dataset.value = plexLibrary;
+        console.log('Plex library set to:', plexLibrary);
+    }
+
+    // Monitor
+    if (settings.monitor) {
+        document.getElementById('monitor-database').value = settings.monitor.database_file || 'radio_songs.db';
+        document.getElementById('monitor-interval').value = settings.monitor.scrape_interval_minutes || 10;
+    }
+
+    // Database
+    if (settings.database) {
+        document.getElementById('db-backup-enabled').checked = settings.database.backup_enabled || false;
+        document.getElementById('db-retention').value = settings.database.backup_retention_days || 7;
+        document.getElementById('db-backup-path').value = settings.database.backup_path || 'backups/';
+    }
+
+    // GUI
+    if (settings.gui) {
+        document.getElementById('gui-host').value = settings.gui.host || '0.0.0.0';
+        document.getElementById('gui-port').value = settings.gui.port || 5000;
+        document.getElementById('gui-debug').checked = settings.gui.debug || false;
+    }
+
+    // Logging
+    if (settings.logging) {
+        document.getElementById('log-file').value = settings.logging.file || 'radio_monitor.log';
+        document.getElementById('log-console-level').value = settings.logging.console_level || 'INFO';
+        document.getElementById('log-file-level').value = settings.logging.file_level || 'ERROR';
+    }
+
+    // OpenRouter
+    if (settings.openrouter) {
+        document.getElementById('openrouter-api-key').value = settings.openrouter.api_key || '';
+        document.getElementById('openrouter-model').value = settings.openrouter.model || 'qwen/qwen3-next-80b-a3b-instruct:free';
+        document.getElementById('openrouter-timeout').value = settings.openrouter.timeout_seconds || 120;
+        document.getElementById('openrouter-max-retries').value = settings.openrouter.max_retries || 3;
+        document.getElementById('openrouter-rate-limit').value = settings.openrouter.rate_limit_per_minute || 1;
+        document.getElementById('openrouter-max-tokens').value = settings.openrouter.max_tokens || 100000;
+        document.getElementById('openrouter-max-songs-input').value = settings.openrouter.max_songs_input || 5000;
+    }
+}
+
+function loadStations() {
+    fetch('/api/stations')
+        .then(response => response.json())
+        .then(data => {
+            // Check if API returned an error
+            if (data.error) {
+                console.error('Error loading stations:', data.error);
+                const tbody = document.getElementById('stations-table-body');
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading stations: ' + data.error + '</td></tr>';
+                return;
+            }
+            // Handle response format from stations.py: {'items': [...], 'count': ...}
+            const stations = data.items || data;
+            // Check if data is an array
+            if (!Array.isArray(stations)) {
+                console.error('Invalid response from API - expected array, got:', typeof stations);
+                const tbody = document.getElementById('stations-table-body');
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading stations: Invalid response from server</td></tr>';
+                return;
+            }
+            displayStations(stations);
+        })
+        .catch(error => {
+            console.error('Error loading stations:', error);
+            const tbody = document.getElementById('stations-table-body');
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading stations: ' + error.message + '</td></tr>';
+        });
+}
+
+function displayStations(stations) {
+    const tbody = document.getElementById('stations-table-body');
+    tbody.innerHTML = '';
+
+    stations.forEach(station => {
+        const tr = document.createElement('tr');
+        if (!station.enabled) {
+            tr.classList.add('disabled-station');
+        }
+
+        tr.innerHTML = `
+            <td>
+                <input type="checkbox" class="station-enabled-checkbox" data-station="${station.id}"
+                       ${station.enabled ? 'checked' : ''}>
+            </td>
+            <td><code>${station.id}</code></td>
+            <td>${station.name}</td>
+            <td>${station.genre || '-'}</td>
+            <td>
+                <span class="badge bg-${station.status_class}">
+                    ${station.status}
+                </span>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary btn-toggle-station" data-station="${station.id}" title="Toggle">
+                    <i class="bi bi-arrow-repeat"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger btn-delete-station" data-station="${station.id}" title="Delete">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+    });
+
+    // Add event listeners for toggle buttons
+    document.querySelectorAll('.btn-toggle-station').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const stationId = this.getAttribute('data-station');
+            toggleStation(stationId);
+        });
+    });
+
+    // Add event listeners for delete buttons
+    document.querySelectorAll('.btn-delete-station').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const stationId = this.getAttribute('data-station');
+            if (confirm(`Are you sure you want to delete station "${stationId}"? This action cannot be undone.`)) {
+                deleteStation(stationId);
+            }
+        });
+    });
+}
+
+function toggleStation(stationId) {
+    // Get current enabled state
+    const checkbox = document.querySelector(`.station-enabled-checkbox[data-station="${stationId}"]`);
+    const newEnabled = !checkbox.checked;
+
+    fetch(`/api/stations/${stationId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            enabled: newEnabled,
+            consecutive_failures: 0
+        })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadStations();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+}
+
+function deleteStation(stationId) {
+    fetch(`/api/stations/${stationId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadStations();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+}
+
+function addStation() {
+    const stationId = document.getElementById('station-id').value.trim();
+    const name = document.getElementById('station-name').value.trim();
+    const url = document.getElementById('station-url').value.trim();
+    const genre = document.getElementById('station-genre').value;
+    const market = document.getElementById('station-market').value.trim();
+    const scraperType = document.getElementById('station-scraper-type').value;
+    const hasMbid = document.getElementById('station-has-mbid').checked;
+    const waitTime = parseInt(document.getElementById('station-wait-time').value) || 10;
+
+    // Validate
+    if (!stationId || !name || !url || !genre || !market) {
+        alert('Please fill in all required fields');
+        return;
+    }
+
+    // Validate station ID format
+    if (!/^[a-z0-9]+$/.test(stationId)) {
+        alert('Station ID must contain only lowercase letters and numbers (no spaces)');
+        return;
+    }
+
+    fetch('/api/stations/add', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            id: stationId,
+            name: name,
+            url: url,
+            genre: genre,
+            market: market,
+            has_mbid: hasMbid,
+            scraper_type: scraperType,
+            wait_time: waitTime
+        })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close modal and reload stations
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addStationModal'));
+                modal.hide();
+                document.getElementById('add-station-form').reset();
+                loadStations();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+}
+
+// Test Lidarr connection
+document.getElementById('btn-test-lidarr').addEventListener('click', function() {
+    const url = document.getElementById('lidarr-url').value;
+    const apiKey = document.getElementById('lidarr-api-key').value;
+
+    fetch('/api/test/lidarr', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url, api_key: apiKey })
+    })
+        .then(response => response.json())
+        .then(data => {
+            const resultDiv = document.getElementById('lidarr-test-result');
+            if (data.success) {
+                resultDiv.textContent = data.message;
+                resultDiv.className = 'test-result success';
+            } else {
+                resultDiv.textContent = data.message;
+                resultDiv.className = 'test-result error';
+            }
+            resultDiv.style.display = 'block';
+        })
+        .catch(error => {
+            const resultDiv = document.getElementById('lidarr-test-result');
+            resultDiv.textContent = 'Error: ' + error.message;
+            resultDiv.className = 'test-result error';
+            resultDiv.style.display = 'block';
+        });
+});
+
+// Test Plex connection
+document.getElementById('btn-test-plex').addEventListener('click', function() {
+    const url = document.getElementById('plex-url').value;
+    const token = document.getElementById('plex-token').value;
+
+    fetch('/api/test/plex', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url, token })
+    })
+        .then(response => response.json())
+        .then(data => {
+            const resultDiv = document.getElementById('plex-test-result');
+            if (data.success) {
+                resultDiv.textContent = data.message;
+                resultDiv.className = 'test-result success';
+            } else {
+                resultDiv.textContent = data.message;
+                resultDiv.className = 'test-result error';
+            }
+            resultDiv.style.display = 'block';
+        })
+        .catch(error => {
+            const resultDiv = document.getElementById('plex-test-result');
+            resultDiv.textContent = 'Error: ' + error.message;
+            resultDiv.className = 'test-result error';
+            resultDiv.style.display = 'block';
+        });
+});
+
+// Save all settings
+document.getElementById('btn-save-all').addEventListener('click', function() {
+    const settings = getFormSettings();
+
+    fetch('/api/settings/update', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(settings)
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Check if restart required
+                if (data.restart_required) {
+                    // Save restart flag to localStorage
+                    localStorage.setItem('restart_required', 'true');
+                    localStorage.setItem('restart_reasons', JSON.stringify(data.restart_reasons));
+
+                    // Show success modal with restart message
+                    const successMessage = data.restart_reasons.length > 0
+                        ? 'Settings saved successfully.<br><br><strong>Restart required for changes to take effect.</strong>'
+                        : 'Settings saved successfully.';
+
+                    document.getElementById('successModal').querySelector('.modal-body p').innerHTML = successMessage;
+                    const modal = new bootstrap.Modal(document.getElementById('successModal'));
+                    modal.show();
+                } else {
+                    // Show success modal (no restart needed)
+                    const modal = new bootstrap.Modal(document.getElementById('successModal'));
+                    modal.show();
+                }
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+});
+
+// Load all Lidarr dropdown options
+function loadLidarrOptions() {
+    loadLidarrRootFolders();
+    loadLidarrQualityProfiles();
+    loadLidarrMetadataProfiles();
+}
+
+// Load all Plex dropdown options
+function loadPlexOptions() {
+    loadPlexLibraries();
+}
+
+// Load Lidarr root folders
+function loadLidarrRootFolders() {
+    const select = document.getElementById('lidarr-root-folder');
+    const currentValue = select.dataset.value || '';
+
+    fetch('/api/lidarr/root-folders')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.folders) {
+                select.innerHTML = '';
+                data.folders.forEach(folder => {
+                    const option = document.createElement('option');
+                    option.value = folder.path;
+                    option.textContent = folder.path;
+                    if (folder.path === currentValue) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            } else {
+                select.innerHTML = '<option value="">Error loading options</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading root folders:', error);
+            select.innerHTML = '<option value="">Error loading options</option>';
+        });
+}
+
+// Load Lidarr quality profiles
+function loadLidarrQualityProfiles() {
+    const select = document.getElementById('lidarr-quality-profile');
+    const currentId = select.dataset.id || '';
+    const currentName = select.dataset.name || '';
+
+    console.log('=== loadLidarrQualityProfiles ===');
+    console.log('Looking for - ID:', currentId, 'Name:', currentName);
+
+    fetch('/api/lidarr/quality-profiles')
+        .then(response => response.json())
+        .then(data => {
+            console.log('Quality profiles response:', data.profiles?.map(p => ({id: p.id, name: p.name})));
+            if (data.success && data.profiles) {
+                select.innerHTML = '';
+                let matched = false;
+
+                data.profiles.forEach(profile => {
+                    const option = document.createElement('option');
+                    option.value = profile.id;
+                    option.textContent = profile.name;
+
+                    // Match by name first (preferred), then by ID
+                    if (!matched && currentName && profile.name === currentName) {
+                        option.selected = true;
+                        console.log('✅ Matched by NAME:', profile.name);
+                        matched = true;
+                    } else if (!matched && currentId && String(profile.id) === String(currentId)) {
+                        option.selected = true;
+                        console.log('✅ Matched by ID:', profile.id);
+                        matched = true;
+                    }
+
+                    select.appendChild(option);
+                });
+
+                if (!matched) {
+                    console.log('❌ NO MATCH FOUND - Current ID:', currentId, 'Name:', currentName);
+                }
+            } else {
+                select.innerHTML = '<option value="">Error loading options</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading quality profiles:', error);
+            select.innerHTML = '<option value="">Error loading options</option>';
+        });
+}
+
+// Load Lidarr metadata profiles
+function loadLidarrMetadataProfiles() {
+    const select = document.getElementById('lidarr-metadata-profile');
+    const currentId = select.dataset.id || '';
+    const currentName = select.dataset.name || '';
+
+    fetch('/api/lidarr/metadata-profiles')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.profiles) {
+                select.innerHTML = '';
+                let matched = false;
+
+                data.profiles.forEach(profile => {
+                    const option = document.createElement('option');
+                    option.value = profile.id;
+                    option.textContent = profile.name;
+
+                    // Match by name first (preferred), then by ID
+                    if (!matched && currentName && profile.name === currentName) {
+                        option.selected = true;
+                        matched = true;
+                    } else if (!matched && currentId && String(profile.id) === String(currentId)) {
+                        option.selected = true;
+                        matched = true;
+                    }
+
+                    select.appendChild(option);
+                });
+            } else {
+                select.innerHTML = '<option value="">Error loading options</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading metadata profiles:', error);
+            select.innerHTML = '<option value="">Error loading options</option>';
+        });
+}
+
+// Load Plex libraries
+function loadPlexLibraries() {
+    const select = document.getElementById('plex-library');
+    const currentValue = select.dataset.value || '';
+
+    fetch('/api/plex/libraries')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.libraries) {
+                select.innerHTML = '';
+                data.libraries.forEach(lib => {
+                    const option = document.createElement('option');
+                    option.value = lib.name;
+                    option.textContent = lib.name;
+                    if (lib.name === currentValue) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            } else {
+                select.innerHTML = '<option value="">Error loading options</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading Plex libraries:', error);
+            select.innerHTML = '<option value="">Error loading options</option>';
+        });
+}
+
+function getFormSettings() {
+    // Get selected text for quality and metadata profiles (save names instead of IDs)
+    const qualityProfileSelect = document.getElementById('lidarr-quality-profile');
+    const qualityProfileName = qualityProfileSelect.options[qualityProfileSelect.selectedIndex]?.text || '';
+
+    const metadataProfileSelect = document.getElementById('lidarr-metadata-profile');
+    const metadataProfileName = metadataProfileSelect.options[metadataProfileSelect.selectedIndex]?.text || '';
+
+    return {
+        lidarr: {
+            url: document.getElementById('lidarr-url').value,
+            api_key: document.getElementById('lidarr-api-key').value,
+            root_folder_path: document.getElementById('lidarr-root-folder').value,
+            quality_profile_id: parseInt(qualityProfileSelect.value),
+            quality_profile_name: qualityProfileName,  // Store name for display
+            metadata_profile_id: parseInt(metadataProfileSelect.value),
+            metadata_profile_name: metadataProfileName,  // Store name for display
+            monitor_new_artists: document.getElementById('lidarr-monitor-new').checked,
+            search_for_missing_albums: document.getElementById('lidarr-search-missing').checked,
+            auto_import: document.getElementById('lidarr-auto-import').checked,
+            min_plays_for_import: parseInt(document.getElementById('lidarr-min-plays').value) || 5,
+            min_songs_for_import: parseInt(document.getElementById('lidarr-min-songs').value) || 1
+        },
+        plex: {
+            url: document.getElementById('plex-url').value,
+            token: document.getElementById('plex-token').value,
+            music_library_name: document.getElementById('plex-library').value
+        },
+        monitor: {
+            database_file: document.getElementById('monitor-database').value,
+            scrape_interval_minutes: parseInt(document.getElementById('monitor-interval').value)
+        },
+        database: {
+            backup_enabled: document.getElementById('db-backup-enabled').checked,
+            backup_retention_days: parseInt(document.getElementById('db-retention').value),
+            backup_path: document.getElementById('db-backup-path').value
+        },
+        gui: {
+            host: document.getElementById('gui-host').value,
+            port: parseInt(document.getElementById('gui-port').value),
+            debug: document.getElementById('gui-debug').checked
+        },
+        logging: {
+            file: document.getElementById('log-file').value,
+            console_level: document.getElementById('log-console-level').value,
+            file_level: document.getElementById('log-file-level').value
+        },
+        openrouter: {
+            api_key: document.getElementById('openrouter-api-key').value,
+            model: document.getElementById('openrouter-model').value,
+            timeout_seconds: parseInt(document.getElementById('openrouter-timeout').value) || 120,
+            max_retries: parseInt(document.getElementById('openrouter-max-retries').value) || 3,
+            rate_limit_per_minute: parseInt(document.getElementById('openrouter-rate-limit').value) || 1,
+            max_tokens: parseInt(document.getElementById('openrouter-max-tokens').value) || 100000,
+            max_songs_input: parseInt(document.getElementById('openrouter-max-songs-input').value) || 5000
+        }
+    };
+}
+
+// Reset button
+document.getElementById('btn-reset').addEventListener('click', function() {
+    if (confirm('Reset all settings to their saved values?')) {
+        loadSettings();
+    }
+});
+
+// Shutdown application button
+document.getElementById('btn-shutdown-app').addEventListener('click', function() {
+    const resultDiv = document.getElementById('shutdown-result');
+
+    if (!confirm(
+        '⚠️ Are you sure you want to shutdown Radio Monitor?\n\n' +
+        'The web interface will become unavailable.\n\n' +
+        'You can restart the application from:\n' +
+        '• Windows: Double-click "Radio Monitor.exe"\n' +
+        '• Linux: sudo systemctl start radio-monitor\n' +
+        '• Docker: docker-compose up -d\n\n' +
+        'Continue with shutdown?'
+    )) {
+        return;
+    }
+
+    resultDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Shutting down... Please wait.</div>';
+
+    fetch('/api/shutdown', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'shutting_down') {
+            resultDiv.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> ' + data.message + '</div>';
+            // After 2 seconds, show that the page is no longer accessible
+            setTimeout(() => {
+                document.body.innerHTML = `
+                    <div class="d-flex justify-content-center align-items-center vh-100 bg-light">
+                        <div class="text-center p-5 bg-white rounded shadow">
+                            <h3 class="text-success mb-3"><i class="bi bi-power"></i> Radio Monitor Shutdown</h3>
+                            <p class="mb-0">The application has been shut down successfully.</p>
+                            <p class="text-muted mb-0">You can close this tab.</p>
+                            <hr class="my-3">
+                            <p class="small text-muted mb-0">To restart: Double-click "Radio Monitor.exe" or run your start command</p>
+                        </div>
+                    </div>
+                `;
+            }, 2000);
+        } else {
+            resultDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> ' + (data.message || 'Shutdown failed') + '</div>';
+        }
+    })
+    .catch(error => {
+        resultDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Error: ' + error.message + '</div>';
+    });
+});
+
+// Backup button
+document.getElementById('btn-backup-create').addEventListener('click', function() {
+    fetch('/api/backup/create', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Backup created: ${data.backup_path}`);
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+});
+
+// List backups button
+document.getElementById('btn-backup-list').addEventListener('click', function() {
+    const backupListDiv = document.getElementById('backup-list');
+    const tableBody = document.getElementById('backups-table-body');
+
+    if (backupListDiv.style.display === 'none' || !backupListDiv.style.display) {
+        // Show backups
+        backupListDiv.style.display = 'block';
+        loadBackups();
+    } else {
+        // Hide backups
+        backupListDiv.style.display = 'none';
+    }
+});
+
+function loadBackups() {
+    fetch('/api/backups')
+        .then(response => response.json())
+        .then(backups => {
+            displayBackups(backups);
+        })
+        .catch(error => {
+            console.error('Error loading backups:', error);
+        });
+}
+
+function displayBackups(backups) {
+    const tbody = document.getElementById('backups-table-body');
+    tbody.innerHTML = '';
+
+    if (!backups || backups.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center text-muted">
+                    No backups found
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    backups.forEach(backup => {
+        const tr = document.createElement('tr');
+        const date = new Date(backup.created_at);
+
+        tr.innerHTML = `
+            <td><code>${backup.name}</code></td>
+            <td>${backup.size_mb} MB</td>
+            <td>${date.toLocaleString()}</td>
+            <td>
+                <span class="badge bg-${backup.is_valid ? 'success' : 'danger'}">
+                    ${backup.is_valid ? 'Valid' : 'Invalid'}
+                </span>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary btn-restore-backup"
+                        data-backup="${backup.path}" ${!backup.is_valid ? 'disabled' : ''}>
+                    <i class="bi bi-arrow-counterclockwise"></i> Restore
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+    });
+
+    // Add event listeners for restore buttons
+    document.querySelectorAll('.btn-restore-backup').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const backupPath = this.getAttribute('data-backup');
+            restoreBackup(backupPath);
+        });
+    });
+}
+
+function restoreBackup(backupPath) {
+    if (!confirm(`Restore database from:\n${backupPath}\n\nCurrent database will be backed up first.`)) {
+        return;
+    }
+
+    fetch('/api/backup/restore', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ backup_path: backupPath })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Database restored successfully!');
+                loadBackups();  // Refresh list
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+}
+
+// Vacuum database button
+document.getElementById('btn-vacuum-db').addEventListener('click', function() {
+    if (!confirm('Vacuum the database? This optimizes the database file.\n\nMay take a few moments...')) {
+        return;
+    }
+
+    // This would require a CLI call - for now just show message
+    alert('Database vacuum can be performed from the command line:\n\npython -m radio_monitor.cli --vacuum-db');
+});
+
+// Export database button
+document.getElementById('btn-export-db').addEventListener('click', function() {
+    const filename = document.getElementById('export-filename').value.trim();
+    const resultDiv = document.getElementById('export-result');
+
+    if (!filename) {
+        resultDiv.innerHTML = '<div class="alert alert-danger">Please enter a filename</div>';
+        return;
+    }
+
+    resultDiv.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Exporting...</span></div>';
+
+    fetch('/api/settings/export-db', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ filename: filename })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.innerHTML = `<div class="alert alert-success">✓ ${data.message}</div>`;
+        } else {
+            resultDiv.innerHTML = `<div class="alert alert-danger">✗ ${data.message}</div>`;
+        }
+    })
+    .catch(error => {
+        resultDiv.innerHTML = `<div class="alert alert-danger">✗ Error: ${error.message}</div>`;
+    });
+});
+
+// Import database button
+document.getElementById('btn-import-db').addEventListener('click', function() {
+    const sourcePath = document.getElementById('import-source-path').value.trim();
+    const resultDiv = document.getElementById('import-result');
+
+    if (!sourcePath) {
+        resultDiv.innerHTML = '<div class="alert alert-danger">Please enter a source path</div>';
+        return;
+    }
+
+    // Show warning confirmation
+    if (!confirm(
+        '⚠️ WARNING: This will OVERWRITE your current database!\n\n' +
+        'All your data will be replaced with the imported database.\n' +
+        'This cannot be undone.\n\n' +
+        'Are you sure you want to continue?'
+    )) {
+        return;
+    }
+
+    resultDiv.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Importing...</span></div>';
+
+    fetch('/api/settings/import-db', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ source_path: sourcePath })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.innerHTML = `<div class="alert alert-success">✓ ${data.message}</div>`;
+            // Reload page after 2 seconds to show new data
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            resultDiv.innerHTML = `<div class="alert alert-danger">✗ ${data.message}</div>`;
+        }
+    })
+    .catch(error => {
+        resultDiv.innerHTML = `<div class="alert alert-danger">✗ Error: ${error.message}</div>`;
+    });
+});
+</script>
+{% endblock %}
