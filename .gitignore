@@ -92,6 +92,10 @@ build/                 # Build artifacts (but not dist/ for releases)
 # ------------------------------------------
 # Documentation (Internal docs only - user docs are kept)
 # ------------------------------------------
+CLAUDE.md
+MEMORY.md
+PUSH_CHECKLIST.md
+DEVELOPMENT_WORKFLOW.md
 # Uncomment these if you want to ignore internal development docs:
 # PHASE*.md
 # SELENIUM*.md
