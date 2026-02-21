@@ -49,12 +49,13 @@ COPY --from=builder /install /usr/local
 WORKDIR /app/data
 
 # Create app directories
-RUN mkdir -p /app/radio_monitor /app/templates /app/prompts
+RUN mkdir -p /app/radio_monitor /app/templates /app/prompts /app/static
 
 # Copy application code (to /app, not /app/data)
 COPY radio_monitor/ /app/radio_monitor/
 COPY templates/ /app/templates/
 COPY prompts/ /app/prompts/
+COPY static/ /app/static/
 
 # Add /app to Python path so imports work
 ENV PYTHONPATH=/app:$PYTHONPATH
