@@ -26,7 +26,7 @@ different formatting, spelling variations, or remix versions.
 import re
 import logging
 from datetime import datetime
-from Levenshtein import distance as levenshtein_distance
+from rapidfuzz import fuzz
 from radio_monitor.normalization import normalize_artist_name, normalize_song_title
 
 logger = logging.getLogger(__name__)
@@ -45,13 +45,7 @@ def fuzzy_ratio(str1, str2):
     if not str1 or not str2:
         return 0
 
-    dist = levenshtein_distance(str1.lower(), str2.lower())
-    max_len = max(len(str1), len(str2))
-
-    if max_len == 0:
-        return 100
-
-    return int((1 - dist / max_len) * 100)
+    return int(fuzz.ratio(str1.lower(), str2.lower()))
 
 
 def get_title_variations(title):
