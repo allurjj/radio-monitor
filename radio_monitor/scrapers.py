@@ -763,35 +763,19 @@ def scrape_all_stations(db=None, station_ids=None):
                         logger.warning(f"BLOCKED: Song title appears to be advertisement/website content: '{song_title}' (skipping)")
                         continue
 
-                    # Handle collaborations: Extract primary artist(s)
-                    artists_to_process = []
+                    # Handle collaborations: Use comprehensive collaboration detection
+                    from radio_monitor.normalization import handle_collaboration
 
-                    # Check for "feat." or "featuring" - use primary artist (left side)
-                    if ' feat.' in artist_name.lower() or ' featuring ' in artist_name.lower():
-                        # Split on feat/featuring and take the primary artist
-                        if ' feat.' in artist_name.lower():
-                            primary_artist = artist_name.lower().split(' feat.')[0].strip()
-                        else:
-                            primary_artist = artist_name.lower().split(' featuring ')[0].strip()
+                    # Split collaboration into individual artists
+                    # Returns list of (artist, song, mbid) tuples
+                    collaboration_results = handle_collaboration(artist_name, song_title, artist_mbid)
 
-                        # Preserve original casing
-                        for word in artist_name.split():
-                            if word.lower() in primary_artist.split():
-                                primary_artist = primary_artist.replace(word.lower(), word)
+                    # Extract just the artist names for processing
+                    artists_to_process = [result[0] for result in collaboration_results]
 
-                        artists_to_process.append(primary_artist)
-                        logger.debug(f"Collaboration 'feat.' detected: using primary artist '{primary_artist}' from '{artist_name}'")
-
-                    # Check for "&" - process all artists separately
-                    elif ' & ' in artist_name:
-                        # Split by " & " to get all artists
-                        collaboration_artists = [a.strip() for a in artist_name.split(' & ')]
-                        artists_to_process.extend(collaboration_artists)
-                        logger.debug(f"Collaboration '&' detected: will process {len(collaboration_artists)} artists from '{artist_name}'")
-
-                    else:
-                        # Single artist
-                        artists_to_process.append(artist_name)
+                    # Log collaboration splits
+                    if len(artists_to_process) > 1:
+                        logger.info(f"Collaboration detected: '{artist_name}' split into {len(artists_to_process)} artists: {artists_to_process}")
 
                     # Process each primary artist from the collaboration
                     for primary_artist in artists_to_process:

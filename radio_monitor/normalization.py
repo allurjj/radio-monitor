@@ -470,3 +470,242 @@ def normalize_for_storage(artist_name=None, song_title=None):
         normalized_song = normalize_with_edge_cases(song_title)
 
     return (normalized_artist, normalized_song)
+
+
+# ============================================================================
+# COLLABORATION DETECTION
+# ============================================================================
+
+"""
+Collaboration Detection for Radio Monitor
+
+Detects and splits artist collaborations like:
+- "Artist Feat Artist2" -> ["Artist", "Artist2"]
+- "Artist & Artist2" -> ["Artist", "Artist2"]
+- "Rascal Flatts Jonas Brothers" -> ["Rascal Flatts", "Jonas Brothers"]
+
+Purpose: Fix FOREIGN KEY constraint failures when compound artist names
+don't match any single artist in MusicBrainz.
+
+Created: 2026-02-21 (Phase 2: High Priority Fixes)
+"""
+
+from typing import List, Tuple, Optional
+
+# Collaboration patterns to detect
+COLLABORATION_PATTERNS = [
+    r'\s+Feat\s+(\w.+)',           # "Artist Feat Artist2"
+    r'\s+Featuring\s+(\w.+)',       # "Artist Featuring Artist2"
+    r'\s+Ft\s+(\w.+)',              # "Artist Ft Artist2"
+    r'\s+With\s+(\w.+)',            # "Artist With Artist2"
+    r'\s+\&\s+(\w.+)',              # "Artist & Artist2"
+    r'\s+And\s+(\w.+)',             # "Artist And Artist2"
+    r'\s+\+\s+(\w.+)',              # "Artist + Artist2"
+    r'\s+X\s+(\w.+)',               # "Artist X Artist2"
+    r'\s+Vs\.\s+(\w.+)',            # "Artist Vs. Artist2"
+]
+
+# Known non-collaboration artist names that look like collaborations
+# These should NOT be split (famous duos/groups with "And" in name)
+COLLABORATION_WHITELIST = {
+    'Jay And The Americans',
+    'Hall And Oates',
+    'Loggins And Messina',
+    'Brooks And Dunn',
+    'Simon And Garfunkel',
+    'Rodgers And Hammerstein',
+    'Stars On 45',
+    'The Presidents Of The United States Of America',
+    # Add more as needed
+}
+
+
+def detect_collaboration(artist_name: str) -> Tuple[bool, Optional[List[str]]]:
+    """
+    Detect if artist_name contains multiple artists.
+
+    Args:
+        artist_name: Artist name to check
+
+    Returns:
+        (is_collaboration, [artist1, artist2, ...])
+        (False, None) if single artist
+
+    Examples:
+        >>> detect_collaboration("Shaboozey Feat Jelly Roll")
+        (True, ['Shaboozey', 'Jelly Roll'])
+
+        >>> detect_collaboration("Taylor Swift")
+        (False, None)
+
+        >>> detect_collaboration("DJ Khaled & Drake")
+        (True, ['DJ Khaled', 'Drake'])
+    """
+    original = artist_name.strip()
+
+    # Check whitelist first (known non-collaborations)
+    if original in COLLABORATION_WHITELIST:
+        return False, None
+
+    # Try known collaboration patterns
+    for pattern in COLLABORATION_PATTERNS:
+        match = re.search(pattern, original, re.IGNORECASE)
+        if match:
+            # Split into primary and secondary artists
+            primary = re.sub(pattern, '', original, flags=re.IGNORECASE).strip()
+            secondary = match.group(1).strip()
+
+            # Further split secondary if it contains more artists (commas, &, +)
+            secondary_artists = split_artist_list(secondary)
+
+            return True, [primary] + secondary_artists
+
+    # Check for multiple capitalized names without separators
+    # Example: "Rascal Flatts Jonas Brothers"
+    if detect_multiple_capitalized_names(original):
+        artists = split_by_capitalized_words(original)
+        if len(artists) > 1:
+            return True, artists
+
+    return False, None
+
+
+def split_artist_list(artist_string: str) -> List[str]:
+    """
+    Split a string of multiple artists by common separators.
+
+    Args:
+        artist_string: String containing multiple artist names
+
+    Returns:
+        List of individual artist names
+
+    Examples:
+        >>> split_artist_list("DJ Khaled, Drake, Lil Wayne")
+        ['DJ Khaled', 'Drake', 'Lil Wayne']
+
+        >>> split_artist_list("Artist1 & Artist2")
+        ['Artist1', 'Artist2']
+    """
+    separators = [r',\s*', r'\s+&\s+', r'\s+\+\s+', r'\s+And\s+']
+
+    artists = [artist_string]
+    for sep in separators:
+        new_artists = []
+        for artist in artists:
+            new_artists.extend(re.split(sep, artist, flags=re.IGNORECASE))
+        artists = new_artists
+
+    return [a.strip() for a in artists if a.strip()]
+
+
+def detect_multiple_capitalized_names(text: str) -> bool:
+    """
+    Detect if text looks like multiple artist names concatenated.
+
+    This is a heuristic and may not be 100% accurate.
+
+    Args:
+        text: Artist name to check
+
+    Returns:
+        True if likely multiple artists, False otherwise
+
+    Examples:
+        >>> detect_multiple_capitalized_names("Rascal Flatts Jonas Brothers")
+        True
+
+        >>> detect_multiple_capitalized_names("Taylor Swift")
+        False
+    """
+    words = text.split()
+
+    # Look for patterns like: Word Word Capitalized Word Capitalized
+    # This indicates multiple proper nouns/artist names
+    capitalized_count = sum(1 for w in words if w[0].isupper())
+
+    # Need at least 4 capitalized words in 4+ total words
+    return capitalized_count >= 4 and len(words) >= 4
+
+
+def split_by_capitalized_words(text: str) -> List[str]:
+    """
+    Attempt to split concatenated artist names.
+
+    This is heuristic and may not be perfect.
+
+    Args:
+        text: Concatenated artist names
+
+    Returns:
+        List of artist names (best effort)
+
+    Examples:
+        >>> split_by_capitalized_words("Rascal Flatts Jonas Brothers")
+        ['Rascal Flatts', 'Jonas Brothers']
+
+        >>> split_by_capitalized_words("Taylor Swift")
+        ['Taylor Swift']
+    """
+    # Try to find known artist names in the string
+    # For now, use simple heuristics
+
+    # Look for common patterns like "BandName BandName"
+    words = text.split()
+    artists = []
+    current = []
+
+    for i, word in enumerate(words):
+        current.append(word)
+
+        # Check if next word starts a new artist (first letter capitalized)
+        if i < len(words) - 1 and words[i + 1][0].isupper():
+            # This might be a new artist
+            # Use some heuristics to decide
+            if len(current) >= 2:  # Minimum 2 words for artist name
+                artists.append(' '.join(current))
+                current = []
+
+    if current:
+        artists.append(' '.join(current))
+
+    return artists
+
+
+def handle_collaboration(artist_name: str, song_title: str, mbid: Optional[str] = None) -> List[Tuple[str, str, Optional[str]]]:
+    """
+    Handle collaboration artists by splitting or marking as compilation.
+
+    Args:
+        artist_name: Artist name (may be collaboration)
+        song_title: Song title
+        mbid: MusicBrainz ID (if available)
+
+    Returns:
+        List of (artist, song, mbid) tuples
+        - If single artist: [(artist, song, mbid)]
+        - If collaboration: [(artist1, song, None), (artist2, song, None), ...]
+
+    Examples:
+        >>> handle_collaboration("Shaboozey Feat Jelly Roll", "A Bar Song", None)
+        [('Shaboozey', 'A Bar Song', None), ('Jelly Roll', 'A Bar Song', None)]
+
+        >>> handle_collaboration("Taylor Swift", "Love Story", "mbid123")
+        [('Taylor Swift', 'Love Story', 'mbid123')]
+    """
+    is_collab, artists = detect_collaboration(artist_name)
+
+    if not is_collab:
+        return [(artist_name, song_title, mbid)]
+
+    # Option 1: Split into individual artists
+    # Each artist gets the song credited to them
+    results = []
+    for artist in artists:
+        results.append((artist, song_title, None))  # MBID unknown for split artists
+
+    # Log the split for debugging
+    logger.info(f"Split collaboration '{artist_name}' into: {artists}")
+
+    return results
+
