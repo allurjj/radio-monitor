@@ -17,4 +17,4 @@ APScheduler==3.10.4
 
 # Integrations
 musicbrainzngs==0.7.1
-Levenshtein==0.23.0
+rapidfuzz==3.6.1
