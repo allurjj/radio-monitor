@@ -455,14 +455,6 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
             conditions.append("a.first_seen_station = ?")
             params.append(filters['station_id'])
 
-        if filters.get('total_plays_min'):
-            conditions.append("total_plays >= ?")
-            params.append(int(filters['total_plays_min']))
-
-        if filters.get('total_plays_max'):
-            conditions.append("total_plays <= ?")
-            params.append(int(filters['total_plays_max']))
-
         if filters.get('first_seen_after'):
             conditions.append("a.first_seen_at >= ?")
             params.append(filters['first_seen_after'])
@@ -472,6 +464,21 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
             params.append(filters['last_seen_after'])
 
     where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+
+    # Build HAVING clause for aggregate filters (total_plays)
+    # HAVING is used after GROUP BY to filter aggregated values
+    having_conditions = []
+    having_params = []
+
+    if filters.get('total_plays_min'):
+        having_conditions.append("total_plays >= ?")
+        having_params.append(int(filters['total_plays_min']))
+
+    if filters.get('total_plays_max'):
+        having_conditions.append("total_plays <= ?")
+        having_params.append(int(filters['total_plays_max']))
+
+    having_clause = " HAVING " + " AND ".join(having_conditions) if having_conditions else ""
 
     # Build ORDER BY clause dynamically based on sort and direction
     # Map sort parameter to database column
@@ -494,12 +501,19 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
         order_by = f"{sort_column} {direction.upper()}"
 
     # Get total count
+    # Note: COUNT query needs subquery to properly handle HAVING clause with aggregates
+    # We must include the aggregate column in the subquery for HAVING to work
     count_query = f"""
-        SELECT COUNT(DISTINCT a.mbid)
-        FROM artists a
-        {where_clause}
+        SELECT COUNT(*) FROM (
+            SELECT a.mbid, COALESCE(SUM(s.play_count), 0) as total_plays
+            FROM artists a
+            LEFT JOIN songs s ON a.mbid = s.artist_mbid
+            {where_clause}
+            GROUP BY a.mbid
+            {having_clause}
+        )
     """
-    cursor.execute(count_query, params)
+    cursor.execute(count_query, params + having_params)
     total = cursor.fetchone()[0]
 
     # Get paginated results
@@ -518,11 +532,13 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
         LEFT JOIN songs s ON a.mbid = s.artist_mbid
         {where_clause}
         GROUP BY a.mbid
+        {having_clause}
         ORDER BY {order_by}
         LIMIT ? OFFSET ?
     """
-    params.extend([limit, offset])
-    cursor.execute(query, params)
+    # Combine params: WHERE clause params + HAVING clause params + pagination params
+    all_params = params + having_params + [limit, offset]
+    cursor.execute(query, all_params)
 
     columns = ['mbid', 'name', 'first_seen_station',
                'first_seen_at', 'last_seen_at', 'needs_lidarr_import',

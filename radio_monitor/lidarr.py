@@ -99,8 +99,20 @@ def import_artist_to_lidarr(mbid, name, settings):
 
         # Step 2: Configure (update fields we want to control)
         payload = artist_data.copy()
-        payload['qualityProfileId'] = settings.get('lidarr', {}).get('quality_profile_id', 1)
-        payload['metadataProfileId'] = settings.get('lidarr', {}).get('metadata_profile_id', 1)
+
+        # Convert numeric IDs to integers (Lidarr API requires int, not string)
+        try:
+            payload['qualityProfileId'] = int(settings.get('lidarr', {}).get('quality_profile_id', 1))
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Invalid quality_profile_id in settings, using default: {e}")
+            payload['qualityProfileId'] = 1
+
+        try:
+            payload['metadataProfileId'] = int(settings.get('lidarr', {}).get('metadata_profile_id', 1))
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Invalid metadata_profile_id in settings, using default: {e}")
+            payload['metadataProfileId'] = 1
+
         payload['monitored'] = settings.get('lidarr', {}).get('monitor_new_artists', True)
         payload['addOptions'] = {
             'monitor': 'all',
