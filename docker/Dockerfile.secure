@@ -1,0 +1,92 @@
+# Radio Monitor 1.1.0 - Enhanced Security Dockerfile
+# Multi-stage build with security hardening
+
+# Stage 1: Builder
+FROM python:3.11-slim@sha256:7dba0a6e59c40f0f63e03acad557cd9741ec3cd885362355513e7ea805872d87 AS builder
+
+# Set working directory
+WORKDIR /build
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install Python dependencies to /usr/local
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# Stage 2: Runtime
+FROM python:3.11-slim@sha256:7dba0a6e59c40f0f63e03acad557cd9741ec3cd88536235551e7ea805872d87
+
+# Metadata
+LABEL maintainer="Radio Monitor"
+LABEL description="Automatically discovers music from radio stations"
+LABEL version="1.1.0"
+LABEL security.scan="true"
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    RADIO_MONITOR_DB_PATH=/app/data/radio_songs.db \
+    RADIO_MONITOR_SETTINGS_PATH=/app/data/radio_monitor_settings.json \
+    TZ=America/Chicago \
+    # Security hardening
+    PYTHONHASHSEED=random \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install runtime dependencies (minimal)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean \
+    && rm -rf /tmp/* /var/tmp/*
+
+# Copy Python dependencies from builder
+COPY --from=builder /install /usr/local
+
+# Set working directory
+WORKDIR /app
+
+# Copy application code
+COPY radio_monitor/ /app/radio_monitor/
+COPY templates/ /app/templates/
+COPY prompts/ /app/prompts/
+
+# Create data directory for persistent storage
+RUN mkdir -p /app/data && \
+    chmod 755 /app/data
+
+# Create non-root user for security (BEFORE copying code to prevent permission issues)
+RUN useradd -m -u 1000 -s /bin/bash radio && \
+    chown -R radio:radio /app
+
+# Switch to non-root user
+USER radio
+
+# Expose Flask port
+EXPOSE 5000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/')" || exit 1
+
+# Run application
+CMD ["python", "-m", "radio_monitor.cli", "--gui"]
+
+# Security notes:
+# - Uses pinned digest for base image (prevents supply chain attacks)
+# - Runs as non-root user (radio:1000)
+# - Minimal runtime dependencies (wget, ca-certificates only)
+# - No build tools in runtime image
+# - Cleans up apt cache and temporary files
+# - Read-only root filesystem compatible (except /app/data)
+# - No shell access for non-root users

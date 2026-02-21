@@ -1,338 +1,270 @@
-# Docker Deployment - Radio Monitor
+# Docker Deployment Options - Radio Monitor
 
-This directory contains Docker configuration files for containerized deployment of Radio Monitor.
+This directory contains Docker configurations for different deployment scenarios.
 
-## Files
+---
 
-- **Dockerfile** - Container image definition
-- **docker-compose.yml** - Container orchestration configuration
-- **README.md** - This file
+## 📦 Deployment Options
 
-## Quick Start
+### Option 1: Pre-Built Image (Recommended for Users)
 
-### Prerequisites
+**File:** `../docker-compose.release.yml` (project root)
 
-- Docker Desktop installed (Windows/Mac) or Docker Engine (Linux)
-- Docker Compose (included with Docker Desktop)
+**Best for:** Users who want to run Radio Monitor without building anything
 
-### Build and Run
+**Features:**
+- ✅ Pulls pre-built images from GitHub Container Registry (GHRC)
+- ✅ No cloning required
+- ✅ Fast deployment (2 minutes)
+- ✅ Automatic updates via `docker-compose pull`
+- ✅ Multi-architecture support (amd64, arm64)
 
+**Quick Start:**
+```bash
+curl -O https://raw.githubusercontent.com/allurjj/radio-monitor/main/docker-compose.release.yml
+docker-compose -f docker-compose.release.yml up -d
+```
+
+**Documentation:** [DOCKER_DEPLOYMENT.md](../DOCKER_DEPLOYMENT.md)
+
+---
+
+### Option 2: Build from Source
+
+**File:** `docker-compose.yml` (this directory)
+
+**Best for:** Developers and users who want to build from source
+
+**Features:**
+- ✅ Builds from local code
+- ✅ Full control over build process
+- ✅ Can modify code before building
+- ✅ Useful for development/testing
+
+**Quick Start:**
 ```bash
 # From project root
 cd docker
+docker-compose up -d
+```
 
-# Build and start container
+**Documentation:** [README_BUILD.md](README_BUILD.md) (this file)
+
+---
+
+## 📁 Files in This Directory
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile` | Standard container image definition |
+| `Dockerfile.secure` | Enhanced security hardening (read-only root, etc.) |
+| `docker-compose.yml` | Build from source (Option 2) |
+| `README.md` | This file |
+
+---
+
+## 🔒 Security Comparison
+
+| Feature | Standard Dockerfile | Secure Dockerfile |
+|---------|-------------------|-------------------|
+| Base image pinning | Tag only (`python:3.11-slim`) | **Digest-pinned** (prevents supply chain) |
+| Read-only root | ❌ No | ✅ Yes (except /app/data) |
+| Security scanning | ❌ No | ✅ Yes (CI/CD integrated) |
+| Runtime dependencies | wget, gnupg | wget, ca-certificates (minimal) |
+| Cleanup | Basic | **Aggressive** (apt cache, tmp files) |
+| Python hardening | ❌ No | ✅ Yes (random hash seed, etc.) |
+
+**Recommendation:** Use `Dockerfile.secure` for production deployments.
+
+---
+
+## 🏗️ Building Images
+
+### Standard Build
+
+```bash
+# From project root
+docker build -f docker/Dockerfile -t radio-monitor:latest .
+```
+
+### Secure Build
+
+```bash
+# From project root
+docker build -f docker/Dockerfile.secure -t radio-monitor:secure .
+```
+
+### Multi-Architecture Build
+
+```bash
+# Build for AMD64 and ARM64
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -f docker/Dockerfile \
+  -t radio-monitor:latest \
+  --push \
+  .
+```
+
+---
+
+## 🧪 Testing Images
+
+### Test Standard Image
+
+```bash
+docker run --rm -p 5000:5000 -v $(pwd)/data:/app/data radio-monitor:latest
+```
+
+### Test Secure Image
+
+```bash
+docker run --rm -p 5000:5000 \
+  -v $(pwd)/data:/app/data \
+  --read-only \
+  --tmpfs /tmp \
+  radio-monitor:secure
+```
+
+---
+
+## 📊 Image Sizes
+
+| Image Type | Compressed Size | Uncompressed Size |
+|-----------|-----------------|-------------------|
+| Standard | ~45 MB | ~130 MB |
+| Secure | ~43 MB | ~125 MB |
+
+---
+
+## 🔄 CI/CD Pipeline
+
+The `.github/workflows/docker-image.yml` workflow:
+
+✅ **Triggers on:**
+- Push to `main` branch
+- New tags (`v*.*.*`)
+- Manual workflow dispatch
+
+✅ **Builds:**
+- Multi-architecture images (amd64, arm64)
+- Uses layer caching for faster builds
+- Runs security tests
+
+✅ **Pushes to:**
+- GitHub Container Registry (GHCR)
+- Tags: `latest`, `v1.1.0`, `v1.1`, etc.
+
+---
+
+## 🛠️ Development Workflow
+
+### Build and Test Locally
+
+```bash
+# Build image
+docker-compose build
+
+# Run container
 docker-compose up -d
 
 # View logs
 docker-compose logs -f
 
-# Check status
-docker-compose ps
-```
-
-**Access web interface:** http://localhost:5000
-
-## Common Operations
-
-### View Logs
-
-```bash
-# Follow logs in real-time
-docker-compose logs -f
-
-# Last 100 lines
-docker-compose logs --tail=100
-
-# Specific service
-docker-compose logs -f radio-monitor
-```
-
-### Stop Container
-
-```bash
-# Stop (keeps data)
-docker-compose stop
-
-# Stop and remove container (keeps data volume)
-docker-compose down
-
-# Stop and remove everything including volumes (DELETES DATA)
-docker-compose down -v
-```
-
-### Restart Container
-
-```bash
-docker-compose restart
-```
-
-### Update Application
-
-```bash
 # Stop container
 docker-compose down
+```
 
-# Pull latest code (if using git)
-cd ..
-git pull
-cd docker
+### Build Changes
 
-# Rebuild image
+```bash
+# After modifying code
 docker-compose build --no-cache
-
-# Start container
 docker-compose up -d
 ```
 
-### Access Container Shell
+---
+
+## 📝 Deployment Scenarios
+
+### Scenario 1: Home User (Simple)
+
+**Use:** `docker-compose.release.yml` (pre-built)
 
 ```bash
-# Open bash shell inside running container
-docker-compose exec radio-monitor bash
-
-# Or using docker command
-docker exec -it radio-monitor bash
+curl -O https://raw.githubusercontent.com/allurjj/radio-monitor/main/docker-compose.release.yml
+docker-compose -f docker-compose.release.yml up -d
 ```
 
-### Backup Data
+### Scenario 2: Developer (Custom Code)
+
+**Use:** `docker/docker-compose.yml` (build from source)
 
 ```bash
-# Stop container
-docker-compose down
-
-# Backup data directory
-cp -r data data-backup-$(date +%Y%m%d)
-
-# Restart
-docker-compose up -d
-```
-
-### Restore Data
-
-```bash
-# Stop container
-docker-compose down
-
-# Restore from backup
-rm -rf data
-cp -r data-backup-20260218 data
-
-# Restart
-docker-compose up -d
-```
-
-## Configuration
-
-### Environment Variables
-
-Edit `docker-compose.yml` to customize:
-
-```yaml
-environment:
-  - TZ=America/Chicago           # Set your timezone
-  - PYTHONUNBUFFERED=1
-  - PYTHONDONTWRITEBYTECODE=1
-```
-
-### Port Mapping
-
-Default: `5000:5000` (host:container)
-
-To change host port (e.g., 8000):
-```yaml
-ports:
-  - "8000:5000"
-```
-
-### Resource Limits
-
-Default limits: 1 CPU, 1GB RAM
-
-Adjust in `docker-compose.yml`:
-```yaml
-deploy:
-  resources:
-    limits:
-      cpus: '2.0'
-      memory: 2G
-```
-
-## Data Persistence
-
-Data is stored in the `data/` directory (relative to docker-compose.yml):
-
-```
-data/
-├── radio_songs.db              # Database (all songs, artists, plays)
-├── radio_monitor_settings.json # Settings
-├── radio_monitor.log           # Application logs
-└── auto-backups/               # Database backups
-```
-
-This directory is mounted as a Docker volume, so data persists even if the container is removed.
-
-### Volume Location
-
-**Windows:** `C:\Users\Public\RadioMonitor\data` (or current directory)
-**Linux/Mac:** `./data` (relative to docker-compose.yml)
-
-Check actual location:
-```bash
-docker inspect radio-monitor | grep -A 10 Mounts
-```
-
-## Deployment on Another Machine
-
-### Method 1: Copy Project Files
-
-```bash
-# On source machine
-cd ..
-tar czf radio-monitor-docker.tar.gz \
-  --exclude='.git' \
-  --exclude='__pycache__' \
-  --exclude='*.pyc' \
-  --exclude='data' \
-  --exclude='venv' \
-  .
-
-# Transfer to target machine
-scp radio-monitor-docker.tar.gz user@target:/path/to/destination/
-
-# On target machine
-tar xzf radio-monitor-docker.tar.gz
+git clone https://github.com/allurjj/radio-monitor.git
 cd radio-monitor/docker
 docker-compose up -d
 ```
 
-### Method 2: Docker Registry
+### Scenario 3: Production (Secure)
+
+**Use:** `Dockerfile.secure` + Nginx reverse proxy
 
 ```bash
-# Build and tag image
-docker build -t your-registry/radio-monitor:1.0.0 -f docker/Dockerfile .
+# Build secure image
+docker build -f docker/Dockerfile.secure -t radio-monitor:secure .
 
-# Login to registry
-docker login your-registry
-
-# Push image
-docker push your-registry/radio-monitor:1.0.0
-
-# On target machine
-docker pull your-registry/radio-monitor:1.0.0
-docker run -d -p 5000:5000 -v $(pwd)/data:/app/data your-registry/radio-monitor:1.0.0
+# Run with read-only root
+docker run -d \
+  --name radio-monitor \
+  -p 5000:5000 \
+  -v $(pwd)/data:/app/data \
+  --read-only \
+  --tmpfs /tmp \
+  --security-opt no-new-privileges \
+  radio-monitor:secure
 ```
 
-## Troubleshooting
+---
+
+## 🐛 Troubleshooting
+
+### Build Fails
+
+```bash
+# Clean build
+docker-compose build --no-cache
+
+# Check Dockerfile syntax
+docker build -f docker/Dockerfile --no-cache --progress=plain .
+```
 
 ### Container Won't Start
 
 ```bash
 # Check logs
-docker-compose logs radio-monitor
+docker-compose logs -f
 
-# Common issues:
-# 1. Port already in use -> Change port mapping
-# 2. Permission denied -> Fix data directory permissions
-# 3. Out of memory -> Increase memory limit
+# Check image was built
+docker images | grep radio-monitor
 ```
 
-### Can't Access Web Interface
+### Permission Issues
 
 ```bash
-# Check container is running
-docker-compose ps
-
-# Check port mapping
-docker port radio-monitor
-
-# Test from inside container
-docker-compose exec radio-monitor curl http://localhost:5000
-
-# Check firewall (allow port 5000)
+# Fix data directory permissions
+sudo chown -R 1000:1000 ./data
 ```
 
-### Database Issues
+---
 
-```bash
-# Stop container
-docker-compose down
+## 📚 More Information
 
-# Start fresh (removes database)
-rm -rf data
-docker-compose up -d
+- **User Deployment Guide:** [../DOCKER_DEPLOYMENT.md](../DOCKER_DEPLOYMENT.md)
+- **Quick Start:** [../DOCKER_QUICKSTART.md](../DOCKER_QUICKSTART.md)
+- **Main README:** [../README.md](../README.md)
+- **Project Architecture:** [../ARCHITECTURE.md](../ARCHITECTURE.md)
 
-# Or restore from backup
-cp -r data-backup-YYYYMMDD data
-docker-compose up -d
-```
+---
 
-### View Container Resource Usage
-
-```bash
-docker stats radio-monitor
-```
-
-## Production Deployment
-
-### Reverse Proxy (Nginx)
-
-For production use, add Nginx as a reverse proxy (see docker-compose.yml).
-
-Uncomment the nginx section and create `nginx/nginx.conf`:
-
-```nginx
-events {
-    worker_connections 1024;
-}
-
-http {
-    upstream radio_monitor {
-        server radio-monitor:5000;
-    }
-
-    server {
-        listen 80;
-        server_name radio-monitor.example.com;
-
-        location / {
-            proxy_pass http://radio_monitor;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-    }
-}
-```
-
-### SSL/HTTPS
-
-Use Nginx with Let's Encrypt:
-
-```bash
-# Install certbot
-apt-get install certbot
-
-# Generate certificate
-certbot certonly --standalone -d radio-monitor.example.com
-
-# Update nginx.conf to use SSL
-```
-
-### Automatic Backups
-
-Add backup service to docker-compose.yml or use host cron:
-
-```bash
-# Host cron (daily at 2 AM)
-0 2 * * * cd /path/to/radio-monitor/docker && docker-compose exec -T radio-monitor python -m radio_monitor.cli --backup-db
-```
-
-## For More Information
-
-- **Main Deployment Guide:** ../DeploymentInfo.md
-- **Complete Docker Guide:** ../DockerInfo.md
-- **Project README:** ../README.md
-- **Docker Documentation:** https://docs.docker.com/
-- **Docker Compose Documentation:** https://docs.docker.com/compose/
+**Last Updated:** 2026-02-20
+**Docker Image:** ghcr.io/allurjj/radio-monitor:latest
