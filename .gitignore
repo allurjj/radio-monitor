@@ -1,0 +1,102 @@
+# ============================================
+# Radio Monitor - Git Ignore Configuration
+# ============================================
+# This file ensures sensitive and temporary files are NOT committed to GitHub
+# When adding new file types that should be ignored, add them to the appropriate section
+# ============================================
+
+# ------------------------------------------
+# Python Generated Files
+# ------------------------------------------
+__pycache__/           # Compiled Python bytecode
+*.py[cod]              # Compiled .pyc, .pyo files
+*$py.class             # Compiled Java class files (if using Jython)
+*.so                   # Compiled shared libraries
+.Python                # Python build directories
+*.egg-info/            # Python package metadata
+build/                 # Python build directory (not dist/ - we need that for releases)
+.pytest_cache/         # Pytest cache directory
+
+# ------------------------------------------
+# Testing Coverage Reports
+# ------------------------------------------
+.coverage              # Coverage.py data file
+htmlcov/               # Coverage HTML reports
+
+# ------------------------------------------
+# Log Files
+# ------------------------------------------
+*.log                  # All application logs (radio_monitor.log, etc.)
+
+# ------------------------------------------
+# Database Files (CRITICAL - Contains user data!)
+# ------------------------------------------
+*.db                   # SQLite database files (radio_songs.db, etc.)
+*.db-shm               # SQLite shared-memory files
+*.db-wal               # SQLite write-ahead logs
+backups/               # Database backup directory
+
+# ------------------------------------------
+# IDE and Editor Files
+# ------------------------------------------
+.vscode/               # Visual Studio Code settings
+.idea/                 # JetBrains IDE settings (PyCharm, etc.)
+*.swp                  # Vim swap files
+*.swo                  # Vim swap files
+*~                     # Emacs backup files
+
+# ------------------------------------------
+# Operating System Files
+# ------------------------------------------
+.DS_Store              # macOS metadata files
+Thumbs.db              # Windows thumbnail cache
+desktop.ini            # Windows desktop settings
+
+# ------------------------------------------
+# Claude Code AI Memory (Internal tool files)
+# ------------------------------------------
+.claude/               # Claude Code memory and context
+
+# ------------------------------------------
+# Secrets and API Keys (CRITICAL - Never commit!)
+# ------------------------------------------
+*.secret_key.txt       # Generic secret key files
+lidarr_api_key.txt     # Lidarr API keys
+*_api_key.txt          # Any API key files
+*_token.txt            # Any token files
+.env                   # Environment variables with secrets
+.secrets               # Secret configuration files
+
+# ------------------------------------------
+# Authentication and Configuration Files (Contains credentials!)
+# ------------------------------------------
+radio_monitor_auth.json      # User authentication credentials
+radio_monitor_settings.json  # Application settings (contains API keys/tokens)
+
+# ------------------------------------------
+# Backup and Temporary Files
+# ------------------------------------------
+*.bak                  # Backup files
+*.tmp                  # Temporary files
+*.backup*              # Any backup files
+*.old                  # Old versions of files
+nul                    # Windows null device redirects
+
+# ------------------------------------------
+# Build and Distribution (We include dist/ for releases)
+# ------------------------------------------
+# Note: dist/ is NOT ignored because we commit the Windows EXE ZIP
+# Individual build artifacts ARE ignored:
+build/                 # Build artifacts (but not dist/ for releases)
+
+# ------------------------------------------
+# Documentation (Internal docs only - user docs are kept)
+# ------------------------------------------
+# Uncomment these if you want to ignore internal development docs:
+# PHASE*.md
+# SELENIUM*.md
+# DEPLOYMENT*.md
+# Justin*.md
+# GITHUB*.md
+# DEPENDENCY*.md
+# QUICK*.md
