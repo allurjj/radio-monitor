@@ -45,17 +45,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy Python dependencies from builder
 COPY --from=builder /install /usr/local
 
-# Set working directory
-WORKDIR /app
+# Set working directory to /app/data (so wizard creates files in mounted volume)
+WORKDIR /app/data
 
-# Copy application code
+# Create app directories
+RUN mkdir -p /app/radio_monitor /app/templates /app/prompts
+
+# Copy application code (to /app, not /app/data)
 COPY radio_monitor/ /app/radio_monitor/
 COPY templates/ /app/templates/
 COPY prompts/ /app/prompts/
 
-# Create data directory for persistent storage
-RUN mkdir -p /app/data && \
-    chmod 777 /app/data
+# Add /app to Python path so imports work
+ENV PYTHONPATH=/app:$PYTHONPATH
 
 # Create non-root user for security
 RUN useradd -m -u 1000 -s /bin/bash radio && \
