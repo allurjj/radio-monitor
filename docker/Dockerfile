@@ -1,4 +1,4 @@
-# Radio Monitor 1.0 - Dockerfile
+# Radio Monitor 1.1.0 - Dockerfile
 # Multi-stage build for optimized image size
 
 # Stage 1: Builder
@@ -14,8 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements.txt .
+# Copy requirements and VERSION.py
+COPY requirements.txt VERSION.py .
 
 # Install Python dependencies to /usr/local
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
@@ -26,7 +26,7 @@ FROM python:3.11-slim
 # Metadata
 LABEL maintainer="Radio Monitor"
 LABEL description="Automatically discovers music from radio stations"
-LABEL version="1.0.0"
+LABEL version="1.1.0"
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -52,6 +52,8 @@ WORKDIR /app/data
 RUN mkdir -p /app/radio_monitor /app/templates /app/prompts /app/static
 
 # Copy application code (to /app, not /app/data)
+# Copy VERSION.py first so version is correct in container
+COPY --from=builder /build/VERSION.py /app/VERSION.py
 COPY radio_monitor/ /app/radio_monitor/
 COPY templates/ /app/templates/
 COPY prompts/ /app/prompts/

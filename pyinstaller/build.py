@@ -1,5 +1,5 @@
 """
-PyInstaller Build Script for Radio Monitor 1.1.1
+PyInstaller Build Script for Radio Monitor 1.1.0
 
 This script builds a Windows executable from the Radio Monitor Python source code.
 
@@ -13,14 +13,11 @@ Requirements:
     - PyInstaller: pip install pyinstaller
     - Icon file: static/favicon.ico
 
-Version 1.1.1 Changes:
-    - Fixed total_plays filter bug in Artists page
-    - Fixed Lidarr API qualityProfileId type error
-    - Added plexapi to hidden imports
-    - Added collaboration detection (reduces FOREIGN KEY failures)
-    - Fixed artist UNIQUE constraint handling
-    - Improved swap detection validation
-    - Added scheduler shutdown safety check
+Version 1.1.0 Changes:
+    - Fixed total_plays filter bug in Artists page (HAVING clause for aggregates)
+    - Implemented dynamic versioning with VERSION.py build-time generation
+    - Fixed GitHub URL in footer (corrected to allurjj/radio-monitor)
+    - Version now displays consistently across all UI elements
 """
 
 import PyInstaller.__main__
