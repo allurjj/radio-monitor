@@ -70,11 +70,18 @@ def save_auth_config(username, password_hash):
         True if saved successfully, False otherwise
     """
     try:
+        # Import version dynamically using getter (prefers VERSION.py)
+        try:
+            from radio_monitor import get_version
+            version = get_version()
+        except ImportError:
+            version = '1.1.0'
+
         config = {
             'username': username,
             'password_hash': password_hash,
             'created_at': datetime.now().isoformat(),
-            'version': '1.0'
+            'version': version
         }
 
         with open(AUTH_FILE, 'w') as f:

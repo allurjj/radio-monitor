@@ -45,6 +45,17 @@ else:
 app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
 app.secret_key = 'd475a0440c8aefa260c9c6e24d724dceb761b538bb0179fa6da68e482cf8240b'  # Generated 2026-02-12
 
+# Import version info from radio_monitor package
+# Use getter functions to prefer VERSION.py (build time) over package version (development)
+try:
+    from radio_monitor import get_version, get_github_url
+    app.config['VERSION'] = get_version()
+    app.config['GITHUB_URL'] = get_github_url()
+except ImportError:
+    # Fallback if import fails
+    app.config['VERSION'] = '1.1.0'
+    app.config['GITHUB_URL'] = 'https://github.com/allurjj/radio-monitor'
+
 # Import and initialize authentication
 from radio_monitor.auth import auth, requires_auth, is_auth_enabled
 
