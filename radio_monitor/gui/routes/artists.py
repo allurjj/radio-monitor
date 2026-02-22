@@ -415,3 +415,85 @@ def api_update_artist_mbid():
         return jsonify({'error': str(e)}), 500
     finally:
         cursor.close()
+
+
+@artists_bp.route('/api/artists/<mbid>', methods=['DELETE'])
+@requires_auth
+def api_delete_artist(mbid):
+    """API endpoint to delete an artist and all related data
+
+    Deletes:
+    - Artist record
+    - All songs by this artist
+    - All play history for those songs
+    - All Plex match failures for those songs
+    - Manual MBID overrides for this artist
+
+    Args:
+        mbid: Artist MusicBrainz ID (from URL path)
+
+    Returns:
+        JSON response with deletion statistics
+    """
+    from radio_monitor.database.crud import delete_artist, add_activity_log
+    import json
+
+    db = get_db()
+
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    cursor = db.get_cursor()
+    try:
+        # Call CRUD function
+        result = delete_artist(cursor, db.conn, mbid)
+
+        if not result['success']:
+            # Return appropriate error status
+            if 'not found' in result.get('error', '').lower():
+                return jsonify({'error': result['error']}), 404
+            else:
+                return jsonify({'error': result['error']}), 500
+
+        # Add activity log entry
+        add_activity_log(
+            cursor=cursor,
+            conn=db.conn,
+            event_type='artist_deleted',
+            title=f"Deleted artist: {result['artist_name']}",
+            description=f"Deleted {result['songs_deleted']} songs, {result['plays_deleted']} plays, "
+                        f"{result['plex_failures_deleted']} Plex failures, "
+                        f"{result['overrides_deleted']} MBID overrides",
+            metadata=json.dumps({
+                'mbid': result['mbid'],
+                'artist_name': result['artist_name'],
+                'songs_deleted': result['songs_deleted'],
+                'plays_deleted': result['plays_deleted'],
+                'plex_failures_deleted': result['plex_failures_deleted'],
+                'overrides_deleted': result['overrides_deleted']
+            })
+        )
+
+        # Build success message
+        message = (
+            f"Deleted '{result['artist_name']}' and {result['songs_deleted']} "
+            f"song{'s' if result['songs_deleted'] != 1 else ''} "
+            f"({result['plays_deleted']} play{'s' if result['plays_deleted'] != 1 else ''})"
+        )
+
+        return jsonify({
+            'success': True,
+            'message': message,
+            'artist_name': result['artist_name'],
+            'mbid': result['mbid'],
+            'songs_deleted': result['songs_deleted'],
+            'plays_deleted': result['plays_deleted'],
+            'plex_failures_deleted': result['plex_failures_deleted'],
+            'overrides_deleted': result['overrides_deleted']
+        })
+
+    except Exception as e:
+        logger.error(f"Unexpected error deleting artist {mbid}: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cursor.close()

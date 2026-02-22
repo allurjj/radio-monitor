@@ -228,6 +228,13 @@
                                             <button class="btn btn-outline-warning btn-edit-mbid" data-artist-name="{{ artist.name }}" data-current-mbid="{{ artist.mbid }}" title="Edit MBID">
                                                 <i class="bi bi-pencil-square"></i>
                                             </button>
+                                            <button class="btn btn-outline-danger btn-delete-artist"
+                                                    data-mbid="{{ artist.mbid }}"
+                                                    data-name="{{ artist.name }}"
+                                                    data-song-count="{{ artist.song_count }}"
+                                                    title="Delete Artist">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
                                             {% if artist.mbid and not artist.mbid.startswith('PENDING-') %}
                                             {% if artist.lidarr_imported_at %}
                                             <button class="btn btn-success" title="Already Imported" disabled>
@@ -345,6 +352,70 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" onclick="saveMbidOverride()">
                     <i class="bi bi-check-lg"></i> Save Override
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Artist Confirmation Modal -->
+<div class="modal fade" id="deleteArtistModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    Confirm Delete Artist
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger d-flex align-items-center" role="alert">
+                    <i class="bi bi-exclamation-circle-fill flex-shrink-0 me-2" style="font-size: 1.5rem;"></i>
+                    <div>
+                        <strong>Warning:</strong> This action cannot be undone!
+                    </div>
+                </div>
+
+                <p>You are about to delete the following artist and all related data:</p>
+
+                <div class="card bg-light mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title mb-1">Artist</h6>
+                        <p class="card-text fs-5 mb-0">
+                            <strong id="delete-artist-name"></strong>
+                            <span class="text-muted ms-2">(MBID: <code id="delete-artist-mbid"></code>)</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="card bg-light mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title mb-1">This will also delete:</h6>
+                        <ul class="card-text mb-0">
+                            <li><strong id="delete-song-count"></strong> songs by this artist</li>
+                            <li>All play history for these songs</li>
+                            <li>Any Plex match failures for these songs</li>
+                            <li>Any manual MBID overrides for this artist</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="delete-confirm-checkbox">
+                    <label class="form-check-label" for="delete-confirm-checkbox">
+                        I understand this action cannot be undone
+                    </label>
+                </div>
+
+                <div id="delete-error-message" class="alert alert-danger" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-danger" id="btn-confirm-delete" disabled>
+                    <i class="bi bi-trash"></i> Delete Artist
                 </button>
             </div>
         </div>
@@ -739,5 +810,119 @@ async function updateArtistMbid(artistName, newMbid) {
         return { success: false, error: error.message };
     }
 }
+
+// ========== Artist Delete Functionality ==========
+let deleteArtistModal;
+let artistToDelete = null; // Stores artist data while modal is open
+
+// Initialize delete modal
+document.addEventListener('DOMContentLoaded', function() {
+    deleteArtistModal = new bootstrap.Modal(document.getElementById('deleteArtistModal'));
+});
+
+// Handle delete button clicks
+document.querySelectorAll('.btn-delete-artist').forEach(button => {
+    button.addEventListener('click', function() {
+        const mbid = this.getAttribute('data-mbid');
+        const name = this.getAttribute('data-name');
+        const songCount = this.getAttribute('data-song-count');
+
+        // Store artist data for deletion
+        artistToDelete = { mbid, name, songCount };
+
+        // Populate modal
+        document.getElementById('delete-artist-name').textContent = name;
+        document.getElementById('delete-artist-mbid').textContent = mbid;
+        document.getElementById('delete-song-count').textContent = songCount;
+
+        // Reset checkbox and button state
+        document.getElementById('delete-confirm-checkbox').checked = false;
+        document.getElementById('btn-confirm-delete').disabled = true;
+        document.getElementById('delete-error-message').style.display = 'none';
+
+        // Show modal
+        deleteArtistModal.show();
+    });
+});
+
+// Enable/disable delete button based on checkbox
+document.getElementById('delete-confirm-checkbox').addEventListener('change', function() {
+    document.getElementById('btn-confirm-delete').disabled = !this.checked;
+});
+
+// Confirm delete button
+document.getElementById('btn-confirm-delete').addEventListener('click', function() {
+    if (!artistToDelete) {
+        console.error('No artist to delete');
+        return;
+    }
+
+    const mbid = artistToDelete.mbid;
+    const name = artistToDelete.name;
+    const button = this;
+
+    // Disable button and show loading
+    button.disabled = true;
+    const originalText = button.innerHTML;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deleting...';
+
+    // Hide error message
+    document.getElementById('delete-error-message').style.display = 'none';
+
+    // Call delete API
+    fetch(`/api/artists/${mbid}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => {
+                throw new Error(err.error || 'Delete failed');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Close modal
+        deleteArtistModal.hide();
+
+        // Show success message (with fallback)
+        if (typeof Toast !== 'undefined' && Toast.success) {
+            Toast.success(data.message || `Deleted "${name}"`);
+        } else {
+            alert(data.message || `Deleted "${name}"`);
+        }
+
+        // Remove row from table (visual feedback before reload)
+        const row = document.querySelector(`tr[data-mbid="${mbid}"]`);
+        if (row) {
+            row.style.opacity = '0.5';
+            row.style.transition = 'opacity 0.3s ease';
+            setTimeout(() => row.remove(), 300);
+        }
+
+        // Reload page after short delay to show updated counts
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
+    })
+    .catch(error => {
+        console.error('Error deleting artist:', error);
+
+        // Show error in modal
+        const errorDiv = document.getElementById('delete-error-message');
+        errorDiv.textContent = error.message || 'Failed to delete artist. Please try again.';
+        errorDiv.style.display = 'block';
+
+        // Re-enable button
+        button.disabled = false;
+        button.innerHTML = originalText;
+    })
+    .finally(() => {
+        artistToDelete = null;
+    });
+});
 </script>
 {% endblock %}

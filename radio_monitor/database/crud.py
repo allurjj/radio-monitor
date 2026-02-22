@@ -368,6 +368,121 @@ def mark_single_artist_imported_to_lidarr(cursor, conn, mbid):
         raise
 
 
+def delete_artist(cursor, conn, mbid):
+    """Delete an artist and all related data (cascade)
+
+    This function performs a cascading delete:
+    1. Deletes song_plays_daily records for all artist's songs
+    2. Deletes plex_match_failures records for all artist's songs
+    3. Deletes manual_mbid_overrides for this artist
+    4. Deletes all songs belonging to the artist
+    5. Deletes the artist record
+
+    Uses transaction for atomicity - all deletions succeed or all fail.
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        mbid: Artist MBID (MusicBrainz ID) to delete
+
+    Returns:
+        dict: Deletion statistics
+            {
+                'success': True/False,
+                'artist_name': str,
+                'mbid': str,
+                'songs_deleted': int,
+                'plays_deleted': int,
+                'plex_failures_deleted': int,
+                'overrides_deleted': int,
+                'error': str (if success=False)
+            }
+    """
+    try:
+        # Get artist name first (for logging/response)
+        cursor.execute("SELECT name FROM artists WHERE mbid = ?", (mbid,))
+        artist_result = cursor.fetchone()
+
+        if not artist_result:
+            logger.warning(f"Artist not found for deletion: {mbid}")
+            return {
+                'success': False,
+                'error': f'Artist not found: {mbid}',
+                'songs_deleted': 0,
+                'plays_deleted': 0,
+                'plex_failures_deleted': 0,
+                'overrides_deleted': 0
+            }
+
+        artist_name = artist_result[0]
+
+        # Begin transaction for atomicity
+        cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+
+        # Step 1: Delete song_plays_daily records (using subquery - NO SQL INJECTION)
+        cursor.execute("""
+            DELETE FROM song_plays_daily
+            WHERE song_id IN (
+                SELECT id FROM songs WHERE artist_mbid = ?
+            )
+        """, (mbid,))
+        plays_deleted = cursor.rowcount
+
+        # Step 2: Delete plex_match_failures records (using subquery - NO SQL INJECTION)
+        cursor.execute("""
+            DELETE FROM plex_match_failures
+            WHERE song_id IN (
+                SELECT id FROM songs WHERE artist_mbid = ?
+            )
+        """, (mbid,))
+        plex_failures_deleted = cursor.rowcount
+
+        # Step 3: Delete manual MBID overrides for this artist
+        cursor.execute("""
+            DELETE FROM manual_mbid_overrides
+            WHERE artist_name_normalized = ?
+        """, (artist_name.lower(),))
+        overrides_deleted = cursor.rowcount
+
+        # Step 4: Delete all songs belonging to this artist
+        cursor.execute("DELETE FROM songs WHERE artist_mbid = ?", (mbid,))
+        songs_deleted = cursor.rowcount
+
+        # Step 5: Delete the artist record
+        cursor.execute("DELETE FROM artists WHERE mbid = ?", (mbid,))
+
+        # Commit transaction
+        conn.commit()
+
+        logger.info(f"Deleted artist '{artist_name}' (MBID: {mbid}): "
+                   f"{songs_deleted} songs, {plays_deleted} plays, "
+                   f"{plex_failures_deleted} Plex failures, "
+                   f"{overrides_deleted} MBID overrides")
+
+        return {
+            'success': True,
+            'artist_name': artist_name,
+            'mbid': mbid,
+            'songs_deleted': songs_deleted,
+            'plays_deleted': plays_deleted,
+            'plex_failures_deleted': plex_failures_deleted,
+            'overrides_deleted': overrides_deleted
+        }
+
+    except Exception as e:
+        # Rollback on any error
+        conn.rollback()
+        logger.error(f"Error deleting artist {mbid}: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'songs_deleted': 0,
+            'plays_deleted': 0,
+            'plex_failures_deleted': 0,
+            'overrides_deleted': 0
+        }
+
+
 def reset_all_lidarr_import_status(cursor, conn):
     """Reset all artists to "Needs Import" status
 
