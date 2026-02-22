@@ -27,9 +27,16 @@ jobs:
           pip install pyinstaller
 
       - name: Build Windows EXE
+        shell: cmd
         run: |
           cd pyinstaller
-          python build.py
+          python build.py 2>&1
+          if errorlevel 1 (
+            echo Build failed with error code %errorlevel%
+            dir /s dist\pyinstaller
+            exit /b %errorlevel%
+          )
+          echo Build completed successfully
 
       - name: Create release ZIP
         run: |
