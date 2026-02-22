@@ -416,9 +416,6 @@ def delete_artist(cursor, conn, mbid):
 
         artist_name = artist_result[0]
 
-        # Begin transaction for atomicity
-        cursor.execute("BEGIN IMMEDIATE TRANSACTION")
-
         # Step 1: Delete song_plays_daily records (using subquery - NO SQL INJECTION)
         cursor.execute("""
             DELETE FROM song_plays_daily
@@ -451,9 +448,6 @@ def delete_artist(cursor, conn, mbid):
         # Step 5: Delete the artist record
         cursor.execute("DELETE FROM artists WHERE mbid = ?", (mbid,))
 
-        # Commit transaction
-        conn.commit()
-
         logger.info(f"Deleted artist '{artist_name}' (MBID: {mbid}): "
                    f"{songs_deleted} songs, {plays_deleted} plays, "
                    f"{plex_failures_deleted} Plex failures, "
@@ -470,8 +464,7 @@ def delete_artist(cursor, conn, mbid):
         }
 
     except Exception as e:
-        # Rollback on any error
-        conn.rollback()
+        # Error handling - caller will handle rollback if needed
         logger.error(f"Error deleting artist {mbid}: {e}")
         return {
             'success': False,

@@ -146,6 +146,10 @@
                     <span class="badge bg-secondary ms-2">{{ pagination.total }} total</span>
                 </h5>
                 <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-warning btn-sm" id="retry-pending-btn">
+                        <i class="bi bi-arrow-clockwise"></i> Retry PENDING
+                        <span class="badge bg-danger ms-1" id="pending-count-badge">0</span>
+                    </button>
                     <button class="btn btn-outline-primary btn-sm" id="export-csv">
                         <i class="bi bi-download"></i> Export CSV
                     </button>
@@ -421,6 +425,46 @@
         </div>
     </div>
 </div>
+
+<!-- Retry PENDING Modal -->
+<div class="modal fade" id="retryPendingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-arrow-clockwise"></i> Retry PENDING Artists
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="retry-pending-status">
+                    <div class="text-center mb-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <p class="text-center text-muted" id="retry-pending-message">
+                        Starting MBID retry...
+                    </p>
+                </div>
+                <div id="retry-pending-results" style="display: none;">
+                    <div class="alert alert-info">
+                        <h6><i class="bi bi-info-circle"></i> Retry Complete</h6>
+                        <p id="retry-pending-results-message"></p>
+                        <div id="retry-pending-details"></div>
+                    </div>
+                </div>
+                <div id="retry-pending-error" class="alert alert-danger" style="display: none;">
+                    <h6><i class="bi bi-exclamation-triangle"></i> Error</h6>
+                    <p id="retry-pending-error-message"></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="retry-pending-close-btn">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block custom_js %}
@@ -610,7 +654,14 @@ document.querySelectorAll('.btn-import-artist').forEach(button => {
                 'Content-Type': 'application/json'
             }
         })
-        .then(response => response.json())
+        .then(async response => {
+            // Check if response is JSON (not HTML)
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Authentication required or session expired. Please refresh the page.');
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 // Show success message
@@ -732,11 +783,19 @@ async function saveMbidOverride() {
 
     try {
         // First validate
-        const validationResult = await fetch('/api/mbid-overrides/validate', {
+        const validateResponse = await fetch('/api/mbid-overrides/validate', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({artist_name: artistName, mbid: newMbid})
-        }).then(r => r.json());
+        });
+
+        // Check if response is JSON (not HTML)
+        const validateContentType = validateResponse.headers.get('content-type');
+        if (!validateContentType || !validateContentType.includes('application/json')) {
+            throw new Error('Authentication required or session expired. Please refresh the page.');
+        }
+
+        const validationResult = await validateResponse.json();
 
         if (!validationResult.valid) {
             const issues = validationResult.issues.map(i => i.message).join('\n');
@@ -752,11 +811,19 @@ async function saveMbidOverride() {
         }
 
         // Save override
-        const result = await fetch('/api/mbid-overrides', {
+        const overrideResponse = await fetch('/api/mbid-overrides', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({artist_name: artistName, mbid: newMbid, notes: notes})
-        }).then(r => r.json());
+        });
+
+        // Check if response is JSON (not HTML)
+        const overrideContentType = overrideResponse.headers.get('content-type');
+        if (!overrideContentType || !overrideContentType.includes('application/json')) {
+            throw new Error('Authentication required or session expired. Please refresh the page.');
+        }
+
+        const result = await overrideResponse.json();
 
         if (result.success) {
             // Update the artist's MBID in the database
@@ -797,6 +864,12 @@ async function updateArtistMbid(artistName, newMbid) {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({artist_name: artistName, mbid: newMbid})
         });
+
+        // Check if response is JSON (not HTML)
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Authentication required or session expired. Please refresh the page.');
+        }
 
         const data = await response.json();
         if (!data.success) {
@@ -876,11 +949,17 @@ document.getElementById('btn-confirm-delete').addEventListener('click', function
             'Content-Type': 'application/json'
         }
     })
-    .then(response => {
+    .then(async response => {
+        // Check if response is JSON (not HTML)
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            // Response is HTML (likely authentication error)
+            throw new Error('Authentication required or session expired. Please refresh the page.');
+        }
+
         if (!response.ok) {
-            return response.json().then(err => {
-                throw new Error(err.error || 'Delete failed');
-            });
+            const err = await response.json();
+            throw new Error(err.error || 'Delete failed');
         }
         return response.json();
     })
@@ -924,5 +1003,137 @@ document.getElementById('btn-confirm-delete').addEventListener('click', function
         artistToDelete = null;
     });
 });
+
+// ========== PENDING Artist Retry Functionality ==========
+let retryPendingModal;
+
+// Initialize modal
+document.addEventListener('DOMContentLoaded', function() {
+    retryPendingModal = new bootstrap.Modal(document.getElementById('retryPendingModal'));
+
+    // Load PENDING count on page load
+    loadPendingCount();
+});
+
+// Load PENDING artist count
+function loadPendingCount() {
+    fetch('/api/artists/pending-count')
+        .then(async response => {
+            // Check if response is JSON (not HTML)
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Authentication required or session expired. Please refresh the page.');
+            }
+            return response.json();
+        })
+        .then(data => {
+            const badge = document.getElementById('pending-count-badge');
+            const button = document.getElementById('retry-pending-btn');
+
+            if (data.pending_count > 0) {
+                badge.textContent = data.pending_count;
+                button.style.display = 'inline-flex';
+            } else {
+                button.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading PENDING count:', error);
+        });
+}
+
+// Handle Retry PENDING button click
+document.getElementById('retry-pending-btn').addEventListener('click', function() {
+    const button = this;
+    const icon = button.querySelector('i');
+
+    // Disable button and show loading
+    button.disabled = true;
+    icon.classList.add('spin');
+
+    // Reset modal
+    document.getElementById('retry-pending-status').style.display = 'block';
+    document.getElementById('retry-pending-results').style.display = 'none';
+    document.getElementById('retry-pending-error').style.display = 'none';
+    document.getElementById('retry-pending-message').textContent = 'Starting MBID retry...';
+    document.getElementById('retry-pending-close-btn').disabled = true;
+
+    // Show modal
+    retryPendingModal.show();
+
+    // Trigger retry
+    fetch('/api/artists/retry-pending', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(async response => {
+        // Check if response is JSON (not HTML)
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Authentication required or session expired. Please refresh the page.');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            if (data.pending_count === 0) {
+                // No PENDING artists
+                showRetryResults('No PENDING artists to retry', '');
+            } else if (data.resolved !== undefined) {
+                // Synchronous completion (no scheduler)
+                const message = `Resolved ${data.resolved} artist(s), ${data.failed} still failed`;
+                const details = `
+                    <ul class="mb-0">
+                        <li>Total PENDING artists: ${data.pending_count}</li>
+                        <li>Resolved: ${data.resolved}</li>
+                        <li>Still failed: ${data.failed}</li>
+                    </ul>
+                `;
+                showRetryResults(message, details);
+            } else {
+                // Asynchronous (running in background)
+                const message = data.message || `MBID retry started for ${data.pending_count} PENDING artist(s)`;
+                const details = data.estimated_time_seconds ? `
+                    <p class="mb-0"><strong>Estimated time:</strong> ${Math.ceil(data.estimated_time_seconds / 60)} minute(s)</p>
+                    <p class="mb-0"><small class="text-muted">The retry is running in the background. You can close this window and check the Artists page later.</small></p>
+                ` : '';
+                showRetryResults(message, details);
+            }
+
+            // Reload page after delay to show updated counts
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        } else {
+            showRetryError(data.error || 'Failed to start MBID retry');
+        }
+    })
+    .catch(error => {
+        console.error('Error triggering MBID retry:', error);
+        showRetryError(error.message || 'Failed to start MBID retry');
+    })
+    .finally(() => {
+        // Re-enable button
+        button.disabled = false;
+        icon.classList.remove('spin');
+    });
+});
+
+function showRetryResults(message, details) {
+    document.getElementById('retry-pending-status').style.display = 'none';
+    document.getElementById('retry-pending-results').style.display = 'block';
+    document.getElementById('retry-pending-results-message').textContent = message;
+    document.getElementById('retry-pending-details').innerHTML = details;
+    document.getElementById('retry-pending-close-btn').disabled = false;
+}
+
+function showRetryError(errorMessage) {
+    document.getElementById('retry-pending-status').style.display = 'none';
+    document.getElementById('retry-pending-error').style.display = 'block';
+    document.getElementById('retry-pending-error-message').textContent = errorMessage;
+    document.getElementById('retry-pending-close-btn').disabled = false;
+}
 </script>
 {% endblock %}

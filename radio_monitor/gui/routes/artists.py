@@ -5,6 +5,7 @@ Provides list and detail views for artists with pagination, filtering, and sorti
 """
 
 import logging
+from datetime import datetime
 from flask import Blueprint, render_template, jsonify, request, current_app
 from radio_monitor.auth import requires_auth
 
@@ -435,7 +436,8 @@ def api_delete_artist(mbid):
     Returns:
         JSON response with deletion statistics
     """
-    from radio_monitor.database.crud import delete_artist, add_activity_log
+    from radio_monitor.database.crud import delete_artist
+    from radio_monitor.database.activity import log_activity
     import json
 
     db = get_db()
@@ -445,34 +447,37 @@ def api_delete_artist(mbid):
 
     cursor = db.get_cursor()
     try:
-        # Call CRUD function
-        result = delete_artist(cursor, db.conn, mbid)
+        # Use connection as context manager for transaction
+        with db.conn:
+            # Call CRUD function
+            result = delete_artist(cursor, db.conn, mbid)
 
-        if not result['success']:
-            # Return appropriate error status
-            if 'not found' in result.get('error', '').lower():
-                return jsonify({'error': result['error']}), 404
-            else:
-                return jsonify({'error': result['error']}), 500
+            if not result['success']:
+                # Return appropriate error status
+                if 'not found' in result.get('error', '').lower():
+                    return jsonify({'error': result['error']}), 404
+                else:
+                    return jsonify({'error': result['error']}), 500
 
-        # Add activity log entry
-        add_activity_log(
-            cursor=cursor,
-            conn=db.conn,
-            event_type='artist_deleted',
-            title=f"Deleted artist: {result['artist_name']}",
-            description=f"Deleted {result['songs_deleted']} songs, {result['plays_deleted']} plays, "
-                        f"{result['plex_failures_deleted']} Plex failures, "
-                        f"{result['overrides_deleted']} MBID overrides",
-            metadata=json.dumps({
-                'mbid': result['mbid'],
-                'artist_name': result['artist_name'],
-                'songs_deleted': result['songs_deleted'],
-                'plays_deleted': result['plays_deleted'],
-                'plex_failures_deleted': result['plex_failures_deleted'],
-                'overrides_deleted': result['overrides_deleted']
-            })
-        )
+            # Add activity log entry (within same transaction)
+            log_activity(
+                cursor=cursor,
+                event_type='artist_deleted',
+                title=f"Deleted artist: {result['artist_name']}",
+                description=f"Deleted {result['songs_deleted']} songs, {result['plays_deleted']} plays, "
+                            f"{result['plex_failures_deleted']} Plex failures, "
+                            f"{result['overrides_deleted']} MBID overrides",
+                metadata={
+                    'mbid': result['mbid'],
+                    'artist_name': result['artist_name'],
+                    'songs_deleted': result['songs_deleted'],
+                    'plays_deleted': result['plays_deleted'],
+                    'plex_failures_deleted': result['plex_failures_deleted'],
+                    'overrides_deleted': result['overrides_deleted']
+                },
+                severity='info',
+                source='user'
+            )
 
         # Build success message
         message = (
@@ -497,3 +502,108 @@ def api_delete_artist(mbid):
         return jsonify({'error': str(e)}), 500
     finally:
         cursor.close()
+
+
+@artists_bp.route('/api/artists/retry-pending', methods=['POST'])
+@requires_auth
+def api_retry_pending_artists():
+    """Retry MBID lookup for all PENDING artists
+
+    Triggers a background job to retry MusicBrainz lookup for all artists
+    with PENDING MBIDs. This is useful after fixing MusicBrainz data or
+    network issues.
+
+    Returns JSON:
+        {
+            "success": true,
+            "message": "MBID retry started for 15 PENDING artists",
+            "pending_count": 15,
+            "estimated_time_seconds": 120
+        }
+    """
+    from radio_monitor.mbid import retry_pending_artists
+
+    db = get_db()
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        # Get count of PENDING artists
+        cursor = db.get_cursor()
+        try:
+            cursor.execute("SELECT COUNT(*) FROM artists WHERE mbid LIKE 'PENDING-%'")
+            pending_count = cursor.fetchone()[0]
+        finally:
+            cursor.close()
+
+        if pending_count == 0:
+            return jsonify({
+                'success': True,
+                'message': 'No PENDING artists to retry',
+                'pending_count': 0
+            })
+
+        # Estimate time (8 seconds per artist due to MusicBrainz rate limiting)
+        estimated_time = pending_count * 8
+
+        # Trigger retry in background
+        from radio_monitor.gui import scheduler
+        if scheduler and scheduler.scheduler:
+            scheduler.scheduler.add_job(
+                func=lambda: retry_pending_artists(db, max_artists=None),
+                id=f'manual_retry_pending_{datetime.now().timestamp()}',
+                name='Manual MBID Retry (PENDING Artists)'
+            )
+            logger.info(f"Triggered manual MBID retry for {pending_count} PENDING artists")
+
+            return jsonify({
+                'success': True,
+                'message': f'MBID retry started for {pending_count} PENDING artist(s)',
+                'pending_count': pending_count,
+                'estimated_time_seconds': estimated_time
+            })
+        else:
+            # No scheduler available, run synchronously
+            logger.warning("No scheduler available, running MBID retry synchronously")
+            results = retry_pending_artists(db, max_artists=None)
+
+            return jsonify({
+                'success': True,
+                'message': f'MBID retry complete: {results.get("resolved", 0)} resolved, {results.get("failed", 0)} still failed',
+                'pending_count': pending_count,
+                'resolved': results.get('resolved', 0),
+                'failed': results.get('failed', 0)
+            })
+
+    except Exception as e:
+        logger.error(f"Error triggering MBID retry: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@artists_bp.route('/api/artists/pending-count')
+@requires_auth
+def api_pending_count():
+    """Get count of PENDING artists
+
+    Returns JSON:
+        {
+            "pending_count": 15
+        }
+    """
+    db = get_db()
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        cursor = db.get_cursor()
+        try:
+            cursor.execute("SELECT COUNT(*) FROM artists WHERE mbid LIKE 'PENDING-%'")
+            pending_count = cursor.fetchone()[0]
+        finally:
+            cursor.close()
+
+        return jsonify({'pending_count': pending_count})
+
+    except Exception as e:
+        logger.error(f"Error getting PENDING count: {e}")
+        return jsonify({'error': str(e)}), 500
