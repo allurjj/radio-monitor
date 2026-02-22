@@ -39,13 +39,18 @@ jobs:
             "pyinstaller\build.py",
             "radio_monitor_exe.py",
             "pyinstaller\README.txt",
-            "static\favicon.ico"
+            "static\favicon.ico",
+            "templates\base_sidebar.html",
+            "radio_monitor\__init__.py"
           )
           foreach ($file in $files) {
             if (Test-Path $file) {
               Write-Host "  [OK] $file"
             } else {
               Write-Host "  [FAIL] $file not found"
+              Write-Host "  Current directory: $PWD"
+              Write-Host "  Listing root directory:"
+              Get-ChildItem -Force
               exit 1
             }
           }
