@@ -91,9 +91,6 @@ with open(version_file, 'w') as f:
 print(f"  Created: {version_file}")
 print("  [OK] VERSION.py generated\n")
 
-# Add VERSION.py to PyInstaller data files
-options.append(f'--add-data={version_file};.')
-
 # PyInstaller options
 # See https://pyinstaller.org/en/stable/usage.html for all options
 options = [
@@ -117,6 +114,7 @@ options = [
     f'--add-data={os.path.join(PROJECT_ROOT, "static")};static',
     f'--add-data={os.path.join(PROJECT_ROOT, "radio_monitor_settings.json.template")};.',
     f'--add-data={os.path.join(SCRIPT_DIR, "README.txt")};.',
+    f'--add-data={version_file};.',  # VERSION.py with build-time version
 
     # Hidden imports (auto-detection might miss these)
     '--hidden-import=flask',
