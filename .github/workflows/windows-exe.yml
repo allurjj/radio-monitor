@@ -10,6 +10,7 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+    timeout-minutes: 180  # 3 hours timeout
 
     steps:
       - name: Checkout code
@@ -26,17 +27,51 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      - name: Verify required files
+        run: |
+          Write-Host "Checking required files..."
+          $files = @(
+            "pyinstaller\build.py",
+            "radio_monitor_exe.py",
+            "pyinstaller\README.txt",
+            "static\favicon.ico"
+          )
+          foreach ($file in $files) {
+            if (Test-Path $file) {
+              Write-Host "  [OK] $file"
+            } else {
+              Write-Host "  [FAIL] $file not found"
+              exit 1
+            }
+          }
+
       - name: Build Windows EXE
         shell: cmd
         run: |
+          echo Starting PyInstaller build...
           cd pyinstaller
-          python build.py 2>&1
-          if errorlevel 1 (
-            echo Build failed with error code %errorlevel%
-            dir /s dist\pyinstaller
+          python build.py
+          if %errorlevel% neq 0 (
+            echo ERROR: PyInstaller failed with exit code %errorlevel%
+            echo.
+            echo Listing dist directory:
+            dir /s dist\pyinstaller || echo No dist directory found
+            echo.
+            echo Listing pyinstaller directory:
+            dir /b pyinstaller
             exit /b %errorlevel%
           )
           echo Build completed successfully
+          echo.
+          echo Verifying output:
+          if exist "dist\pyinstaller\Radio Monitor\Radio Monitor.exe" (
+            echo [OK] EXE file created
+            dir "dist\pyinstaller\Radio Monitor\Radio Monitor.exe"
+          ) else (
+            echo [ERROR] EXE file not found
+            dir /s "dist\pyinstaller" || echo No dist directory
+            exit /b 1
+          )
 
       - name: Create release ZIP
         run: |
