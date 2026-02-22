@@ -88,6 +88,7 @@ nul                    # Windows null device redirects
 # Note: dist/ is NOT ignored because we commit the Windows EXE ZIP
 # Individual build artifacts ARE ignored:
 build/                 # Build artifacts (but not dist/ for releases)
+VERSION.py             # Auto-generated version file (created by pyinstaller/build.py)
 
 # ------------------------------------------
 # Documentation (Internal docs only - user docs are kept)
