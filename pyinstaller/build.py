@@ -1,5 +1,5 @@
 """
-PyInstaller Build Script for Radio Monitor 1.1.0 (Selenium Removed)
+PyInstaller Build Script for Radio Monitor 1.1.1
 
 This script builds a Windows executable from the Radio Monitor Python source code.
 
@@ -13,10 +13,14 @@ Requirements:
     - PyInstaller: pip install pyinstaller
     - Icon file: static/favicon.ico
 
-Version 1.1.0 Changes:
-    - Removed Selenium dependency (WTMX station no longer supported)
-    - Removed lxml dependency (BeautifulSoup uses built-in html.parser)
-    - Reduced EXE size from ~60 MB to ~40 MB
+Version 1.1.1 Changes:
+    - Fixed total_plays filter bug in Artists page
+    - Fixed Lidarr API qualityProfileId type error
+    - Added plexapi to hidden imports
+    - Added collaboration detection (reduces FOREIGN KEY failures)
+    - Fixed artist UNIQUE constraint handling
+    - Improved swap detection validation
+    - Added scheduler shutdown safety check
 """
 
 import PyInstaller.__main__
@@ -29,7 +33,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 
 print("=" * 70)
-print("Radio Monitor 1.1.0 (Selenium Removed) - PyInstaller Build Script")
+print("Radio Monitor 1.1.1 - PyInstaller Build Script")
 print("=" * 70)
 print(f"Project root: {PROJECT_ROOT}")
 print(f"Working dir: {os.getcwd()}")
@@ -88,6 +92,9 @@ options = [
     # Selenium removed in v1.1.0 (WTMX station no longer supported)
     # lxml removed in v1.1.0 (BeautifulSoup uses built-in html.parser)
     '--hidden-import=beautifulsoup4',
+    '--hidden-import=plexapi',
+    '--hidden-import=plexapi.server',
+    '--hidden-import=plexapi.base',
     '--hidden-import=apprise',
     '--hidden-import=PIL',
     '--hidden-import=PIL.Image',

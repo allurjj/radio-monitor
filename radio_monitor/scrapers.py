@@ -545,20 +545,20 @@ def _validate_artist_song_pair(artist_name, song_title):
     Returns:
         bool: True if pair appears valid, False if suspicious
     """
-    # Rule 1: Artist name shouldn't contain digits (except in collaborations like "feat.")
-    # Examples of valid artists with digits: "M83", "3 Doors Down", "2 Chainz"
-    # But these are rare - most numbers in artist names indicate a swap
-    artist_has_digits = any(char.isdigit() for char in artist_name)
-    if artist_has_digits and "feat" not in artist_name.lower():
-        # Allow some known exceptions
-        known_exceptions = ["M83", "311", "3 Doors Down", "2 Chainz", "4 Non Blondes",
-                          "5 Seconds of Summer", "5SOS", "50 Cent", "21 Savage",
-                          "24kGoldn", "38 Special", "3 Days Grace"]
-        if artist_name not in known_exceptions:
-            # Check if it's a year (e.g., "2024" would be song title, not artist)
-            if artist_name.isdigit() or len(artist_name) <= 4:
-                logger.debug(f"Validation failed: Artist '{artist_name}' looks like a year or number")
-                return False
+    # Collaboration markers that indicate long artist names are legitimate
+    collaboration_markers = ['feat', 'featuring', 'ft', 'with', '&', 'and', '+', 'x']
+    artist_lower = artist_name.lower()
+    has_collaboration_marker = any(marker in artist_lower for marker in collaboration_markers)
+
+    # Rule 1: Artist name that is ONLY digits and looks like a year (likely a swap)
+    # Example: "2024" as artist would mean swapped (year is usually song/album)
+    # Allow all-digit artists like "311", "UB40", "50 Cent", "21 Savage"
+    # Only reject if it's a 4-digit year (1000-2999 covers reasonable song years)
+    if artist_name.isdigit() and len(artist_name) == 4:
+        year = int(artist_name)
+        if 1000 <= year <= 2999:
+            logger.debug(f"Validation failed: Artist '{artist_name}' looks like a year")
+            return False
 
     # Rule 2: Song title shouldn't be ALL UPPERCASE with lots of spaces
     # (unless it's stylized, which is rare)
@@ -567,8 +567,9 @@ def _validate_artist_song_pair(artist_name, song_title):
         logger.debug(f"Validation failed: Song '{song_title}' is all uppercase and long")
         return False
 
-    # Rule 3: Artist name shouldn't be extremely long (30+ chars is suspicious)
-    if len(artist_name) > 40:
+    # Rule 3: Artist name shouldn't be extremely long (EXCEPT for collaborations)
+    # Collaboration artists can have very long names like "Marky Mark And The Funky Bunch Feat Loleatta Holloway"
+    if len(artist_name) > 40 and not has_collaboration_marker:
         logger.debug(f"Validation failed: Artist '{artist_name}' is too long")
         return False
 
@@ -583,6 +584,16 @@ def _validate_artist_song_pair(artist_name, song_title):
     if any(phrase in combined for phrase in skip_phrases):
         logger.debug(f"Validation failed: Contains skip phrase")
         return False
+
+    # Rule 6: Check for obvious swap - short title looks like artist name, long artist looks like song
+    # Example: song="Taylor Swift", artist="Love Story" (SWAPPED)
+    # BUT: Allow collaborations with long artist names
+    if len(song_title.split()) <= 2 and len(artist_name.split()) >= 4 and not has_collaboration_marker:
+        # Title is short, artist is long - might be swapped
+        # But only flag if title looks like artist name (capitalized words)
+        if song_title and all(word[0].isupper() for word in song_title.split() if word):
+            logger.debug(f"Validation failed: Possible swap - short title '{song_title}' with long artist '{artist_name}'")
+            return False
 
     # All checks passed
     return True
@@ -763,35 +774,19 @@ def scrape_all_stations(db=None, station_ids=None):
                         logger.warning(f"BLOCKED: Song title appears to be advertisement/website content: '{song_title}' (skipping)")
                         continue
 
-                    # Handle collaborations: Extract primary artist(s)
-                    artists_to_process = []
+                    # Handle collaborations: Use comprehensive collaboration detection
+                    from radio_monitor.normalization import handle_collaboration
 
-                    # Check for "feat." or "featuring" - use primary artist (left side)
-                    if ' feat.' in artist_name.lower() or ' featuring ' in artist_name.lower():
-                        # Split on feat/featuring and take the primary artist
-                        if ' feat.' in artist_name.lower():
-                            primary_artist = artist_name.lower().split(' feat.')[0].strip()
-                        else:
-                            primary_artist = artist_name.lower().split(' featuring ')[0].strip()
+                    # Split collaboration into individual artists
+                    # Returns list of (artist, song, mbid) tuples
+                    collaboration_results = handle_collaboration(artist_name, song_title, artist_mbid)
 
-                        # Preserve original casing
-                        for word in artist_name.split():
-                            if word.lower() in primary_artist.split():
-                                primary_artist = primary_artist.replace(word.lower(), word)
+                    # Extract just the artist names for processing
+                    artists_to_process = [result[0] for result in collaboration_results]
 
-                        artists_to_process.append(primary_artist)
-                        logger.debug(f"Collaboration 'feat.' detected: using primary artist '{primary_artist}' from '{artist_name}'")
-
-                    # Check for "&" - process all artists separately
-                    elif ' & ' in artist_name:
-                        # Split by " & " to get all artists
-                        collaboration_artists = [a.strip() for a in artist_name.split(' & ')]
-                        artists_to_process.extend(collaboration_artists)
-                        logger.debug(f"Collaboration '&' detected: will process {len(collaboration_artists)} artists from '{artist_name}'")
-
-                    else:
-                        # Single artist
-                        artists_to_process.append(artist_name)
+                    # Log collaboration splits
+                    if len(artists_to_process) > 1:
+                        logger.info(f"Collaboration detected: '{artist_name}' split into {len(artists_to_process)} artists: {artists_to_process}")
 
                     # Process each primary artist from the collaboration
                     for primary_artist in artists_to_process:

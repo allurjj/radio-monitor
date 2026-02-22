@@ -247,10 +247,15 @@ def add_artist(cursor, conn, mbid, name, first_seen_station):
     Returns:
         True if new artist, False if existing
     """
-    # Check if artist exists
-    cursor.execute("SELECT mbid FROM artists WHERE mbid = ?", (mbid,))
-    if cursor.fetchone():
-        # Update last_seen (use local time, not UTC)
+    # Normalize name (consistent with database schema)
+    normalized_name = normalize_artist_name(name)
+
+    # Check if artist exists by MBID
+    cursor.execute("SELECT mbid, name FROM artists WHERE mbid = ?", (mbid,))
+    existing_by_mbid = cursor.fetchone()
+
+    if existing_by_mbid:
+        # Artist exists with this MBID - update last_seen
         now = datetime.now()
         cursor.execute("""
             UPDATE artists
@@ -259,12 +264,33 @@ def add_artist(cursor, conn, mbid, name, first_seen_station):
         """, (now, mbid))
         conn.commit()
         return False
+
+    # Check if artist exists by name (UNIQUE constraint on name)
+    cursor.execute("SELECT mbid, name FROM artists WHERE name = ?", (normalized_name,))
+    existing_by_name = cursor.fetchone()
+
+    if existing_by_name:
+        existing_id, existing_name = existing_by_name
+        # Artist with this name already exists but different MBID
+        # Keep the existing record (first one wins) to avoid UNIQUE constraint violation
+        logger.warning(f"Artist '{normalized_name}' already exists with MBID {existing_id}, "
+                      f"ignoring new MBID {mbid}")
+        # Update last_seen for the existing artist
+        now = datetime.now()
+        cursor.execute("""
+            UPDATE artists
+            SET last_seen_at = ?
+            WHERE mbid = ?
+        """, (now, existing_id))
+        conn.commit()
+        return False
     else:
         # Insert new artist
+        now = datetime.now()
         cursor.execute("""
-            INSERT INTO artists (mbid, name, first_seen_station)
-            VALUES (?, ?, ?)
-        """, (mbid, name, first_seen_station))
+            INSERT INTO artists (mbid, name, first_seen_station, first_seen_at, last_seen_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (mbid, normalized_name, first_seen_station, now, now))
         conn.commit()
         return True
 

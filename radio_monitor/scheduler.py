@@ -131,6 +131,14 @@ class RadioScheduler:
         Args:
             wait: Wait for running jobs to complete (default: True)
         """
+        if self.scheduler is None:
+            logger.debug("Scheduler is None, skipping shutdown")
+            return
+
+        if not self.scheduler.running:
+            logger.debug("Scheduler is not running, skipping shutdown")
+            return
+
         try:
             logger.info("Shutting down scheduler...")
             self.scheduler.shutdown(wait=wait)
