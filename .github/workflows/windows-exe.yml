@@ -63,23 +63,24 @@ jobs:
           python build.py
           if %errorlevel% neq 0 (
             echo ERROR: PyInstaller failed with exit code %errorlevel%
-            echo.
-            echo Listing dist directory:
-            dir /s dist\pyinstaller || echo No dist directory found
-            echo.
-            echo Listing pyinstaller directory:
-            dir /b pyinstaller
             exit /b %errorlevel%
           )
           echo Build completed successfully
           echo.
           echo Verifying output:
-          if exist "dist\pyinstaller\Radio Monitor\Radio Monitor.exe" (
+          echo Current directory: %CD%
+          echo.
+          if exist "..\dist\pyinstaller\Radio Monitor\Radio Monitor.exe" (
             echo [OK] EXE file created
-            dir "dist\pyinstaller\Radio Monitor\Radio Monitor.exe"
+            dir "..\dist\pyinstaller\Radio Monitor\Radio Monitor.exe"
           ) else (
             echo [ERROR] EXE file not found
-            dir /s "dist\pyinstaller" || echo No dist directory
+            echo.
+            echo Listing parent directory:
+            dir /b ..\dist\pyinstaller 2^>nul || echo No dist directory in parent
+            echo.
+            echo Searching for all EXE files:
+            dir /s /b ..\..\*.exe 2^>nul | findstr Radio Monitor || echo No EXE found
             exit /b 1
           )
 
