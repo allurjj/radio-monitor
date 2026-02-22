@@ -55,6 +55,21 @@ print("  [OK] Clean complete\n")
 # Generate VERSION.py with current build info
 print("Step 1.5: Generating VERSION.py...")
 from datetime import datetime
+import subprocess
+
+# Try to get version from git tag
+try:
+    git_tag = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0'],
+                                    stderr=subprocess.DEVNULL,
+                                    universal_newlines=True).strip()
+    # Remove 'v' prefix if present
+    version = git_tag.lstrip('v')
+    print(f"  Detected git tag: {git_tag}")
+except (subprocess.CalledProcessError, FileNotFoundError):
+    # Fallback to hardcoded version
+    version = "1.1.2"
+    print(f"  Could not detect git tag, using fallback version: {version}")
+
 version_content = f'''"""
 Radio Monitor Version Information
 
@@ -65,7 +80,7 @@ The version here represents the actual running version of the application,
 not necessarily the latest version in git.
 """
 
-__version__ = "1.1.0"
+__version__ = "{version}"
 __build_date__ = "{datetime.now().strftime('%Y-%m-%d')}"
 __github_url__ = "https://github.com/allurjj/radio-monitor"
 '''
