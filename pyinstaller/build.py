@@ -95,7 +95,7 @@ print("  [OK] VERSION.py generated\n")
 # See https://pyinstaller.org/en/stable/usage.html for all options
 options = [
     # Entry point (absolute path) - use wrapper that defaults to GUI mode
-    os.path.join(PROJECT_ROOT, 'radio_monitor_exe.py'),
+    os.path.join(SCRIPT_DIR, 'radio_monitor_exe.py'),
 
     # Output options
     '--name=Radio Monitor',          # Executable name
@@ -117,8 +117,32 @@ options = [
     f'--add-data={version_file};.',  # VERSION.py with build-time version
 
     # Hidden imports (auto-detection might miss these)
+    # Python 3.13 + PyInstaller requires explicit imports for many modules
+    '--hidden-import=sqlite3',
     '--hidden-import=flask',
+    '--hidden-import=flask_httpauth',
+    '--hidden-import=bcrypt',
+    '--hidden-import=_bcrypt',
     '--hidden-import=werkzeug',
+    '--hidden-import=jinja2',
+    '--hidden-import=markupsafe',
+    '--hidden-import=itsdangerous',
+    '--hidden-import=click',
+    '--hidden-import=apscheduler',
+    '--hidden-import=apscheduler.schedulers.background',
+    '--hidden-import=apscheduler.triggers.cron',
+    '--hidden-import=beautifulsoup4',
+    '--hidden-import=plexapi',
+    '--hidden-import=plexapi.server',
+    '--hidden-import=plexapi.base',
+    '--hidden-import=pkg_resources',
+    '--hidden-import=requests',
+    '--hidden-import=urllib3',
+    '--hidden-import=musicbrainzngs',
+    '--hidden-import=rapidfuzz',
+    '--hidden-import=rapidfuzz.fuzz',
+    '--hidden-import=rapidfuzz.process',
+    '--hidden-import=rapidfuzz.utils',
     '--hidden-import=jinja2',
     '--hidden-import=markupsafe',
     '--hidden-import=itsdangerous',

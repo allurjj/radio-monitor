@@ -37,7 +37,7 @@ jobs:
           Write-Host "Checking required files..."
           $files = @(
             "pyinstaller\build.py",
-            "radio_monitor_exe.py",
+            "pyinstaller\radio_monitor_exe.py",
             "pyinstaller\README.txt",
             "static\favicon.ico",
             "templates\base_sidebar.html",
