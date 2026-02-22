@@ -82,7 +82,7 @@
                 </div>
                 <div class="sidebar-title">
                     <span class="app-name">Radio Monitor</span>
-                    <span class="version">1.0</span>
+                    <span class="version">{{ config.get('VERSION', '1.1.0') }}</span>
                 </div>
             </div>
 
@@ -226,7 +226,7 @@
                     <div class="row align-items-center">
                         <div class="col-md-6 text-center text-md-start">
                             <small class="text-muted">
-                                Radio Monitor 1.0 | <a href="https://github.com/yourusername/radio-monitor" target="_blank">GitHub</a>
+                                Radio Monitor {{ config.get('VERSION', '1.1.0') }} | <a href="{{ config.get('GITHUB_URL', 'https://github.com/allurjj/radio-monitor') }}" target="_blank">GitHub</a>
                             </small>
                         </div>
                         <div class="col-md-6 text-center text-md-end">

@@ -437,8 +437,9 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
     """
     offset = (page - 1) * limit
 
-    # Build WHERE clause
+    # Build WHERE clause (non-aggregate filters only)
     conditions = []
+    having_conditions = []  # For aggregate filters like total_plays
     params = []
 
     if filters:
@@ -455,12 +456,13 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
             conditions.append("a.first_seen_station = ?")
             params.append(filters['station_id'])
 
+        # These are aggregate filters - need HAVING clause with full expression
         if filters.get('total_plays_min'):
-            conditions.append("total_plays >= ?")
+            having_conditions.append("COALESCE(SUM(s.play_count), 0) >= ?")
             params.append(int(filters['total_plays_min']))
 
         if filters.get('total_plays_max'):
-            conditions.append("total_plays <= ?")
+            having_conditions.append("COALESCE(SUM(s.play_count), 0) <= ?")
             params.append(int(filters['total_plays_max']))
 
         if filters.get('first_seen_after'):
@@ -472,6 +474,7 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
             params.append(filters['last_seen_after'])
 
     where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+    having_clause = "HAVING " + " AND ".join(having_conditions) if having_conditions else ""
 
     # Build ORDER BY clause dynamically based on sort and direction
     # Map sort parameter to database column
@@ -493,12 +496,36 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
     else:
         order_by = f"{sort_column} {direction.upper()}"
 
+    # Check if we need to join songs table for filtering/aggregation
+    needs_song_join = (
+        filters and (
+            filters.get('total_plays_min') or
+            filters.get('total_plays_max') or
+            sort == 'total_plays' or
+            sort == 'song_count'
+        )
+    )
+
     # Get total count
-    count_query = f"""
-        SELECT COUNT(DISTINCT a.mbid)
-        FROM artists a
-        {where_clause}
-    """
+    if needs_song_join:
+        # Need JOIN for total_plays filter/sort - use subquery to count filtered results
+        count_query = f"""
+            SELECT COUNT(*) FROM (
+                SELECT a.mbid
+                FROM artists a
+                LEFT JOIN songs s ON a.mbid = s.artist_mbid
+                {where_clause}
+                GROUP BY a.mbid
+                {having_clause}
+            )
+        """
+    else:
+        # Simple count without JOIN
+        count_query = f"""
+            SELECT COUNT(DISTINCT a.mbid)
+            FROM artists a
+            {where_clause}
+        """
     cursor.execute(count_query, params)
     total = cursor.fetchone()[0]
 
@@ -518,6 +545,7 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
         LEFT JOIN songs s ON a.mbid = s.artist_mbid
         {where_clause}
         GROUP BY a.mbid
+        {having_clause}
         ORDER BY {order_by}
         LIMIT ? OFFSET ?
     """

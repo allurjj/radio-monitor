@@ -77,11 +77,43 @@ python -m radio_monitor.cli --import-lidarr --min-plays 5
 # Create Plex playlist
 python -m radio_monitor.cli --plex-playlist "Radio Hits" --days 7 --limit 50
 
-Version: 1.0
+Version: 1.1.0
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "Radio Monitor Team"
+__github_url__ = "https://github.com/allurjj/radio-monitor"
+
+
+def get_version():
+    """Get the actual running version from VERSION.py if it exists, else use package version
+
+    This ensures that built executables show their actual build version,
+    not the latest version in the source code.
+
+    Returns:
+        str: The version number
+    """
+    try:
+        # Try to import VERSION.py (created during build)
+        import VERSION
+        return VERSION.__version__
+    except ImportError:
+        # Fallback to package version (development mode)
+        return __version__
+
+
+def get_github_url():
+    """Get the GitHub URL from VERSION.py if it exists, else use package default
+
+    Returns:
+        str: The GitHub URL
+    """
+    try:
+        import VERSION
+        return VERSION.__github_url__
+    except ImportError:
+        return __github_url__
 
 # Import key classes for convenient access
 from .database import RadioDatabase
