@@ -52,8 +52,7 @@ WORKDIR /app/data
 RUN mkdir -p /app/radio_monitor /app/templates /app/prompts /app/static
 
 # Copy application code (to /app, not /app/data)
-# Copy VERSION.py first so version is correct in container
-COPY --from=builder /build/VERSION.py /app/VERSION.py
+# VERSION.py is auto-generated from __init__.py, not needed in container
 COPY radio_monitor/ /app/radio_monitor/
 COPY templates/ /app/templates/
 COPY prompts/ /app/prompts/
