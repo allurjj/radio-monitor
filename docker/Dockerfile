@@ -14,8 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and VERSION.py
-COPY requirements.txt VERSION.py .
+# Copy requirements (VERSION.py is auto-generated from __init__.py during build)
+COPY requirements.txt .
 
 # Install Python dependencies to /usr/local
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
