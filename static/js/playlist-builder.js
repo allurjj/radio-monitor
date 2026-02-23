@@ -437,8 +437,8 @@ async function renderByArtistView() {
                                                data-song-id="${song.id}"
                                                ${PlaylistBuilderState.selections.has(song.id) ? 'checked' : ''}>
                                     </td>
-                                    <td>${song.title}</td>
-                                    <td width="80">${song.plays || 0}</td>
+                                    <td>${song.song_title || song.title || ''}</td>
+                                    <td width="80">${song.play_count || song.plays || 0}</td>
                                     <td width="120">${formatDate(song.last_seen_at)}</td>
                                 </tr>
                             `).join('')}
@@ -453,6 +453,9 @@ async function renderByArtistView() {
 
         // Add event listeners
         attachArtistViewEventListeners();
+
+        // Update sort indicators
+        updateSortIndicators();
 
         // Render pagination
         renderPagination();
@@ -503,9 +506,9 @@ async function renderBySongView() {
                            data-song-id="${song.id}"
                            ${song.selected ? 'checked' : ''}>
                 </td>
-                <td>${song.artist_name}</td>
-                <td>${song.title}</td>
-                <td>${song.plays || 0}</td>
+                <td>${song.artist_name || ''}</td>
+                <td>${song.song_title || song.title || ''}</td>
+                <td>${song.play_count || song.plays || 0}</td>
                 <td>${formatDate(song.last_seen_at)}</td>
             `;
 
@@ -514,6 +517,9 @@ async function renderBySongView() {
 
         // Add event listeners
         attachSongViewEventListeners();
+
+        // Update sort indicators
+        updateSortIndicators();
 
         // Render pagination
         renderPagination();
@@ -781,6 +787,63 @@ function switchViewMode(viewMode) {
 }
 
 /**
+ * Handle column header click for sorting
+ */
+function handleColumnSort(column) {
+    // Map column names to sort column names
+    const columnMapping = {
+        'name': 'name',
+        'song_count': 'song_count',
+        'selected_count': 'selected_count',
+        'artist_name': 'artist_name',
+        'title': 'title',
+        'plays': 'play_count',
+        'last_seen': 'last_seen'
+    };
+
+    const sortColumn = columnMapping[column] || column;
+
+    // Toggle direction if clicking same column, otherwise set to asc
+    if (PlaylistBuilderState.sort.column === sortColumn) {
+        PlaylistBuilderState.sort.direction = PlaylistBuilderState.sort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        PlaylistBuilderState.sort.column = sortColumn;
+        PlaylistBuilderState.sort.direction = 'asc';
+    }
+
+    handleFilterChange();
+}
+
+/**
+ * Update sort indicators in table headers
+ */
+function updateSortIndicators() {
+    // Map sort column back to header data-sort attribute
+    const reverseMapping = {
+        'name': 'name',
+        'song_count': 'song_count',
+        'selected_count': 'selected_count',
+        'artist_name': 'artist_name',
+        'title': 'title',
+        'play_count': 'plays',
+        'last_seen': 'last_seen'
+    };
+
+    const currentSortColumn = reverseMapping[PlaylistBuilderState.sort.column] || PlaylistBuilderState.sort.column;
+
+    // Remove all sort classes
+    document.querySelectorAll('.sortable').forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+    });
+
+    // Add sort class to current column
+    const currentHeader = document.querySelector(`.sortable[data-sort="${currentSortColumn}"]`);
+    if (currentHeader) {
+        currentHeader.classList.add(PlaylistBuilderState.sort.direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    }
+}
+
+/**
  * Toggle "Show Only Selected"
  */
 function toggleShowOnlySelected() {
@@ -828,7 +891,6 @@ function resetFilters() {
     document.getElementById('filterMinPlays').value = '';
     document.getElementById('filterMaxPlays').value = '';
     document.getElementById('filterSearch').value = '';
-    document.getElementById('filterSort').value = 'last_seen_desc';
     document.getElementById('filterPageSize').value = '50';
 
     const btn = document.getElementById('btnShowOnlySelected');
@@ -905,7 +967,6 @@ async function initPlaylistBuilder() {
         document.getElementById('filterSearch').value = PlaylistBuilderState.filters.search;
     }
 
-    document.getElementById('filterSort').value = `${PlaylistBuilderState.sort.column}_${PlaylistBuilderState.sort.direction}`;
     document.getElementById('filterPageSize').value = PlaylistBuilderState.pagination.perPage;
 
     if (PlaylistBuilderState.showOnlySelected) {
@@ -1485,12 +1546,15 @@ function attachEventListeners() {
         document.getElementById('dateRangeInputs').style.display = e.target.checked ? 'block' : 'none';
     });
 
-    // Sort dropdown
-    document.getElementById('filterSort').addEventListener('change', (e) => {
-        const [column, direction] = e.target.value.split('_');
-        PlaylistBuilderState.sort.column = column;
-        PlaylistBuilderState.sort.direction = direction;
-        handleFilterChange();
+    // Sortable column headers
+    document.addEventListener('click', (e) => {
+        const sortableHeader = e.target.closest('.sortable');
+        if (sortableHeader) {
+            const column = sortableHeader.dataset.sort;
+            if (column) {
+                handleColumnSort(column);
+            }
+        }
     });
 
     // Page size dropdown

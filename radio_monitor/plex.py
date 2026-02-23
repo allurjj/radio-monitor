@@ -818,3 +818,225 @@ def test_plex_connection(settings):
             return False, "Connection timeout - Is Plex responding?"
         else:
             return False, f"Connection failed: {error_msg}"
+
+
+# ==================== MANUAL PLAYLIST FUNCTIONS (Phase 7) ====================
+
+def get_plex_server(settings):
+    """Get Plex server instance from settings
+
+    Args:
+        settings: Settings dict with plex configuration
+
+    Returns:
+        PlexServer instance or None
+    """
+    try:
+        from plexapi.server import PlexServer
+
+        plex_url = settings.get('plex', {}).get('url', 'http://localhost:32400')
+        token = settings.get('plex', {}).get('token', '')
+
+        if not token:
+            logger.error("No Plex token configured")
+            return None
+
+        plex = PlexServer(plex_url, token, timeout=30)
+        return plex
+
+    except Exception as e:
+        logger.error(f"Error connecting to Plex: {e}")
+        return None
+
+
+def create_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, music_library_name='Music'):
+    """Create manual playlist in Plex
+
+    Args:
+        playlist_name: Name of playlist to create
+        songs: List of dicts with 'title' and 'artist_name' keys
+        plex_url: Plex server URL
+        plex_token: Plex server token
+        music_library_name: Name of music library in Plex
+
+    Returns:
+        dict with:
+        - success: True/False
+        - added: Number of songs added
+        - not_found: Number of songs not found
+        - not_found_list: List of songs not found
+        - error: Error message (if any)
+    """
+    try:
+        from plexapi.server import PlexServer
+
+        # Connect to Plex
+        plex = PlexServer(plex_url, plex_token, timeout=30)
+
+        # Get music library
+        try:
+            music_library = plex.library.section(music_library_name)
+        except Exception as e:
+            logger.error(f"Error accessing Plex music library '{music_library_name}': {e}")
+            return {
+                'success': False,
+                'added': 0,
+                'not_found': len(songs),
+                'not_found_list': songs,
+                'error': f"Music library '{music_library_name}' not found"
+            }
+
+        # Find songs in Plex
+        songs_to_add = []
+        not_found = []
+
+        for idx, song in enumerate(songs, 1):
+            song_title = song.get('title')
+            artist_name = song.get('artist_name')
+
+            if not song_title or not artist_name:
+                logger.warning(f"Skipping song {idx}: missing title or artist")
+                not_found.append(song)
+                continue
+
+            logger.info(f"Processing song {idx}/{len(songs)}: {song_title} - {artist_name}")
+
+            # Use existing fuzzy matching function
+            track = find_song_in_library(music_library, song_title, artist_name, debug=False)
+
+            if track:
+                songs_to_add.append(track)
+                logger.info(f"  ✓ Found: {track.title}")
+            else:
+                not_found.append(song)
+                logger.warning(f"  ✗ Not found in Plex: {song_title} - {artist_name}")
+
+        logger.info(f"Finished searching Plex: found {len(songs_to_add)}/{len(songs)} songs")
+
+        # Create playlist in Plex
+        if songs_to_add:
+            playlist = plex.createPlaylist(playlist_name, items=songs_to_add)
+            logger.info(f"Created Plex playlist '{playlist_name}' with {len(songs_to_add)} songs")
+        else:
+            logger.error(f"No songs found in Plex for playlist '{playlist_name}'")
+            return {
+                'success': False,
+                'added': 0,
+                'not_found': len(not_found),
+                'not_found_list': not_found,
+                'error': 'No songs found in Plex library'
+            }
+
+        # Return result
+        result = {
+            'success': True,
+            'added': len(songs_to_add),
+            'not_found': len(not_found),
+            'not_found_list': not_found
+        }
+
+        # Log warning if some songs not found
+        if not_found:
+            logger.warning(f"{len(not_found)} songs not found in Plex for playlist '{playlist_name}'")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error creating Plex playlist: {e}")
+        return {
+            'success': False,
+            'added': 0,
+            'not_found': len(songs),
+            'not_found_list': songs,
+            'error': str(e)
+        }
+
+
+def update_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, old_playlist_name=None, music_library_name='Music'):
+    """Update manual playlist in Plex (delete and recreate)
+
+    Args:
+        playlist_name: Name of playlist to create/update
+        songs: List of dicts with 'title' and 'artist_name' keys
+        plex_url: Plex server URL
+        plex_token: Plex server token
+        old_playlist_name: Old playlist name (if different from new name)
+        music_library_name: Name of music library in Plex
+
+    Returns:
+        dict with:
+        - success: True/False
+        - added: Number of songs added
+        - not_found: Number of songs not found
+        - not_found_list: List of songs not found
+        - error: Error message (if any)
+    """
+    try:
+        from plexapi.server import PlexServer
+
+        # Connect to Plex
+        plex = PlexServer(plex_url, plex_token, timeout=30)
+
+        # Delete old playlist if exists
+        playlist_to_delete = old_playlist_name or playlist_name
+
+        try:
+            existing_playlist = plex.playlist(playlist_to_delete)
+            logger.info(f"Deleting existing Plex playlist '{playlist_to_delete}'")
+            existing_playlist.delete()
+        except:
+            # Playlist doesn't exist, that's fine
+            logger.info(f"Playlist '{playlist_to_delete}' not found in Plex (will create new)")
+
+        # Create new playlist
+        result = create_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, music_library_name)
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error updating Plex playlist: {e}")
+        return {
+            'success': False,
+            'added': 0,
+            'not_found': len(songs),
+            'not_found_list': songs,
+            'error': str(e)
+        }
+
+
+def delete_plex_playlist(playlist_name, plex_url, plex_token):
+    """Delete playlist from Plex
+
+    Args:
+        playlist_name: Name of playlist to delete
+        plex_url: Plex server URL
+        plex_token: Plex server token
+
+    Returns:
+        dict with:
+        - success: True/False
+        - error: Error message (if any)
+    """
+    try:
+        from plexapi.server import PlexServer
+
+        # Connect to Plex
+        plex = PlexServer(plex_url, plex_token, timeout=30)
+
+        # Find and delete playlist
+        try:
+            playlist = plex.playlist(playlist_name)
+            playlist.delete()
+            logger.info(f"Deleted Plex playlist '{playlist_name}'")
+            return {'success': True}
+        except:
+            # Playlist doesn't exist
+            logger.warning(f"Playlist '{playlist_name}' not found in Plex")
+            return {'success': True, 'message': 'Playlist not found (may have been already deleted)'}
+
+    except Exception as e:
+        logger.error(f"Error deleting Plex playlist: {e}")
+        return {
+            'success': False,
+            'error': str(e)
+        }

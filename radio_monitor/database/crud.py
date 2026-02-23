@@ -1873,3 +1873,63 @@ def clear_builder_state(cursor, conn, session_id):
         logger.error(f"Error clearing builder state for session {session_id}: {e}")
         conn.rollback()
         raise
+
+
+def add_songs_to_builder_state_batch(cursor, session_id, song_ids):
+    """Batch add songs to the playlist builder state (no commit)
+
+    Args:
+        cursor: SQLite cursor object
+        session_id: Flask session ID
+        song_ids: List of song IDs to add
+
+    Returns:
+        Number of songs added
+
+    Note:
+        This function does NOT commit. Caller must commit after calling.
+    """
+    now = datetime.now()
+    added_count = 0
+
+    for song_id in song_ids:
+        try:
+            cursor.execute("""
+                INSERT OR IGNORE INTO playlist_builder_state (session_id, song_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?)
+            """, (session_id, song_id, now, now))
+
+            if cursor.rowcount > 0:
+                added_count += 1
+        except Exception as e:
+            logger.warning(f"Error adding song {song_id} to builder state: {e}")
+
+    return added_count
+
+
+def remove_songs_from_builder_state_batch(cursor, session_id, song_ids):
+    """Batch remove songs from the playlist builder state (no commit)
+
+    Args:
+        cursor: SQLite cursor object
+        session_id: Flask session ID
+        song_ids: List of song IDs to remove
+
+    Returns:
+        Number of songs removed
+
+    Note:
+        This function does NOT commit. Caller must commit after calling.
+    """
+    if not song_ids:
+        return 0
+
+    # Build placeholders for IN clause
+    placeholders = ','.join(['?' for _ in song_ids])
+
+    cursor.execute(f"""
+        DELETE FROM playlist_builder_state
+        WHERE session_id = ? AND song_id IN ({placeholders})
+    """, [session_id] + song_ids)
+
+    return cursor.rowcount

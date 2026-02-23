@@ -132,9 +132,9 @@ def api_update_selection():
 
         try:
             if selected:
-                add_song_to_builder_state(cursor, db.connection, session_id, song_id)
+                add_song_to_builder_state(cursor, db.conn, session_id, song_id)
             else:
-                remove_song_from_builder_state(cursor, db.connection, session_id, song_id)
+                remove_song_from_builder_state(cursor, db.conn, session_id, song_id)
 
             # Get updated count
             count = get_builder_state_song_count(cursor, session_id)
@@ -163,7 +163,7 @@ def api_batch_update_selections():
             "count": 156
         }
     """
-    from radio_monitor.database.crud import add_song_to_builder_state, remove_song_from_builder_state
+    from radio_monitor.database.crud import add_songs_to_builder_state_batch, remove_songs_from_builder_state_batch
     from radio_monitor.database.queries import get_builder_state_song_count
 
     db = get_db()
@@ -188,19 +188,26 @@ def api_batch_update_selections():
         cursor = db.get_cursor()
 
         try:
-            for song_id in song_ids:
-                if selected:
-                    add_song_to_builder_state(cursor, db.connection, session_id, song_id)
-                else:
-                    remove_song_from_builder_state(cursor, db.connection, session_id, song_id)
+            # Use batch operations for better performance
+            if selected:
+                add_songs_to_builder_state_batch(cursor, session_id, song_ids)
+            else:
+                remove_songs_from_builder_state_batch(cursor, session_id, song_ids)
+
+            # Single commit after all operations
+            db.conn.commit()
 
             # Get updated count
             count = get_builder_state_song_count(cursor, session_id)
             return jsonify({'success': True, 'count': count})
+        except Exception as e:
+            # Rollback on error
+            db.conn.rollback()
+            raise e
         finally:
             cursor.close()
     except Exception as e:
-        logger.error(f"Error batch updating selections: {e}")
+        logger.error(f"Error batch updating selections: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
@@ -226,7 +233,7 @@ def api_clear_selections():
         cursor = db.get_cursor()
 
         try:
-            clear_builder_state(cursor, db.connection, session_id)
+            clear_builder_state(cursor, db.conn, session_id)
             return jsonify({'success': True, 'count': 0})
         finally:
             cursor.close()
@@ -553,14 +560,14 @@ def api_create_manual_playlist():
 
         try:
             # Create playlist
-            playlist_id = create_manual_playlist(cursor, db.connection, name, plex_playlist_name)
+            playlist_id = create_manual_playlist(cursor, db.conn, name, plex_playlist_name)
 
             # Add current selections to playlist
             session_id = get_session_id()
             songs = get_builder_state_songs(cursor, session_id)
 
             for song in songs:
-                add_song_to_manual_playlist(cursor, db.connection, playlist_id, song['id'])
+                add_song_to_manual_playlist(cursor, db.conn, playlist_id, song['id'])
 
             # Get song count
             song_count = get_song_count_in_manual_playlist(cursor, playlist_id)
@@ -618,16 +625,16 @@ def api_update_manual_playlist(playlist_id):
                 return jsonify({'error': 'Playlist not found'}), 404
 
             # Update playlist metadata
-            update_manual_playlist(cursor, db.connection, playlist_id, name, plex_playlist_name)
+            update_manual_playlist(cursor, db.conn, playlist_id, name, plex_playlist_name)
 
             # Replace songs with current selections
-            clear_manual_playlist(cursor, db.connection, playlist_id)
+            clear_manual_playlist(cursor, db.conn, playlist_id)
 
             session_id = get_session_id()
             songs = get_builder_state_songs(cursor, session_id)
 
             for song in songs:
-                add_song_to_manual_playlist(cursor, db.connection, playlist_id, song['id'])
+                add_song_to_manual_playlist(cursor, db.conn, playlist_id, song['id'])
 
             # Get song count
             song_count = get_song_count_in_manual_playlist(cursor, playlist_id)
@@ -670,7 +677,7 @@ def api_delete_manual_playlist(playlist_id):
                 return jsonify({'error': 'Playlist not found'}), 404
 
             # Delete playlist
-            delete_manual_playlist(cursor, db.connection, playlist_id)
+            delete_manual_playlist(cursor, db.conn, playlist_id)
 
             return jsonify({'success': True})
         finally:
@@ -711,12 +718,12 @@ def api_load_manual_playlist(playlist_id):
 
             # Clear current selections
             session_id = get_session_id()
-            clear_builder_state(cursor, db.connection, session_id)
+            clear_builder_state(cursor, db.conn, session_id)
 
             # Load playlist songs
             songs = get_manual_playlist_songs(cursor, playlist_id)
             for song in songs:
-                add_song_to_builder_state(cursor, db.connection, session_id, song['id'])
+                add_song_to_builder_state(cursor, db.conn, session_id, song['id'])
 
             return jsonify({
                 'success': True,

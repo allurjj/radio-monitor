@@ -13,6 +13,38 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+/* Sortable column headers */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 25px !important;
+    transition: background-color 0.15s ease;
+}
+
+.sortable:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.sort-indicator {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.3;
+    font-size: 0.8em;
+}
+
+.sorted-asc .sort-indicator::after {
+    content: '▲';
+    opacity: 1;
+}
+
+.sorted-desc .sort-indicator::after {
+    content: '▼';
+    opacity: 1;
+}
+
 /* Artist song list (expandable) */
 .artist-songs {
     display: none;
@@ -222,19 +254,9 @@
                 <input type="text" class="form-control form-control-sm" id="filterSearch" placeholder="Search songs...">
             </div>
 
-            <!-- Sort & Page Size -->
+            <!-- Page Size -->
             <div class="col-md-2">
-                <label class="form-label small text-muted">Sort</label>
-                <select class="form-select form-select-sm mb-1" id="filterSort">
-                    <option value="last_seen_desc">Last Seen ↓</option>
-                    <option value="last_seen_asc">Last Seen ↑</option>
-                    <option value="plays_desc">Play Count ↓</option>
-                    <option value="plays_asc">Play Count ↑</option>
-                    <option value="title_asc">Title A-Z</option>
-                    <option value="title_desc">Title Z-A</option>
-                    <option value="artist_asc">Artist A-Z</option>
-                    <option value="artist_desc">Artist Z-A</option>
-                </select>
+                <label class="form-label small text-muted">Per Page</label>
                 <select class="form-select form-select-sm" id="filterPageSize">
                     <option value="25">25 per page</option>
                     <option value="50" selected>50 per page</option>
@@ -285,9 +307,18 @@
                         <th width="40">
                             <input type="checkbox" class="form-check-input" id="selectAllArtists">
                         </th>
-                        <th>Artist Name</th>
-                        <th width="100">Songs</th>
-                        <th width="100">Selected</th>
+                        <th class="sortable" data-sort="name">
+                            Artist Name
+                            <span class="sort-indicator"></span>
+                        </th>
+                        <th width="100" class="sortable" data-sort="song_count">
+                            Songs
+                            <span class="sort-indicator"></span>
+                        </th>
+                        <th width="100" class="sortable" data-sort="selected_count">
+                            Selected
+                            <span class="sort-indicator"></span>
+                        </th>
                     </tr>
                 </thead>
                 <tbody id="artistListBody">
@@ -304,10 +335,22 @@
                         <th width="40">
                             <input type="checkbox" class="form-check-input" id="selectAllSongs">
                         </th>
-                        <th>Artist</th>
-                        <th>Song Title</th>
-                        <th width="80">Plays</th>
-                        <th width="120">Last Seen</th>
+                        <th class="sortable" data-sort="artist_name">
+                            Artist
+                            <span class="sort-indicator"></span>
+                        </th>
+                        <th class="sortable" data-sort="title">
+                            Song Title
+                            <span class="sort-indicator"></span>
+                        </th>
+                        <th width="80" class="sortable" data-sort="plays">
+                            Plays
+                            <span class="sort-indicator"></span>
+                        </th>
+                        <th width="120" class="sortable" data-sort="last_seen">
+                            Last Seen
+                            <span class="sort-indicator"></span>
+                        </th>
                     </tr>
                 </thead>
                 <tbody id="songListBody">
