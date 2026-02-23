@@ -456,6 +456,12 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
             conditions.append("a.first_seen_station = ?")
             params.append(filters['station_id'])
 
+        if filters.get('station_ids'):
+            # Multiple stations - use IN clause
+            placeholders = ','.join(['?' for _ in filters['station_ids']])
+            conditions.append(f"a.first_seen_station IN ({placeholders})")
+            params.extend(filters['station_ids'])
+
         # These are aggregate filters - need HAVING clause with full expression
         if filters.get('total_plays_min'):
             having_conditions.append("COALESCE(SUM(s.play_count), 0) >= ?")
@@ -726,6 +732,24 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
         if filters.get('station_id'):
             conditions.append("EXISTS (SELECT 1 FROM song_plays_daily spd WHERE spd.song_id = s.id AND spd.station_id = ?)")
             params.append(filters['station_id'])
+
+        if filters.get('station_ids'):
+            # Multiple stations - use IN clause
+            placeholders = ','.join(['?' for _ in filters['station_ids']])
+            conditions.append(f"EXISTS (SELECT 1 FROM song_plays_daily spd WHERE spd.song_id = s.id AND spd.station_id IN ({placeholders}))")
+            params.extend(filters['station_ids'])
+
+        if filters.get('selected_song_ids'):
+            # Filter to only show selected songs
+            placeholders = ','.join(['?' for _ in filters['selected_song_ids']])
+            conditions.append(f"s.id IN ({placeholders})")
+            params.extend(filters['selected_song_ids'])
+
+        if filters.get('unselected_song_ids'):
+            # Filter to show unselected songs only
+            placeholders = ','.join(['?' for _ in filters['unselected_song_ids']])
+            conditions.append(f"s.id NOT IN ({placeholders})")
+            params.extend(filters['unselected_song_ids'])
 
         if filters.get('plays_min'):
             conditions.append("s.play_count >= ?")
@@ -2068,3 +2092,44 @@ def get_builder_state_song_ids(cursor, session_id):
     """, (session_id,))
 
     return [row[0] for row in cursor.fetchall()]
+
+
+def get_artist_song_ids(cursor, artist_mbid):
+    """Get all song IDs for an artist
+
+    Args:
+        cursor: SQLite cursor object
+        artist_mbid: Artist MusicBrainz ID
+
+    Returns:
+        List of song IDs (integers)
+    """
+    cursor.execute("""
+        SELECT id
+        FROM songs
+        WHERE artist_mbid = ?
+    """, (artist_mbid,))
+
+    return [row[0] for row in cursor.fetchall()]
+
+
+def get_artist_stations(cursor, artist_mbid):
+    """Get all stations where an artist's songs have been played
+
+    Args:
+        cursor: SQLite cursor object
+        artist_mbid: Artist MusicBrainz ID
+
+    Returns:
+        List of dicts with station_id and station_name
+    """
+    cursor.execute("""
+        SELECT DISTINCT st.id, st.name
+        FROM song_plays_daily spd
+        JOIN stations st ON spd.station_id = st.id
+        JOIN songs s ON spd.song_id = s.id
+        WHERE s.artist_mbid = ?
+        ORDER BY st.name
+    """, (artist_mbid,))
+
+    return [{'id': row[0], 'name': row[1]} for row in cursor.fetchall()]

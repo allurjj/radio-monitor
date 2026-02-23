@@ -199,6 +199,9 @@ async function fetchArtists() {
     if (PlaylistBuilderState.filters.search) {
         params.set('search', PlaylistBuilderState.filters.search);
     }
+    if (PlaylistBuilderState.showOnlySelected) {
+        params.set('show', 'selected');
+    }
 
     const response = await fetch(`/api/playlist-builder/artists?${params}`);
     if (!response.ok) {
@@ -639,10 +642,26 @@ function attachArtistViewEventListeners() {
             e.stopPropagation();
             const songId = parseInt(e.target.dataset.songId);
             const selected = e.target.checked;
-            await toggleSongSelection(songId, selected);
 
-            // Re-render to update artist checkbox state
-            await renderByArtistView();
+            // Update selection without full re-render
+            const data = await toggleSongSelection(songId, selected);
+
+            // Update row styling immediately
+            const row = e.target.closest('.song-row');
+            if (row) {
+                if (selected) {
+                    row.classList.add('selected');
+                } else {
+                    row.classList.remove('selected');
+                }
+            }
+
+            // Update parent artist checkbox state
+            const artistRow = e.target.closest('tr').previousElementSibling;
+            if (artistRow) {
+                const artistId = artistRow.dataset.artistId;
+                await updateArtistCheckboxState(artistId);
+            }
         });
     });
 }
@@ -656,14 +675,18 @@ function attachSongViewEventListeners() {
         checkbox.addEventListener('click', async (e) => {
             const songId = parseInt(e.target.dataset.songId);
             const selected = e.target.checked;
+
+            // Update selection without full re-render
             await toggleSongSelection(songId, selected);
 
-            // Update row styling
+            // Update row styling immediately
             const row = e.target.closest('.song-row');
-            if (selected) {
-                row.classList.add('selected');
-            } else {
-                row.classList.remove('selected');
+            if (row) {
+                if (selected) {
+                    row.classList.add('selected');
+                } else {
+                    row.classList.remove('selected');
+                }
             }
         });
     });
@@ -680,8 +703,19 @@ function attachSongViewEventListeners() {
 
             await batchUpdateSelections(songIds, !allChecked);
 
-            // Re-render
-            await renderBySongView();
+            // Update checkboxes and row styling without full re-render
+            const shouldBeChecked = !allChecked;
+            checkboxes.forEach(cb => {
+                cb.checked = shouldBeChecked;
+                const row = cb.closest('.song-row');
+                if (row) {
+                    if (shouldBeChecked) {
+                        row.classList.add('selected');
+                    } else {
+                        row.classList.remove('selected');
+                    }
+                }
+            });
         });
     }
 }
@@ -701,6 +735,63 @@ function toggleArtistExpansion(artistId) {
         songsRow.classList.add('show');
         expandIcon.className = 'bi bi-chevron-down me-2';
         PlaylistBuilderState.expandedArtists.add(artistId);
+    }
+}
+
+/**
+ * Update artist checkbox state without full re-render
+ */
+async function updateArtistCheckboxState(artistId) {
+    const artistRow = document.querySelector(`.artist-row[data-artist-id="${artistId}"]`);
+    const songsRow = document.querySelector(`.artist-songs[data-artist-id="${artistId}"]`);
+
+    if (!artistRow || !songsRow) return;
+
+    const songCheckboxes = songsRow.querySelectorAll('.song-checkbox');
+    const selectedCount = Array.from(songCheckboxes).filter(cb => cb.checked).length;
+    const totalCount = songCheckboxes.length;
+
+    const checkbox = artistRow.querySelector('.artist-checkbox');
+    const selectedBadge = artistRow.querySelector('.badge');
+
+    // Update checkbox state
+    if (selectedCount === 0) {
+        checkbox.checked = false;
+        checkbox.indeterminate = false;
+        checkbox.classList.remove('checkbox-partial');
+    } else if (selectedCount === totalCount) {
+        checkbox.checked = true;
+        checkbox.indeterminate = false;
+        checkbox.classList.remove('checkbox-partial');
+    } else {
+        checkbox.checked = false;
+        checkbox.indeterminate = true;
+        checkbox.classList.add('checkbox-partial');
+    }
+
+    // Update selected badge
+    if (selectedBadge) {
+        selectedBadge.textContent = `${selectedCount}/${totalCount} selected`;
+        if (selectedCount > 0) {
+            selectedBadge.classList.remove('bg-secondary');
+            selectedBadge.classList.add('bg-primary');
+        } else {
+            selectedBadge.classList.remove('bg-primary');
+            selectedBadge.classList.add('bg-secondary');
+        }
+    }
+
+    // Update selected count column
+    const selectedCountCol = artistRow.querySelector('td:last-child .badge');
+    if (selectedCountCol) {
+        selectedCountCol.textContent = selectedCount;
+        if (selectedCount > 0) {
+            selectedCountCol.classList.remove('bg-secondary');
+            selectedCountCol.classList.add('bg-primary');
+        } else {
+            selectedCountCol.classList.remove('bg-primary');
+            selectedCountCol.classList.add('bg-secondary');
+        }
     }
 }
 
@@ -743,6 +834,30 @@ async function handleArtistCheckboxClick(artistId) {
  * Handle filter changes
  */
 function handleFilterChange() {
+    // Update station filter from UI
+    const stationSelect = document.getElementById('filterStation');
+    const selectedStations = Array.from(stationSelect.selectedOptions).map(opt => opt.value);
+    PlaylistBuilderState.filters.stations = selectedStations;
+
+    // Update other filters from UI
+    const minPlays = document.getElementById('filterMinPlays').value;
+    const maxPlays = document.getElementById('filterMaxPlays').value;
+    const search = document.getElementById('filterSearch').value;
+    const dateFrom = document.getElementById('filterDateFrom').value;
+    const dateTo = document.getElementById('filterDateTo').value;
+
+    PlaylistBuilderState.filters.minPlays = minPlays ? parseInt(minPlays) : null;
+    PlaylistBuilderState.filters.maxPlays = maxPlays ? parseInt(maxPlays) : null;
+    PlaylistBuilderState.filters.search = search;
+
+    if (document.getElementById('dateRangeToggle').checked && dateFrom && dateTo) {
+        PlaylistBuilderState.filters.dateStart = dateFrom;
+        PlaylistBuilderState.filters.dateEnd = dateTo;
+    } else {
+        PlaylistBuilderState.filters.dateStart = null;
+        PlaylistBuilderState.filters.dateEnd = null;
+    }
+
     // Reset to page 1
     PlaylistBuilderState.pagination.page = 1;
 
@@ -862,6 +977,8 @@ function toggleShowOnlySelected() {
     }
 
     updateURL();
+
+    // Only reload data (don't need to switch views)
     loadData();
 }
 
@@ -883,7 +1000,11 @@ function resetFilters() {
     PlaylistBuilderState.showOnlySelected = false;
 
     // Reset form inputs
-    document.getElementById('filterStation').value = '';
+    const stationSelect = document.getElementById('filterStation');
+    Array.from(stationSelect.options).forEach(option => {
+        option.selected = false;
+    });
+
     document.getElementById('dateRangeToggle').checked = false;
     document.getElementById('dateRangeInputs').style.display = 'none';
     document.getElementById('filterDateFrom').value = '';
@@ -924,6 +1045,25 @@ function showError(message) {
     toastBody.textContent = message;
     const toast = new bootstrap.Toast(toastEl);
     toast.show();
+}
+
+/**
+ * Show warning toast
+ */
+function showWarning(message) {
+    const toastEl = document.getElementById('errorToast');
+    const toastBody = document.getElementById('errorToastMessage');
+    toastBody.textContent = message;
+    // Change to warning color
+    toastEl.classList.remove('bg-danger');
+    toastEl.classList.add('bg-warning');
+    const toast = new bootstrap.Toast(toastEl);
+    toast.show();
+    // Reset to error color
+    setTimeout(() => {
+        toastEl.classList.remove('bg-warning');
+        toastEl.classList.add('bg-danger');
+    }, 5000);
 }
 
 // ==================== INITIALIZATION ====================
@@ -993,6 +1133,14 @@ async function initPlaylistBuilder() {
 
     // Attach event listeners
     attachEventListeners();
+
+    // Attach station filter change handler
+    const stationSelect = document.getElementById('filterStation');
+    stationSelect.addEventListener('change', () => {
+        const selectedStations = Array.from(stationSelect.selectedOptions).map(opt => opt.value);
+        PlaylistBuilderState.filters.stations = selectedStations;
+        // Don't auto-apply, wait for user to click "Apply Filters"
+    });
 
     // Load initial data
     loadData();

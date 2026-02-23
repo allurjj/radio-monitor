@@ -293,12 +293,12 @@ def api_get_songs():
         # Station filter - convert to station_id for query
         stations = request.args.get('stations')
         if stations:
-            # For multiple stations, we'll need to handle this differently
-            # For now, just use the first station
             station_list = [s.strip() for s in stations.split(',')]
             if len(station_list) == 1:
                 filters['station_id'] = station_list[0]
-            # TODO: Support multiple stations in query
+            else:
+                # Multiple stations - use IN clause
+                filters['station_ids'] = station_list
 
         # Date range filter - convert to query format
         date_field = request.args.get('date_field', 'last_seen_at')
@@ -332,6 +332,19 @@ def api_get_songs():
         cursor = db.get_cursor()
 
         try:
+            # Get selected song IDs first
+            from radio_monitor.database.queries import get_builder_state_song_ids
+            selected_ids = get_builder_state_song_ids(cursor, session_id)
+            selected_set = set(selected_ids)
+
+            # If filtering by selection, add to filters
+            if show == 'selected' and selected_ids:
+                # Add a filter for selected songs
+                filters['selected_song_ids'] = selected_ids
+            elif show == 'unselected' and selected_ids:
+                # Add filter for unselected songs (this is trickier - need NOT IN)
+                filters['unselected_song_ids'] = selected_ids
+
             # Get songs
             result = get_songs_paginated(
                 cursor,
@@ -342,22 +355,9 @@ def api_get_songs():
                 direction=direction
             )
 
-            # Get selected song IDs
-            from radio_monitor.database.queries import get_builder_state_song_ids
-            selected_ids = get_builder_state_song_ids(cursor, session_id)
-            selected_set = set(selected_ids)
-
             # Mark songs as selected/unselected
             for song in result['items']:
                 song['selected'] = song['id'] in selected_set
-
-            # Filter by selection status if requested
-            if show == 'selected':
-                result['items'] = [s for s in result['items'] if s['selected']]
-                result['total'] = len(result['items'])
-            elif show == 'unselected':
-                result['items'] = [s for s in result['items'] if not s['selected']]
-                result['total'] = len(result['items'])
 
             return jsonify({
                 'songs': result['items'],
@@ -406,15 +406,11 @@ def api_get_artists():
         # Build filters
         filters = {}
 
-        # Station filter - convert to station_id for query
+        # Station filter - for artists, post-filter by stations where songs were played
         stations = request.args.get('stations')
+        station_list = []
         if stations:
-            # For multiple stations, we'll need to handle this differently
-            # For now, just use the first station
             station_list = [s.strip() for s in stations.split(',')]
-            if len(station_list) == 1:
-                filters['station_id'] = station_list[0]
-            # TODO: Support multiple stations in query
 
         # Date range filter - convert to query format
         date_field = request.args.get('date_field', 'last_seen_at')
@@ -446,26 +442,137 @@ def api_get_artists():
         cursor = db.get_cursor()
 
         try:
-            # Get artists
-            result = get_artists_paginated(
-                cursor,
-                page=page,
-                limit=per_page,
-                filters=filters,
-                sort=sort,
-                direction=direction
-            )
-
-            # Get selected song IDs
-            from radio_monitor.database.queries import get_builder_state_song_ids
+            # Get selected song IDs first
+            from radio_monitor.database.queries import get_builder_state_song_ids, get_artist_song_ids
             selected_ids = get_builder_state_song_ids(cursor, session_id)
             selected_set = set(selected_ids)
 
+            # Get show parameter
+            show = request.args.get('show', 'all')
+
+            # For playlist builder, we need custom logic because:
+            # 1. Station filter should find artists with songs played on those stations (not first_seen_station)
+            # 2. Show only selected needs to filter BEFORE pagination
+
+            # Build custom query for playlist builder
+            offset = (page - 1) * per_page
+
+            # Build WHERE conditions
+            conditions = []
+            params = []
+
+            # Search filter
+            if filters.get('search'):
+                conditions.append("a.name LIKE ?")
+                params.append(f"%{filters['search']}%")
+
+            # Date filters
+            if filters.get('last_seen_after'):
+                conditions.append("a.last_seen_at >= ?")
+                params.append(filters['last_seen_after'])
+            if filters.get('first_seen_after'):
+                conditions.append("a.first_seen_at >= ?")
+                params.append(filters['first_seen_after'])
+
+            # Play count filters (HAVING clause)
+            having_conditions = []
+            if filters.get('total_plays_min'):
+                having_conditions.append("COALESCE(SUM(s.play_count), 0) >= ?")
+                params.append(int(filters['total_plays_min']))
+            if filters.get('total_plays_max'):
+                having_conditions.append("COALESCE(SUM(s.play_count), 0) <= ?")
+                params.append(int(filters['total_plays_max']))
+
+            # Station filter - use subquery to find artists with songs played on these stations
+            if station_list:
+                placeholders = ','.join(['?' for _ in station_list])
+                conditions.append(f"EXISTS (SELECT 1 FROM song_plays_daily spd JOIN songs s2 ON spd.song_id = s2.id WHERE s2.artist_mbid = a.mbid AND spd.station_id IN ({placeholders}))")
+                params.extend(station_list)
+
+            # Show only selected filter - use subquery to find artists with selected songs
+            if show == 'selected':
+                if selected_ids:
+                    placeholders_selected = ','.join(['?' for _ in selected_ids])
+                    conditions.append(f"a.mbid IN (SELECT DISTINCT artist_mbid FROM songs WHERE id IN ({placeholders_selected}))")
+                    params.extend(selected_ids)
+                else:
+                    # No songs selected, return empty result
+                    return jsonify({
+                        'artists': [],
+                        'total': 0,
+                        'page': page,
+                        'per_page': per_page
+                    })
+
+            where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+            having_clause = "HAVING " + " AND ".join(having_conditions) if having_conditions else ""
+
+            # Build ORDER BY
+            sort_column_mapping = {
+                'name': 'a.name',
+                'song_count': 'song_count',
+                'total_plays': 'total_plays',
+                'last_seen': 'a.last_seen_at'
+            }
+            sort_column = sort_column_mapping.get(sort, 'a.name')
+            if sort == 'name':
+                order_by = f"{sort_column} COLLATE NOCASE {direction.upper()}"
+            else:
+                order_by = f"{sort_column} {direction.upper()}"
+
+            # Get total count
+            count_query = f"""
+                SELECT COUNT(DISTINCT a.mbid)
+                FROM artists a
+                LEFT JOIN songs s ON a.mbid = s.artist_mbid
+                {where_clause}
+            """
+            if having_conditions:
+                count_query += " GROUP BY a.mbid " + having_clause
+                count_query = f"SELECT COUNT(*) FROM ({count_query})"
+
+            cursor.execute(count_query, params)
+            total = cursor.fetchone()[0]
+
+            # Get paginated results
+            query = f"""
+                SELECT
+                    a.mbid,
+                    a.name,
+                    a.first_seen_station,
+                    a.first_seen_at,
+                    a.last_seen_at,
+                    COALESCE(SUM(s.play_count), 0) as total_plays,
+                    COUNT(s.id) as song_count
+                FROM artists a
+                LEFT JOIN songs s ON a.mbid = s.artist_mbid
+                {where_clause}
+                GROUP BY a.mbid
+                {having_clause}
+                ORDER BY {order_by}
+                LIMIT ? OFFSET ?
+            """
+            params.extend([per_page, offset])
+            cursor.execute(query, params)
+
+            columns = ['mbid', 'name', 'first_seen_station',
+                      'first_seen_at', 'last_seen_at',
+                      'total_plays', 'song_count']
+            items = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
             # Count selected songs per artist
-            # TODO: This could be optimized with a better query
-            for artist in result['items']:
-                artist['selected_count'] = 0
+            for artist in items:
+                artist_song_ids = get_artist_song_ids(cursor, artist['mbid'])
+                selected_count = len([sid for sid in artist_song_ids if sid in selected_set])
+                artist['selected_count'] = selected_count
                 artist['total_count'] = artist.get('song_count', 0)
+
+            result = {
+                'items': items,
+                'total': total,
+                'page': page,
+                'per_page': per_page
+            }
 
             return jsonify({
                 'artists': result['items'],
