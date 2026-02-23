@@ -473,6 +473,16 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
             conditions.append("a.last_seen_at >= ?")
             params.append(filters['last_seen_after'])
 
+        # MBID status filter
+        if filters.get('mbid_status'):
+            mbid_status = filters.get('mbid_status')
+            if mbid_status == 'pending':
+                conditions.append("a.mbid LIKE 'PENDING-%'")
+            elif mbid_status == 'valid':
+                conditions.append("a.mbid NOT LIKE 'PENDING-%' AND a.mbid IS NOT NULL")
+            elif mbid_status == 'none':
+                conditions.append("a.mbid IS NULL")
+
     where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
     having_clause = "HAVING " + " AND ".join(having_conditions) if having_conditions else ""
 

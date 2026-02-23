@@ -52,6 +52,7 @@ def artists_list():
     last_seen_after = request.args.get('last_seen_after', '')
     total_plays_min = request.args.get('total_plays_min', '')
     total_plays_max = request.args.get('total_plays_max', '')
+    mbid_status = request.args.get('mbid_status', '')
 
     # Build filters dict
     filters = {}
@@ -69,6 +70,8 @@ def artists_list():
         filters['total_plays_min'] = total_plays_min
     if total_plays_max:
         filters['total_plays_max'] = total_plays_max
+    if mbid_status:
+        filters['mbid_status'] = mbid_status
 
     # Get artists
     cursor = db.get_cursor()
@@ -76,6 +79,21 @@ def artists_list():
         from radio_monitor.database.queries import get_artists_paginated
         result = get_artists_paginated(cursor, page, limit, filters, sort, direction)
         stations = get_all_stations(cursor)
+
+        # Get MBID status statistics
+        cursor.execute("""
+            SELECT
+                COUNT(CASE WHEN a.mbid LIKE 'PENDING-%' THEN 1 END) as pending_count,
+                COUNT(CASE WHEN a.mbid NOT LIKE 'PENDING-%' AND a.mbid IS NOT NULL THEN 1 END) as valid_count,
+                COUNT(CASE WHEN a.mbid IS NULL THEN 1 END) as none_count
+            FROM artists a
+        """)
+        stats = cursor.fetchone()
+        mbid_stats = {
+            'pending': stats[0],
+            'valid': stats[1],
+            'none': stats[2]
+        }
     finally:
         cursor.close()
 
@@ -90,7 +108,8 @@ def artists_list():
                           filters=filters,
                           sort=sort,
                           direction=direction,
-                          stations=stations)
+                          stations=stations,
+                          mbid_stats=mbid_stats)
 
 
 @artists_bp.route('/artists/<mbid>')
@@ -159,6 +178,7 @@ def api_artists():
     last_seen_after = request.args.get('last_seen_after', '')
     total_plays_min = request.args.get('total_plays_min', '')
     total_plays_max = request.args.get('total_plays_max', '')
+    mbid_status = request.args.get('mbid_status', '')
 
     # Build filters dict
     filters = {}
@@ -176,6 +196,8 @@ def api_artists():
         filters['total_plays_min'] = total_plays_min
     if total_plays_max:
         filters['total_plays_max'] = total_plays_max
+    if mbid_status:
+        filters['mbid_status'] = mbid_status
 
     # Get artists
     cursor = db.get_cursor()

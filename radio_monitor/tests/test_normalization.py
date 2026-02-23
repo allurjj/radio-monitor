@@ -19,7 +19,10 @@ from radio_monitor.normalization import (
     handle_special_apostrophes,
     normalize_with_edge_cases,
     should_preserve_caps,
-    CAPS_EXCEPTIONS
+    CAPS_EXCEPTIONS,
+    detect_collaboration,
+    split_collaboration_artists,
+    handle_collaboration
 )
 
 

@@ -470,3 +470,148 @@ def normalize_for_storage(artist_name=None, song_title=None):
         normalized_song = normalize_with_edge_cases(song_title)
 
     return (normalized_artist, normalized_song)
+
+
+# ==================== COLLABORATION HANDLING ====================
+
+def detect_collaboration(artist_name):
+    """Detect if artist name contains multiple artists (collaboration)
+
+    Args:
+        artist_name: Artist name to check
+
+    Returns:
+        tuple: (is_collaboration, split_artists)
+            - is_collaboration: True if multiple artists detected
+            - split_artists: List of individual artist names if detected, else [artist_name]
+    """
+    if not artist_name:
+        return False, []
+
+    # Normalize for detection
+    artist_lower = artist_name.lower().strip()
+
+    # Collaboration markers to check
+    collab_patterns = [
+        ' feat', ' ft.', ' ft ', 'featuring', ' with ', ' & ', ' + ', ' x ', ' and '
+    ]
+
+    # Check if any collaboration marker is present
+    for pattern in collab_patterns:
+        if pattern in artist_lower:
+            return True, split_collaboration_artists(artist_name)
+
+    return False, [artist_name]
+
+
+def split_collaboration_artists(artist_name):
+    """Split collaboration artist string into individual artists
+
+    Args:
+        artist_name: Artist collaboration string (e.g., "Artist1 Feat. Artist2")
+
+    Returns:
+        list: Individual artist names
+    """
+    if not artist_name:
+        return []
+
+    # Normalize for splitting
+    normalized = normalize_with_edge_cases(artist_name)
+
+    # Try different splitting strategies in order
+    strategies = [
+        # Strategy 1: Feat/ft/featuring
+        (r'\s+(?:feat|ft\.|featuring)\s+', 'feat'),
+
+        # Strategy 2: & (ampersand)
+        (r'\s+\&\s+', '&'),
+
+        # Strategy 3: + (plus)
+        (r'\s+\+\s+', '+'),
+
+        # Strategy 4: X (collaboration marker)
+        (r'\s+x\s+', 'x'),
+
+        # Strategy 5: And (only lowercase "and" in artist names)
+        (r'\s+and\s+', 'and'),
+    ]
+
+    import re
+    for pattern, marker in strategies:
+        if re.search(pattern, normalized.lower()):
+            # Split using this pattern
+            parts = re.split(pattern, normalized, flags=re.IGNORECASE)
+
+            # Clean up each part
+            artists = []
+            for part in parts:
+                part = part.strip()
+                if part and len(part) >= 2:  # Minimum length check
+                    # Remove common trailing markers like "feat." or "ft."
+                    part = re.sub(r'\s+(?:feat|ft\.?|featuring).*$', '', part, flags=re.IGNORECASE)
+                    part = part.strip()
+                    if part and len(part) >= 2:
+                        artists.append(part)
+
+            if artists:
+                logger.debug(f"Split collaboration '{artist_name}' into {len(artists)} artists using '{marker}' marker: {artists}")
+                return artists
+
+    # No split found, return original as single artist
+    logger.debug(f"No collaboration split found for '{artist_name}', treating as single artist")
+    return [normalized]
+
+
+def handle_collaboration(artist_name, song_title, mbid=None):
+    """Handle collaboration artists by splitting into individual artists
+
+    This function takes an artist collaboration (e.g., "Miranda Lambert & Chris Stapleton")
+    and splits it into individual artists. Each artist will be stored separately
+    in the database with their own MBID.
+
+    Args:
+        artist_name: Artist name (may be collaboration)
+        song_title: Song title
+        mbid: MusicBrainz ID (optional, usually None for collaborations)
+
+    Returns:
+        list: Tuples of (artist, song, mbid) for each individual artist
+              If not a collaboration, returns [(artist, song, mbid)]
+
+    Examples:
+        >>> handle_collaboration("Miranda Lambert & Chris Stapleton", "Palomino", None)
+        [('Miranda Lambert', 'Palomino', None), ('Chris Stapleton', 'Palomino', None)]
+
+        >>> handle_collaboration("Taylor Swift", "Love Story", "abc123")
+        [('Taylor Swift', 'Love Story', 'abc123')]
+    """
+    if not artist_name:
+        return []
+
+    # Normalize artist name first
+    normalized_artist = normalize_with_edge_cases(artist_name)
+
+    # Detect if this is a collaboration
+    is_collab, split_artists = detect_collaboration(normalized_artist)
+
+    if not is_collab or len(split_artists) <= 1:
+        # Not a collaboration, return as-is
+        logger.debug(f"'{artist_name}' is not a collaboration (single artist)")
+        return [(normalized_artist, song_title, mbid)]
+
+    # Collaboration detected - split into individual artists
+    logger.info(f"Collaboration detected: '{artist_name}' split into {len(split_artists)} artists")
+
+    results = []
+    for individual_artist in split_artists:
+        # Normalize each individual artist
+        individual_artist = normalize_with_edge_cases(individual_artist)
+
+        # Each artist gets the same song, but their own MBID (looked up later)
+        # We pass None as mbid because each artist needs their own lookup
+        results.append((individual_artist, song_title, None))
+
+        logger.debug(f"  - Individual artist: {individual_artist}")
+
+    return results

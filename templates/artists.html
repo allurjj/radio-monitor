@@ -56,7 +56,15 @@
 {% block content %}
 <div class="row mb-4">
     <div class="col-12">
-        <h1><i class="bi bi-person"></i> Artists</h1>
+        <h1><i class="bi bi-person"></i> Artists
+            {% if filters.mbid_status == 'pending' %}
+                <span class="badge bg-warning text-dark ms-2">PENDING Only</span>
+            {% elif filters.mbid_status == 'valid' %}
+                <span class="badge bg-success ms-2">Valid MBID Only</span>
+            {% elif filters.mbid_status == 'none' %}
+                <span class="badge bg-secondary ms-2">No MBID Only</span>
+            {% endif %}
+        </h1>
         <p class="text-muted">Browse and manage artists from monitored radio stations</p>
     </div>
 </div>
@@ -66,9 +74,23 @@
     <div class="col-12">
         <div class="card card-standard">
             <div class="card-body">
-                <button class="btn btn-outline-secondary mb-3" id="toggle-advanced-search" type="button">
-                    <i class="bi bi-sliders"></i> Advanced Filters
-                </button>
+                <div class="d-flex gap-2 mb-3 flex-wrap">
+                    <button class="btn btn-outline-secondary" id="toggle-advanced-search" type="button">
+                        <i class="bi bi-sliders"></i> Advanced Filters
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning" onclick="quickFilter('pending')">
+                        <i class="bi bi-question-circle"></i> Show PENDING Only
+                        <span class="badge bg-warning text-dark ms-1">{{ mbid_stats.pending }}</span>
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="quickFilter('valid')">
+                        <i class="bi bi-check-circle"></i> Show Valid MBID
+                        <span class="badge bg-success ms-1">{{ mbid_stats.valid }}</span>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="quickFilter('none')">
+                        <i class="bi bi-dash-circle"></i> Show No MBID
+                        <span class="badge bg-secondary ms-1">{{ mbid_stats.none }}</span>
+                    </button>
+                </div>
 
                 <div id="advanced-search" style="display: none;">
                     <div class="card mb-3 bg-light">
@@ -107,6 +129,15 @@
                             <option value="">All Artists</option>
                             <option value="only" {% if filters.needs_import == 'only' %}selected{% endif %}>Needs Import</option>
                             <option value="imported" {% if filters.needs_import == 'imported' %}selected{% endif %}>Imported to Lidarr</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">MBID Status</label>
+                        <select class="form-select" id="filter-mbid-status">
+                            <option value="">All Artists</option>
+                            <option value="pending" {% if filters.mbid_status == 'pending' %}selected{% endif %}>PENDING</option>
+                            <option value="valid" {% if filters.mbid_status == 'valid' %}selected{% endif %}>Valid MBID</option>
+                            <option value="none" {% if filters.mbid_status == 'none' %}selected{% endif %}>No MBID</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -258,9 +289,23 @@
                                 <tr>
                                     <td colspan="7">
                                         <div class="empty-state">
-                                            <i class="bi bi-person empty-state-icon"></i>
-                                            <h3 class="empty-state-title">No artists found</h3>
-                                            <p class="empty-state-description">Try adjusting your filters or search terms to find what you're looking for.</p>
+                                            {% if filters.mbid_status == 'pending' %}
+                                                <i class="bi bi-check-circle text-success empty-state-icon"></i>
+                                                <h3 class="empty-state-title">No PENDING Artists!</h3>
+                                                <p class="empty-state-description">All artists have valid MBIDs. Great job keeping your database clean!</p>
+                                            {% elif filters.mbid_status == 'valid' %}
+                                                <i class="bi bi-exclamation-triangle text-warning empty-state-icon"></i>
+                                                <h3 class="empty-state-title">No Artists with Valid MBIDs</h3>
+                                                <p class="empty-state-description">Try importing some artists from Lidarr or running retry pending to lookup MBIDs.</p>
+                                            {% elif filters.mbid_status == 'none' %}
+                                                <i class="bi bi-info-circle text-info empty-state-icon"></i>
+                                                <h3 class="empty-state-title">All Artists Have MBIDs</h3>
+                                                <p class="empty-state-description">No artists with NULL MBID found in database.</p>
+                                            {% else %}
+                                                <i class="bi bi-person empty-state-icon"></i>
+                                                <h3 class="empty-state-title">No artists found</h3>
+                                                <p class="empty-state-description">Try adjusting your filters or search terms to find what you're looking for.</p>
+                                            {% endif %}
                                         </div>
                                     </td>
                                 </tr>
@@ -499,6 +544,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('btn-clear-filters').addEventListener('click', function() {
         document.getElementById('search-artists').value = '';
         document.getElementById('filter-needs-import').value = '';
+        document.getElementById('filter-mbid-status').value = '';
         document.getElementById('filter-station').value = '';
         document.getElementById('filter-first-seen-after').value = '';
         document.getElementById('filter-last-seen-after').value = '';
@@ -534,6 +580,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function applyFilters() {
     const search = document.getElementById('search-artists').value;
     const needsImport = document.getElementById('filter-needs-import').value;
+    const mbidStatus = document.getElementById('filter-mbid-status').value;
     const station = document.getElementById('filter-station').value;
     const limit = document.getElementById('page-size').value;
 
@@ -562,6 +609,12 @@ function applyFilters() {
         url.searchParams.set('needs_import', needsImport);
     } else {
         url.searchParams.delete('needs_import');
+    }
+
+    if (mbidStatus) {
+        url.searchParams.set('mbid_status', mbidStatus);
+    } else {
+        url.searchParams.delete('mbid_status');
     }
 
     if (station) {
@@ -617,6 +670,14 @@ function sortByColumn(column) {
     url.searchParams.set('direction', newDirection);
 
     // Navigate to new URL
+    window.location.href = url.toString();
+}
+
+// Quick filter buttons
+function quickFilter(mbidStatus) {
+    const url = new URL(window.location);
+    url.searchParams.set('mbid_status', mbidStatus);
+    url.searchParams.set('page', '1'); // Reset to first page
     window.location.href = url.toString();
 }
 
@@ -842,7 +903,8 @@ async function saveMbidOverride() {
 
                 // Reload page after short delay to show updated songs
                 setTimeout(() => {
-                    window.location.reload();
+                    const url = new URL(window.location);
+                    window.location.href = url.toString();
                 }, 2000);
             } else {
                 Toast.error('Error updating artist: ' + updateResult.error);
@@ -984,7 +1046,8 @@ document.getElementById('btn-confirm-delete').addEventListener('click', function
 
         // Reload page after short delay to show updated counts
         setTimeout(() => {
-            window.location.reload();
+            const url = new URL(window.location);
+            window.location.href = url.toString();
         }, 1000);
     })
     .catch(error => {
@@ -1104,7 +1167,8 @@ document.getElementById('retry-pending-btn').addEventListener('click', function(
 
             // Reload page after delay to show updated counts
             setTimeout(() => {
-                window.location.reload();
+                const url = new URL(window.location);
+                window.location.href = url.toString();
             }, 3000);
         } else {
             showRetryError(data.error || 'Failed to start MBID retry');
