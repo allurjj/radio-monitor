@@ -79,6 +79,22 @@
         border-radius: 3px;
     }
 
+    /* Modal card sections */
+    .modal-body .card {
+        border: 1px solid #dee2e6;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .modal-body .card-header {
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        border-bottom: 1px solid rgba(0,0,0,0.125);
+    }
+
+    .modal-body .card-body {
+        padding: 1rem;
+    }
+
     /* Loading spinner */
     .spinner-container {
         display: flex;
@@ -210,7 +226,7 @@
 
 <!-- AI Playlist Modal -->
 <div class="modal fade" id="aiPlaylistModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-magic"></i> Create AI Playlist</h5>
@@ -218,94 +234,119 @@
             </div>
             <div class="modal-body">
                 <form id="ai-playlist-form">
-                    <!-- Filters Row -->
-                    <div class="row">
-                        <!-- Stations -->
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">
-                                    Stations
-                                    <button type="button" class="btn btn-sm btn-link p-0 ms-2" id="btn-select-all-stations">Select All</button>
-                                    <span class="text-muted">|</span>
-                                    <button type="button" class="btn btn-sm btn-link p-0" id="btn-deselect-all-stations">Deselect All</button>
-                                    <span class="text-muted">(<span id="stations-selected-count">0</span> selected)</span>
-                                </label>
-                                <div class="border rounded p-2 stations-container" id="stations-container">
-                                    <p class="text-muted mb-0">Loading stations...</p>
-                                </div>
-                                <div class="form-text">Leave empty to use all stations</div>
-                            </div>
+                    <!-- Basic Info Section -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-primary text-white">
+                            <i class="bi bi-info-circle"></i> Basic Info
                         </div>
-
-                        <!-- Min Plays -->
-                        <div class="col-md-3">
+                        <div class="card-body">
+                            <!-- Playlist Name -->
                             <div class="mb-3">
-                                <label for="min-plays" class="form-label">Minimum Plays</label>
-                                <input type="number" class="form-control" id="min-plays" value="1" min="0">
-                                <div class="form-text">Songs must have at least this many plays</div>
-                            </div>
-                        </div>
-
-                        <!-- Max Songs -->
-                        <div class="col-md-3">
-                            <div class="mb-3">
-                                <label for="max-songs" class="form-label">Max Songs</label>
-                                <input type="number" class="form-control" id="max-songs" value="50" min="1" max="1500" required>
-                                <div class="form-text">Maximum songs in playlist (1-1500)</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Date Range Row -->
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="first-seen" class="form-label">First Seen (From)</label>
-                                <input type="date" class="form-control" id="first-seen">
-                                <div class="form-text">Filter by first seen date (optional)</div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="last-seen" class="form-label">Last Seen (To)</label>
-                                <input type="date" class="form-control" id="last-seen">
-                                <div class="form-text">Filter by last seen date (optional)</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Playlist Name -->
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="playlist-name" class="form-label">Playlist Name</label>
+                                <label for="playlist-name" class="form-label fw-bold">Playlist Name <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control" id="playlist-name" placeholder="My Awesome Playlist" required>
                                 <div class="form-text">Name for the playlist in Plex</div>
                             </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="rate-limit-countdown" class="form-label">Rate Limit</label>
-                                <div class="form-control-plaintext">
-                                    <span id="rate-limit-countdown" class="countdown-timer">Ready to generate</span>
+
+                            <!-- Instructions Textarea -->
+                            <div class="mb-0">
+                                <label for="instructions" class="form-label fw-bold">Instructions to AI <span class="text-danger">*</span></label>
+                                <textarea class="form-control instructions-textarea" id="instructions"
+                                          placeholder="Describe the mood or theme you want (e.g., 'Upbeat party songs', 'Chill evening vibes', '90s nostalgia', 'High energy workout tracks')..." required></textarea>
+                                <div class="form-text">
+                                    <i class="bi bi-lightbulb text-warning"></i> Be specific! Try: "Upbeat songs for driving", "Relaxing evening music", "90s rock anthems"
                                 </div>
-                                <div class="form-text">1 request per minute (prevents API spam)</div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Instructions Textarea -->
-                    <div class="mb-3">
-                        <label for="instructions" class="form-label">Instructions to AI</label>
-                        <textarea class="form-control instructions-textarea" id="instructions"
-                                  placeholder="Describe the mood or theme you want (e.g., 'Upbeat party songs', 'Chill evening vibes', '90s nostalgia', 'High energy workout tracks')..." required></textarea>
-                        <div class="form-text">
-                            <i class="bi bi-lightbulb"></i> Be specific! Try: "Upbeat songs for driving", "Relaxing evening music", "90s rock anthems"
+                    <!-- Song Filters Section -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-info text-white">
+                            <i class="bi bi-funnel"></i> Song Filters
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <!-- Max Songs -->
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="max-songs" class="form-label fw-bold">Max Songs <span class="text-danger">*</span></label>
+                                        <input type="number" class="form-control" id="max-songs" value="50" min="1" max="1500" required>
+                                        <div class="form-text">1-1500 songs</div>
+                                    </div>
+                                </div>
+
+                                <!-- Min Plays -->
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="min-plays" class="form-label fw-bold">Min Plays</label>
+                                        <input type="number" class="form-control" id="min-plays" value="1" min="0">
+                                        <div class="form-text">Minimum plays per song</div>
+                                    </div>
+                                </div>
+
+                                <!-- Time Period -->
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="time-period" class="form-label fw-bold">Time Period</label>
+                                        <input type="number" class="form-control" id="time-period" placeholder="All time" min="1">
+                                        <div class="form-text">Days (optional)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stations Section -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-success text-white">
+                            <i class="bi bi-broadcast"></i> Stations
+                        </div>
+                        <div class="card-body">
+                            <label class="form-label">
+                                <button type="button" class="btn btn-sm btn-link p-0 ms-0" id="btn-select-all-stations">Select All</button>
+                                <span class="text-muted">|</span>
+                                <button type="button" class="btn btn-sm btn-link p-0" id="btn-deselect-all-stations">Deselect All</button>
+                                <span class="text-muted">(<span id="stations-selected-count">0</span> selected)</span>
+                            </label>
+                            <div class="border rounded p-3 stations-container" id="stations-container" style="background-color: #f8f9fa; max-height: 200px; overflow-y: auto;">
+                                <div class="row" id="stations-checkboxes">
+                                    <p class="text-muted mb-0">Loading stations...</p>
+                                </div>
+                            </div>
+                            <div class="form-text mt-2">Leave empty to use all stations</div>
+                        </div>
+                    </div>
+
+                    <!-- Date Range Section -->
+                    <div class="card mb-0">
+                        <div class="card-header bg-secondary text-white">
+                            <i class="bi bi-calendar-range"></i> Date Range (Optional)
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3 mb-md-0">
+                                        <label for="first-seen" class="form-label">First Seen (From)</label>
+                                        <input type="date" class="form-control" id="first-seen">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-0">
+                                        <label for="last-seen" class="form-label">Last Seen (To)</label>
+                                        <input type="date" class="form-control" id="last-seen">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
+                <div class="me-auto">
+                    <small class="text-muted">
+                        <i class="bi bi-clock"></i> <span id="rate-limit-countdown">Ready to generate</span>
+                    </small>
+                </div>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btn-cancel">Cancel</button>
                 <button type="submit" class="btn btn-primary" form="ai-playlist-form" id="btn-generate">
                     <i class="bi bi-magic"></i> Generate AI Playlist
@@ -361,7 +402,7 @@ async function loadStations() {
 
 // Render stations checkboxes
 function renderStations() {
-    const container = document.getElementById('stations-container');
+    const container = document.getElementById('stations-checkboxes');
     container.innerHTML = '';
 
     if (stations.length === 0) {
@@ -369,7 +410,15 @@ function renderStations() {
         return;
     }
 
-    stations.forEach(station => {
+    // Create two columns
+    const midPoint = Math.ceil(stations.length / 2);
+    const leftColumn = stations.slice(0, midPoint);
+    const rightColumn = stations.slice(midPoint);
+
+    // Left column
+    const leftCol = document.createElement('div');
+    leftCol.className = 'col-md-6';
+    leftColumn.forEach(station => {
         const div = document.createElement('div');
         div.className = 'form-check';
         div.innerHTML = `
@@ -379,8 +428,26 @@ function renderStations() {
                 ${station.name} ${station.callsign ? `(${station.callsign})` : ''}
             </label>
         `;
-        container.appendChild(div);
+        leftCol.appendChild(div);
     });
+    container.appendChild(leftCol);
+
+    // Right column
+    const rightCol = document.createElement('div');
+    rightCol.className = 'col-md-6';
+    rightColumn.forEach(station => {
+        const div = document.createElement('div');
+        div.className = 'form-check';
+        div.innerHTML = `
+            <input class="form-check-input station-checkbox" type="checkbox"
+                   value="${station.id}" id="station-${station.id}">
+            <label class="form-check-label" for="station-${station.id}">
+                ${station.name} ${station.callsign ? `(${station.callsign})` : ''}
+            </label>
+        `;
+        rightCol.appendChild(div);
+    });
+    container.appendChild(rightCol);
 
     updateSelectedCount();
 }
@@ -434,7 +501,8 @@ document.getElementById('ai-playlist-form').addEventListener('submit', async fun
         min_plays: parseInt(document.getElementById('min-plays').value) || 0,
         first_seen: document.getElementById('first-seen').value || null,
         last_seen: document.getElementById('last-seen').value || null,
-        max_songs: parseInt(document.getElementById('max-songs').value) || 50
+        max_songs: parseInt(document.getElementById('max-songs').value) || 50,
+        days: document.getElementById('time-period').value ? parseInt(document.getElementById('time-period').value) : null
     };
 
     // Validate max_songs

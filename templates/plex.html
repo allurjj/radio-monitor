@@ -70,6 +70,22 @@
         min-width: 300px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
+
+    /* Modal card sections */
+    .modal-body .card {
+        border: 1px solid #dee2e6;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .modal-body .card-header {
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        border-bottom: 1px solid rgba(0,0,0,0.125);
+    }
+
+    .modal-body .card-body {
+        padding: 1rem;
+    }
 </style>
 {% endblock %}
 
@@ -126,73 +142,46 @@
                 <form id="playlist-form">
                     <input type="hidden" id="playlist-id">
 
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="playlist-name" class="form-label">Playlist Name</label>
-                                <input type="text" class="form-control" id="playlist-name" required>
-                            </div>
+                    <!-- Basic Info Section -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-primary text-white">
+                            <i class="bi bi-info-circle"></i> Basic Info
                         </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="playlist-mode" class="form-label">Mode</label>
-                                <select class="form-select" id="playlist-mode" required>
-                                    <option value="merge">Merge (smart update)</option>
-                                    <option value="replace">Replace (clear & add)</option>
-                                    <option value="append">Append (add to end)</option>
-                                    <option value="create">Create (error if exists)</option>
-                                    <option value="snapshot">Snapshot (timestamped)</option>
-                                    <option value="recent">Recent (most recently played)</option>
-                                    <option value="random">Random (different each time)</option>
-                                </select>
-                                <div class="mode-description" id="mode-description"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label for="playlist-max-songs" class="form-label">Max Songs</label>
-                                <input type="number" class="form-control" id="playlist-max-songs"
-                                       value="50" min="1" max="1500" required>
-                                <div class="form-text" id="max-songs-warning" style="display: none; color: #dc3545;">
-                                    <strong>Warning:</strong> Large playlists take longer to create and may cause Plex issues
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="playlist-name" class="form-label fw-bold">Playlist Name <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" id="playlist-name" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="playlist-mode" class="form-label fw-bold">Mode <span class="text-danger">*</span></label>
+                                        <select class="form-select" id="playlist-mode" required>
+                                            <option value="merge">Merge (smart update)</option>
+                                            <option value="replace">Replace (clear & add)</option>
+                                            <option value="append">Append (add to end)</option>
+                                            <option value="create">Create (error if exists)</option>
+                                            <option value="snapshot">Snapshot (timestamped)</option>
+                                            <option value="recent">Recent (most recently played)</option>
+                                            <option value="random">Random (different each time)</option>
+                                        </select>
+                                        <div class="form-text mode-description" id="mode-description"></div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label for="playlist-min-plays" class="form-label">Minimum Plays per Song</label>
-                                <input type="number" class="form-control" id="playlist-min-plays"
-                                       value="1" min="1">
-                                <div class="form-text">Songs must have at least this many plays</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label for="playlist-max-plays-input" class="form-label">Maximum Plays per Song</label>
-                                <input type="number" class="form-control" id="playlist-max-plays-input"
-                                       placeholder="No limit" min="1">
-                                <div class="form-text">Exclude overplayed songs (optional)</div>
-                            </div>
-                        </div>
-                    </div>
 
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="playlist-days" class="form-label">Time Period (days)</label>
-                                <input type="number" class="form-control" id="playlist-days"
-                                       placeholder="All time" min="1">
-                                <div class="form-text">Leave empty for all time</div>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="playlist-is-auto">
+                                <label class="form-check-label" for="playlist-is-auto">
+                                    <strong>Auto Update</strong> - Automatically update this playlist on a schedule
+                                </label>
                             </div>
-                        </div>
-                        <div class="col-md-6" id="interval-row" style="display: none;">
-                            <div class="mb-3">
-                                <label for="playlist-interval" class="form-label">Update Interval (minutes)</label>
-                                <input type="number" class="form-control" id="playlist-interval"
-                                       value="360" min="10">
+
+                            <div id="interval-row" style="display: none;" class="mt-3">
+                                <label for="playlist-interval" class="form-label fw-bold">Update Interval (minutes)</label>
+                                <input type="number" class="form-control" id="playlist-interval" value="360" min="10">
                                 <div class="form-text" id="interval-warning" style="display: none; color: #dc3545;">
                                     <strong>Warning:</strong> Fast refresh intervals may cause Plex issues
                                 </div>
@@ -201,72 +190,67 @@
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="playlist-is-auto">
-                            <label class="form-check-label" for="playlist-is-auto">
-                                <strong>Auto Update</strong> - Automatically update this playlist on a schedule
-                            </label>
+                    <!-- Song Limits Section -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-info text-white">
+                            <i class="bi bi-sliders"></i> Song Limits
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="playlist-max-songs" class="form-label fw-bold">Max Songs <span class="text-danger">*</span></label>
+                                        <input type="number" class="form-control" id="playlist-max-songs"
+                                               value="50" min="1" max="1500" required>
+                                        <div class="form-text" id="max-songs-warning" style="display: none; color: #dc3545;">
+                                            <strong>Warning:</strong> Large playlists may cause Plex issues
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="playlist-min-plays" class="form-label fw-bold">Min Plays</label>
+                                        <input type="number" class="form-control" id="playlist-min-plays"
+                                               value="1" min="1">
+                                        <div class="form-text">Per song</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="playlist-max-plays-input" class="form-label fw-bold">Max Plays</label>
+                                        <input type="number" class="form-control" id="playlist-max-plays-input"
+                                               placeholder="No limit" min="1">
+                                        <div class="form-text">Optional</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="playlist-days" class="form-label fw-bold">Time Period</label>
+                                        <input type="number" class="form-control" id="playlist-days"
+                                               placeholder="All time" min="1">
+                                        <div class="form-text">Days</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">
-                            Stations
-                            <button type="button" class="btn btn-sm btn-link p-0 ms-2" id="btn-select-all-stations">Select All</button>
-                            <span class="text-muted">|</span>
-                            <button type="button" class="btn btn-sm btn-link p-0" id="btn-deselect-all-stations">Deselect All</button>
-                            <span class="text-muted">(<span id="stations-selected-count">0</span> selected)</span>
-                        </label>
-                        <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;" id="stations-container">
-                            <!-- Stations checkboxes -->
-                            <div class="form-check">
-                                <input class="form-check-input station-checkbox" type="checkbox" value="wtmx" id="station-wtmx">
-                                <label class="form-check-label" for="station-wtmx">
-                                    WTMX 101.9fm
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input station-checkbox" type="checkbox" value="us99" id="station-us99">
-                                <label class="form-check-label" for="station-us99">
-                                    US99 101.9fm
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input station-checkbox" type="checkbox" value="wls" id="station-wls">
-                                <label class="form-check-label" for="station-wls">
-                                    WLS 890am
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input station-checkbox" type="checkbox" value="rock955" id="station-rock955">
-                                <label class="form-check-label" for="station-rock955">
-                                    Rock 95.5
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input station-checkbox" type="checkbox" value="q101" id="station-q101">
-                                <label class="form-check-label" for="station-q101">
-                                    Q101
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input station-checkbox" type="checkbox" value="b96" id="station-b96">
-                                <label class="form-check-label" for="station-b96">
-                                    B96
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input station-checkbox" type="checkbox" value="wlite" id="station-wlite">
-                                <label class="form-check-label" for="station-wlite">
-                                    WLIT 93.9fm
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input station-checkbox" type="checkbox" value="wiil" id="station-wiil">
-                                <label class="form-check-label" for="station-wiil">
-                                    WIIL 95.1fm
-                                </label>
+                    <!-- Stations Section -->
+                    <div class="card mb-0">
+                        <div class="card-header bg-success text-white">
+                            <i class="bi bi-broadcast"></i> Stations
+                        </div>
+                        <div class="card-body">
+                            <label class="form-label">
+                                <button type="button" class="btn btn-sm btn-link p-0 ms-0" id="btn-select-all-stations">Select All</button>
+                                <span class="text-muted">|</span>
+                                <button type="button" class="btn btn-sm btn-link p-0" id="btn-deselect-all-stations">Deselect All</button>
+                                <span class="text-muted">(<span id="stations-selected-count">0</span> selected)</span>
+                            </label>
+                            <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto; background-color: #f8f9fa;" id="stations-container-outer">
+                                <div class="row" id="stations-container">
+                                    <!-- Stations checkboxes will be loaded dynamically -->
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -318,11 +302,23 @@ function loadStations() {
             // Handle response format from stations.py: {'items': [...], 'count': ...}
             const stations = data.items || data;
 
-            // Clear existing hardcoded stations
+            // Clear existing stations
             container.innerHTML = '';
 
-            // Populate stations from database
-            stations.forEach(station => {
+            if (stations.length === 0) {
+                container.innerHTML = '<p class="text-muted mb-0">No stations available</p>';
+                return;
+            }
+
+            // Create two columns
+            const midPoint = Math.ceil(stations.length / 2);
+            const leftColumn = stations.slice(0, midPoint);
+            const rightColumn = stations.slice(midPoint);
+
+            // Left column
+            const leftCol = document.createElement('div');
+            leftCol.className = 'col-md-6';
+            leftColumn.forEach(station => {
                 const checkboxDiv = document.createElement('div');
                 checkboxDiv.className = 'form-check';
 
@@ -339,8 +335,33 @@ function loadStations() {
 
                 checkboxDiv.appendChild(checkbox);
                 checkboxDiv.appendChild(label);
-                container.appendChild(checkboxDiv);
+                leftCol.appendChild(checkboxDiv);
             });
+            container.appendChild(leftCol);
+
+            // Right column
+            const rightCol = document.createElement('div');
+            rightCol.className = 'col-md-6';
+            rightColumn.forEach(station => {
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.className = 'form-check';
+
+                const checkbox = document.createElement('input');
+                checkbox.className = 'form-check-input station-checkbox';
+                checkbox.type = 'checkbox';
+                checkbox.value = station.id;
+                checkbox.id = `station-${station.id}`;
+
+                const label = document.createElement('label');
+                label.className = 'form-check-label';
+                label.htmlFor = `station-${station.id}`;
+                label.textContent = station.name;
+
+                checkboxDiv.appendChild(checkbox);
+                checkboxDiv.appendChild(label);
+                rightCol.appendChild(checkboxDiv);
+            });
+            container.appendChild(rightCol);
 
             // Re-attach event listeners for select/deselect all buttons
             document.getElementById('btn-select-all-stations').onclick = () => {
