@@ -103,6 +103,10 @@ def _initialize_schema(cursor, conn, db_path, SCHEMA_VERSION):
             if current_version < 11:
                 _migrate_to_v11(cursor, conn)
 
+            # Migrate to version 12 (add manual playlist support)
+            if current_version < 12:
+                _migrate_to_v12(cursor, conn)
+
 
 def _create_new_schema(cursor, conn, SCHEMA_VERSION):
     """Create new schema (6 tables: stations, artists, songs, song_plays_daily, schema_version, playlists)
@@ -806,4 +810,92 @@ def _migrate_to_v11(cursor, conn):
 
     conn.commit()
     print("  - Migration to v11 complete")
-    print("Migration to version 10 complete!")
+    print("Migration to version 11 complete!")
+
+
+def _migrate_to_v12(cursor, conn):
+    """Migrate database from v11 to v12 (add manual playlist support)
+
+    This migration adds three new tables to support manual playlist creation:
+    - manual_playlists: Stores manual playlist metadata
+    - manual_playlist_songs: Junction table for playlist-song relationships
+    - playlist_builder_state: Temporary storage for in-progress playlist building
+
+    Args:
+        cursor: Database cursor
+        conn: Database connection
+    """
+    print("Migrating database from v11 to v12 (adding manual playlist support)...")
+
+    # Step 1: Create manual_playlists table
+    print("  - Creating manual_playlists table...")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS manual_playlists (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            plex_playlist_name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Step 2: Create indexes for manual_playlists
+    print("  - Creating indexes for manual_playlists...")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_manual_playlists_name ON manual_playlists(name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_manual_playlists_created ON manual_playlists(created_at)")
+
+    # Step 3: Create manual_playlist_songs table
+    print("  - Creating manual_playlist_songs table...")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS manual_playlist_songs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            manual_playlist_id INTEGER NOT NULL,
+            song_id INTEGER NOT NULL,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (manual_playlist_id) REFERENCES manual_playlists(id) ON DELETE CASCADE,
+            FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE,
+            UNIQUE(manual_playlist_id, song_id)
+        )
+    """)
+
+    # Step 4: Create indexes for manual_playlist_songs
+    print("  - Creating indexes for manual_playlist_songs...")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_manual_playlist_songs_playlist ON manual_playlist_songs(manual_playlist_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_manual_playlist_songs_song ON manual_playlist_songs(song_id)")
+
+    # Step 5: Create playlist_builder_state table
+    print("  - Creating playlist_builder_state table...")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS playlist_builder_state (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            song_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE,
+            UNIQUE(session_id, song_id)
+        )
+    """)
+
+    # Step 6: Create indexes for playlist_builder_state
+    print("  - Creating indexes for playlist_builder_state...")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_playlist_builder_state_session ON playlist_builder_state(session_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_playlist_builder_state_song ON playlist_builder_state(song_id)")
+
+    # Step 7: Log the migration as an activity
+    print("  - Logging migration event...")
+    cursor.execute("""
+        INSERT INTO activity_log (event_type, event_severity, title, description, source)
+        VALUES ('system', 'success', 'Database Migration', 'Migrated from schema v11 to v12: added manual playlist support (manual_playlists, manual_playlist_songs, playlist_builder_state tables)', 'system')
+    """)
+
+    # Step 8: Record schema version
+    print("  - Recording schema version...")
+    cursor.execute("""
+        INSERT INTO schema_version (version, description)
+        VALUES (?, ?)
+    """, (12, 'Add manual playlist support: manual_playlists, manual_playlist_songs, playlist_builder_state tables'))
+
+    conn.commit()
+    print("  - Migration to v12 complete")
+    print("Migration to version 12 complete!")

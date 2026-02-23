@@ -1768,3 +1768,303 @@ def format_songs_for_ai(songs):
         List of strings in "1. Artist: Song" format
     """
     return [f"{i + 1}. {artist}: {song}" for i, (artist, song) in enumerate(songs)]
+
+
+# ==================== MANUAL PLAYLIST QUERIES ====================
+
+def get_manual_playlists(cursor):
+    """Get all manual playlists
+
+    Args:
+        cursor: SQLite cursor object
+
+    Returns:
+        List of dicts with keys: id, name, plex_playlist_name, created_at, updated_at, song_count
+    """
+    cursor.execute("""
+        SELECT
+            mp.id,
+            mp.name,
+            mp.plex_playlist_name,
+            mp.created_at,
+            mp.updated_at,
+            COUNT(mps.song_id) as song_count
+        FROM manual_playlists mp
+        LEFT JOIN manual_playlist_songs mps ON mp.id = mps.manual_playlist_id
+        GROUP BY mp.id
+        ORDER BY mp.name COLLATE NOCASE
+    """)
+
+    playlists = []
+    for row in cursor.fetchall():
+        playlists.append({
+            'id': row[0],
+            'name': row[1],
+            'plex_playlist_name': row[2],
+            'created_at': row[3],
+            'updated_at': row[4],
+            'song_count': row[5]
+        })
+
+    return playlists
+
+
+def get_manual_playlist(cursor, playlist_id):
+    """Get a single manual playlist by ID
+
+    Args:
+        cursor: SQLite cursor object
+        playlist_id: Playlist ID
+
+    Returns:
+        Dict with keys: id, name, plex_playlist_name, created_at, updated_at, song_count
+        or None if not found
+    """
+    cursor.execute("""
+        SELECT
+            mp.id,
+            mp.name,
+            mp.plex_playlist_name,
+            mp.created_at,
+            mp.updated_at,
+            COUNT(mps.song_id) as song_count
+        FROM manual_playlists mp
+        LEFT JOIN manual_playlist_songs mps ON mp.id = mps.manual_playlist_id
+        WHERE mp.id = ?
+        GROUP BY mp.id
+    """, (playlist_id,))
+
+    row = cursor.fetchone()
+    if not row:
+        return None
+
+    return {
+        'id': row[0],
+        'name': row[1],
+        'plex_playlist_name': row[2],
+        'created_at': row[3],
+        'updated_at': row[4],
+        'song_count': row[5]
+    }
+
+
+def get_manual_playlist_by_name(cursor, name):
+    """Get a manual playlist by name
+
+    Args:
+        cursor: SQLite cursor object
+        name: Playlist name
+
+    Returns:
+        Dict with playlist info or None if not found
+    """
+    cursor.execute("""
+        SELECT
+            mp.id,
+            mp.name,
+            mp.plex_playlist_name,
+            mp.created_at,
+            mp.updated_at,
+            COUNT(mps.song_id) as song_count
+        FROM manual_playlists mp
+        LEFT JOIN manual_playlist_songs mps ON mp.id = mps.manual_playlist_id
+        WHERE mp.name = ?
+        GROUP BY mp.id
+    """, (name,))
+
+    row = cursor.fetchone()
+    if not row:
+        return None
+
+    return {
+        'id': row[0],
+        'name': row[1],
+        'plex_playlist_name': row[2],
+        'created_at': row[3],
+        'updated_at': row[4],
+        'song_count': row[5]
+    }
+
+
+def get_manual_playlist_songs(cursor, playlist_id, limit=None, offset=None):
+    """Get all songs in a manual playlist
+
+    Args:
+        cursor: SQLite cursor object
+        playlist_id: Playlist ID
+        limit: Optional limit for pagination
+        offset: Optional offset for pagination
+
+    Returns:
+        List of dicts with song details (id, artist_name, song_title, play_count, added_at)
+    """
+    query = """
+        SELECT
+            s.id,
+            s.artist_name,
+            s.song_title,
+            s.play_count,
+            mps.added_at
+        FROM manual_playlist_songs mps
+        JOIN songs s ON mps.song_id = s.id
+        WHERE mps.manual_playlist_id = ?
+        ORDER BY mps.added_at DESC
+    """
+
+    if limit:
+        query += " LIMIT ?"
+        if offset:
+            query += " OFFSET ?"
+            cursor.execute(query, (playlist_id, limit, offset))
+        else:
+            cursor.execute(query, (playlist_id, limit))
+    else:
+        cursor.execute(query, (playlist_id,))
+
+    songs = []
+    for row in cursor.fetchall():
+        songs.append({
+            'id': row[0],
+            'artist_name': row[1],
+            'song_title': row[2],
+            'play_count': row[3],
+            'added_at': row[4]
+        })
+
+    return songs
+
+
+def get_song_count_in_manual_playlist(cursor, playlist_id):
+    """Get the number of songs in a manual playlist
+
+    Args:
+        cursor: SQLite cursor object
+        playlist_id: Playlist ID
+
+    Returns:
+        Integer count of songs
+    """
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM manual_playlist_songs
+        WHERE manual_playlist_id = ?
+    """, (playlist_id,))
+
+    return cursor.fetchone()[0]
+
+
+def is_song_in_manual_playlist(cursor, playlist_id, song_id):
+    """Check if a song is in a manual playlist
+
+    Args:
+        cursor: SQLite cursor object
+        playlist_id: Playlist ID
+        song_id: Song ID
+
+    Returns:
+        True if song is in playlist, False otherwise
+    """
+    cursor.execute("""
+        SELECT 1
+        FROM manual_playlist_songs
+        WHERE manual_playlist_id = ? AND song_id = ?
+    """, (playlist_id, song_id))
+
+    return cursor.fetchone() is not None
+
+
+# ==================== PLAYLIST BUILDER STATE QUERIES ====================
+
+def get_builder_state_songs(cursor, session_id):
+    """Get all songs in the playlist builder state for a session
+
+    Args:
+        cursor: SQLite cursor object
+        session_id: Flask session ID
+
+    Returns:
+        List of dicts with song details (id, artist_name, song_title, play_count, created_at)
+    """
+    cursor.execute("""
+        SELECT
+            s.id,
+            s.artist_name,
+            s.song_title,
+            s.play_count,
+            pbs.created_at
+        FROM playlist_builder_state pbs
+        JOIN songs s ON pbs.song_id = s.id
+        WHERE pbs.session_id = ?
+        ORDER BY pbs.created_at DESC
+    """, (session_id,))
+
+    songs = []
+    for row in cursor.fetchall():
+        songs.append({
+            'id': row[0],
+            'artist_name': row[1],
+            'song_title': row[2],
+            'play_count': row[3],
+            'created_at': row[4]
+        })
+
+    return songs
+
+
+def get_builder_state_song_count(cursor, session_id):
+    """Get the number of songs in the playlist builder state for a session
+
+    Args:
+        cursor: SQLite cursor object
+        session_id: Flask session ID
+
+    Returns:
+        Integer count of songs
+    """
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM playlist_builder_state
+        WHERE session_id = ?
+    """, (session_id,))
+
+    return cursor.fetchone()[0]
+
+
+def is_song_in_builder_state(cursor, session_id, song_id):
+    """Check if a song is in the playlist builder state for a session
+
+    Args:
+        cursor: SQLite cursor object
+        session_id: Flask session ID
+        song_id: Song ID
+
+    Returns:
+        True if song is in builder state, False otherwise
+    """
+    cursor.execute("""
+        SELECT 1
+        FROM playlist_builder_state
+        WHERE session_id = ? AND song_id = ?
+    """, (session_id, song_id))
+
+    return cursor.fetchone() is not None
+
+
+def get_builder_state_song_ids(cursor, session_id):
+    """Get list of song IDs in the playlist builder state for a session
+
+    Args:
+        cursor: SQLite cursor object
+        session_id: Flask session ID
+
+    Returns:
+        List of song IDs (integers)
+    """
+    cursor.execute("""
+        SELECT song_id
+        FROM playlist_builder_state
+        WHERE session_id = ?
+        ORDER BY created_at DESC
+    """, (session_id,))
+
+    return [row[0] for row in cursor.fetchall()]

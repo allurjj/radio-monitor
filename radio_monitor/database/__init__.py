@@ -12,7 +12,7 @@ This package provides a modular database interface with:
 The main RadioDatabase class (below) provides a unified interface
 to all database operations with backward compatibility.
 
-Schema Version: 11 (Remove WTMX Support)
+Schema Version: 12 (Manual Playlist Support)
 """
 
 import sqlite3
@@ -34,7 +34,7 @@ from . import exports
 
 
 class RadioDatabase:
-    """SQLite database with 11-table schema
+    """SQLite database with 14-table schema
 
     This is the main database interface that provides backward compatibility
     with the original database.py module while using the refactored submodules.
@@ -52,10 +52,13 @@ class RadioDatabase:
     - notification_history: Notification send history
     - manual_mbid_overrides: User-specified MBID mappings (v9)
     - ai_playlist_generations: AI playlist generation tracking (v10)
+    - manual_playlists: Manual playlist definitions (v12)
+    - manual_playlist_songs: Manual playlist song associations (v12)
+    - playlist_builder_state: In-progress playlist builder state (v12)
     """
 
     # Current schema version
-    SCHEMA_VERSION = 11
+    SCHEMA_VERSION = 12
 
     def __init__(self, db_path):
         self.db_path = db_path
@@ -633,6 +636,226 @@ class RadioDatabase:
         cursor = self.conn.cursor()
         try:
             return queries.get_ai_playlist_songs(cursor, station_ids, min_plays, first_seen, last_seen)
+        finally:
+            cursor.close()
+
+    # ==================== MANUAL PLAYLISTS (v12) ====================
+
+    def create_manual_playlist(self, name, plex_playlist_name=None):
+        """Create a new manual playlist
+
+        Args:
+            name: Internal playlist name (must be unique)
+            plex_playlist_name: Optional name for Plex (defaults to name if not provided)
+
+        Returns:
+            playlist_id (int) of created playlist
+        """
+        cursor = self.conn.cursor()
+        try:
+            return crud.create_manual_playlist(cursor, self.conn, name, plex_playlist_name)
+        finally:
+            cursor.close()
+
+    def get_manual_playlist(self, playlist_id):
+        """Get a single manual playlist by ID
+
+        Args:
+            playlist_id: Playlist ID
+
+        Returns:
+            Dict with playlist info or None if not found
+        """
+        cursor = self.conn.cursor()
+        try:
+            return queries.get_manual_playlist(cursor, playlist_id)
+        finally:
+            cursor.close()
+
+    def get_all_manual_playlists(self):
+        """Get all manual playlists
+
+        Returns:
+            List of dicts with playlist info including song counts
+        """
+        cursor = self.conn.cursor()
+        try:
+            return queries.get_manual_playlists(cursor)
+        finally:
+            cursor.close()
+
+    def update_manual_playlist(self, playlist_id, name=None, plex_playlist_name=None):
+        """Update manual playlist metadata
+
+        Args:
+            playlist_id: Playlist ID to update
+            name: New internal name (optional)
+            plex_playlist_name: New Plex name (optional)
+
+        Returns:
+            True if updated, False if playlist not found
+        """
+        cursor = self.conn.cursor()
+        try:
+            return crud.update_manual_playlist(cursor, self.conn, playlist_id, name, plex_playlist_name)
+        finally:
+            cursor.close()
+
+    def delete_manual_playlist(self, playlist_id):
+        """Delete a manual playlist and all its song associations
+
+        Args:
+            playlist_id: Playlist ID to delete
+
+        Returns:
+            True if deleted, False if not found
+        """
+        cursor = self.conn.cursor()
+        try:
+            return crud.delete_manual_playlist(cursor, self.conn, playlist_id)
+        finally:
+            cursor.close()
+
+    def add_song_to_manual_playlist(self, playlist_id, song_id):
+        """Add a song to a manual playlist
+
+        Args:
+            playlist_id: Playlist ID
+            song_id: Song ID to add
+
+        Returns:
+            True if added, False if song already in playlist
+        """
+        cursor = self.conn.cursor()
+        try:
+            return crud.add_song_to_manual_playlist(cursor, self.conn, playlist_id, song_id)
+        finally:
+            cursor.close()
+
+    def remove_song_from_manual_playlist(self, playlist_id, song_id):
+        """Remove a song from a manual playlist
+
+        Args:
+            playlist_id: Playlist ID
+            song_id: Song ID to remove
+
+        Returns:
+            True if removed, False if song not in playlist
+        """
+        cursor = self.conn.cursor()
+        try:
+            return crud.remove_song_from_manual_playlist(cursor, self.conn, playlist_id, song_id)
+        finally:
+            cursor.close()
+
+    def get_manual_playlist_songs(self, playlist_id, limit=None, offset=None):
+        """Get all songs in a manual playlist
+
+        Args:
+            playlist_id: Playlist ID
+            limit: Optional limit for pagination
+            offset: Optional offset for pagination
+
+        Returns:
+            List of dicts with song details
+        """
+        cursor = self.conn.cursor()
+        try:
+            return queries.get_manual_playlist_songs(cursor, playlist_id, limit, offset)
+        finally:
+            cursor.close()
+
+    def clear_manual_playlist(self, playlist_id):
+        """Remove all songs from a manual playlist (keep playlist, clear songs)
+
+        Args:
+            playlist_id: Playlist ID to clear
+
+        Returns:
+            Number of songs removed
+        """
+        cursor = self.conn.cursor()
+        try:
+            return crud.clear_manual_playlist(cursor, self.conn, playlist_id)
+        finally:
+            cursor.close()
+
+    # ==================== PLAYLIST BUILDER STATE (v12) ====================
+
+    def add_song_to_builder_state(self, session_id, song_id):
+        """Add a song to the playlist builder state for a session
+
+        Args:
+            session_id: Flask session ID
+            song_id: Song ID to add
+
+        Returns:
+            True if added, False if song already in state
+        """
+        cursor = self.conn.cursor()
+        try:
+            return crud.add_song_to_builder_state(cursor, self.conn, session_id, song_id)
+        finally:
+            cursor.close()
+
+    def remove_song_from_builder_state(self, session_id, song_id):
+        """Remove a song from the playlist builder state
+
+        Args:
+            session_id: Flask session ID
+            song_id: Song ID to remove
+
+        Returns:
+            True if removed, False if song not in state
+        """
+        cursor = self.conn.cursor()
+        try:
+            return crud.remove_song_from_builder_state(cursor, self.conn, session_id, song_id)
+        finally:
+            cursor.close()
+
+    def get_builder_state_songs(self, session_id):
+        """Get all songs in the playlist builder state for a session
+
+        Args:
+            session_id: Flask session ID
+
+        Returns:
+            List of dicts with song details
+        """
+        cursor = self.conn.cursor()
+        try:
+            return queries.get_builder_state_songs(cursor, session_id)
+        finally:
+            cursor.close()
+
+    def clear_builder_state(self, session_id):
+        """Clear all songs from the playlist builder state for a session
+
+        Args:
+            session_id: Flask session ID
+
+        Returns:
+            Number of songs removed
+        """
+        cursor = self.conn.cursor()
+        try:
+            return crud.clear_builder_state(cursor, self.conn, session_id)
+        finally:
+            cursor.close()
+
+    def get_builder_state_song_ids(self, session_id):
+        """Get list of song IDs in the playlist builder state for a session
+
+        Args:
+            session_id: Flask session ID
+
+        Returns:
+            List of song IDs (integers)
+        """
+        cursor = self.conn.cursor()
+        try:
+            return queries.get_builder_state_song_ids(cursor, session_id)
         finally:
             cursor.close()
 

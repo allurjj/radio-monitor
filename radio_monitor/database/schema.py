@@ -2,7 +2,7 @@
 Database schema definitions for Radio Monitor 1.0
 
 This module contains all CREATE TABLE statements and indexes for the
-12-table SQLite schema.
+14-table SQLite schema.
 
 Tables:
 - stations: Radio station metadata
@@ -17,8 +17,11 @@ Tables:
 - notification_history: Notification send history (v5)
 - manual_mbid_overrides: User-specified MBID mappings (v9)
 - ai_playlist_generations: AI playlist generation tracking (v10)
+- manual_playlists: Manual playlist definitions (v12)
+- manual_playlist_songs: Manual playlist song associations (v12)
+- playlist_builder_state: In-progress playlist builder state (v12)
 
-Schema Version: 10
+Schema Version: 12
 """
 
 import logging
@@ -260,6 +263,52 @@ def create_tables(cursor):
 
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_generations_created_at ON ai_playlist_generations(generated_at DESC)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_generations_status ON ai_playlist_generations(status)")
+
+    # 13. manual_playlists table (v12)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS manual_playlists (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            plex_playlist_name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_manual_playlists_name ON manual_playlists(name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_manual_playlists_created ON manual_playlists(created_at)")
+
+    # 14. manual_playlist_songs table (v12)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS manual_playlist_songs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            manual_playlist_id INTEGER NOT NULL,
+            song_id INTEGER NOT NULL,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (manual_playlist_id) REFERENCES manual_playlists(id) ON DELETE CASCADE,
+            FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE,
+            UNIQUE(manual_playlist_id, song_id)
+        )
+    """)
+
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_manual_playlist_songs_playlist ON manual_playlist_songs(manual_playlist_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_manual_playlist_songs_song ON manual_playlist_songs(song_id)")
+
+    # 15. playlist_builder_state table (v12)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS playlist_builder_state (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            song_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE,
+            UNIQUE(session_id, song_id)
+        )
+    """)
+
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_playlist_builder_state_session ON playlist_builder_state(session_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_playlist_builder_state_song ON playlist_builder_state(song_id)")
 
 
 def populate_stations(cursor):

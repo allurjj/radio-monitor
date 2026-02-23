@@ -1546,3 +1546,330 @@ def delete_pending_artists_older_than(cursor, conn, days=30):
         logger.error(f"Error deleting old PENDING artists: {e}")
         conn.rollback()
         raise
+
+
+# ==================== MANUAL PLAYLIST CRUD ====================
+
+def create_manual_playlist(cursor, conn, name, plex_playlist_name=None):
+    """Create a new manual playlist
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        name: Internal playlist name (must be unique)
+        plex_playlist_name: Optional name for Plex (defaults to name if not provided)
+
+    Returns:
+        playlist_id (int) of created playlist
+
+    Raises:
+        sqlite3.IntegrityError: If playlist name already exists
+    """
+    try:
+        now = datetime.now()
+
+        # Use provided plex name or default to internal name
+        if not plex_playlist_name:
+            plex_playlist_name = name
+
+        cursor.execute("""
+            INSERT INTO manual_playlists (name, plex_playlist_name, created_at, updated_at)
+            VALUES (?, ?, ?, ?)
+        """, (name, plex_playlist_name, now, now))
+
+        conn.commit()
+        playlist_id = cursor.lastrowid
+        logger.info(f"Created manual playlist '{name}' (ID: {playlist_id})")
+        return playlist_id
+
+    except sqlite3.IntegrityError:
+        logger.error(f"Manual playlist '{name}' already exists")
+        raise
+    except Exception as e:
+        logger.error(f"Error creating manual playlist '{name}': {e}")
+        conn.rollback()
+        raise
+
+
+def update_manual_playlist(cursor, conn, playlist_id, name=None, plex_playlist_name=None):
+    """Update manual playlist metadata
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        playlist_id: Playlist ID to update
+        name: New internal name (optional)
+        plex_playlist_name: New Plex name (optional)
+
+    Returns:
+        True if updated, False if playlist not found
+
+    Raises:
+        sqlite3.IntegrityError: If new name already exists (for different playlist)
+    """
+    try:
+        # Build UPDATE query dynamically based on provided fields
+        updates = []
+        params = []
+
+        if name is not None:
+            updates.append("name = ?")
+            params.append(name)
+
+        if plex_playlist_name is not None:
+            updates.append("plex_playlist_name = ?")
+            params.append(plex_playlist_name)
+
+        # Always update updated_at timestamp
+        updates.append("updated_at = ?")
+        params.append(datetime.now())
+
+        if not updates:
+            return False  # Nothing to update
+
+        params.append(playlist_id)  # For WHERE clause
+
+        query = f"UPDATE manual_playlists SET {', '.join(updates)} WHERE id = ?"
+        cursor.execute(query, params)
+
+        if cursor.rowcount == 0:
+            logger.warning(f"Manual playlist ID {playlist_id} not found")
+            return False
+
+        conn.commit()
+        logger.info(f"Updated manual playlist ID {playlist_id}")
+        return True
+
+    except sqlite3.IntegrityError:
+        logger.error(f"Cannot update playlist: name already exists")
+        raise
+    except Exception as e:
+        logger.error(f"Error updating manual playlist ID {playlist_id}: {e}")
+        conn.rollback()
+        raise
+
+
+def delete_manual_playlist(cursor, conn, playlist_id):
+    """Delete a manual playlist and all its song associations
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        playlist_id: Playlist ID to delete
+
+    Returns:
+        True if deleted, False if not found
+
+    Note:
+        Due to ON DELETE CASCADE, this will also remove all song associations
+        in manual_playlist_songs table
+    """
+    try:
+        cursor.execute("DELETE FROM manual_playlists WHERE id = ?", (playlist_id,))
+
+        if cursor.rowcount == 0:
+            logger.warning(f"Manual playlist ID {playlist_id} not found")
+            return False
+
+        conn.commit()
+        logger.info(f"Deleted manual playlist ID {playlist_id}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error deleting manual playlist ID {playlist_id}: {e}")
+        conn.rollback()
+        raise
+
+
+def add_song_to_manual_playlist(cursor, conn, playlist_id, song_id):
+    """Add a song to a manual playlist
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        playlist_id: Playlist ID
+        song_id: Song ID to add
+
+    Returns:
+        True if added, False if song already in playlist
+
+    Raises:
+        Exception: If playlist or song not found (foreign key constraint)
+    """
+    try:
+        cursor.execute("""
+            INSERT OR IGNORE INTO manual_playlist_songs (manual_playlist_id, song_id)
+            VALUES (?, ?)
+        """, (playlist_id, song_id))
+
+        if cursor.rowcount == 0:
+            logger.debug(f"Song {song_id} already in playlist {playlist_id}")
+            return False
+
+        conn.commit()
+        logger.info(f"Added song {song_id} to playlist {playlist_id}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error adding song {song_id} to playlist {playlist_id}: {e}")
+        conn.rollback()
+        raise
+
+
+def remove_song_from_manual_playlist(cursor, conn, playlist_id, song_id):
+    """Remove a song from a manual playlist
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        playlist_id: Playlist ID
+        song_id: Song ID to remove
+
+    Returns:
+        True if removed, False if song not in playlist
+    """
+    try:
+        cursor.execute("""
+            DELETE FROM manual_playlist_songs
+            WHERE manual_playlist_id = ? AND song_id = ?
+        """, (playlist_id, song_id))
+
+        if cursor.rowcount == 0:
+            logger.debug(f"Song {song_id} not in playlist {playlist_id}")
+            return False
+
+        conn.commit()
+        logger.info(f"Removed song {song_id} from playlist {playlist_id}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error removing song {song_id} from playlist {playlist_id}: {e}")
+        conn.rollback()
+        raise
+
+
+def clear_manual_playlist(cursor, conn, playlist_id):
+    """Remove all songs from a manual playlist (keep playlist, clear songs)
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        playlist_id: Playlist ID to clear
+
+    Returns:
+        Number of songs removed
+    """
+    try:
+        cursor.execute("""
+            DELETE FROM manual_playlist_songs
+            WHERE manual_playlist_id = ?
+        """, (playlist_id,))
+
+        count = cursor.rowcount
+        conn.commit()
+        logger.info(f"Cleared {count} songs from playlist {playlist_id}")
+        return count
+
+    except Exception as e:
+        logger.error(f"Error clearing playlist {playlist_id}: {e}")
+        conn.rollback()
+        raise
+
+
+# ==================== PLAYLIST BUILDER STATE CRUD ====================
+
+def add_song_to_builder_state(cursor, conn, session_id, song_id):
+    """Add a song to the playlist builder state for a session
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        session_id: Flask session ID
+        song_id: Song ID to add
+
+    Returns:
+        True if added, False if song already in state
+
+    Note:
+        UNIQUE constraint prevents duplicate (session_id, song_id) pairs
+    """
+    try:
+        now = datetime.now()
+
+        cursor.execute("""
+            INSERT OR IGNORE INTO playlist_builder_state (session_id, song_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?)
+        """, (session_id, song_id, now, now))
+
+        if cursor.rowcount == 0:
+            logger.debug(f"Song {song_id} already in builder state for session {session_id}")
+            return False
+
+        conn.commit()
+        logger.debug(f"Added song {song_id} to builder state for session {session_id}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error adding song {song_id} to builder state: {e}")
+        conn.rollback()
+        raise
+
+
+def remove_song_from_builder_state(cursor, conn, session_id, song_id):
+    """Remove a song from the playlist builder state
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        session_id: Flask session ID
+        song_id: Song ID to remove
+
+    Returns:
+        True if removed, False if song not in state
+    """
+    try:
+        cursor.execute("""
+            DELETE FROM playlist_builder_state
+            WHERE session_id = ? AND song_id = ?
+        """, (session_id, song_id))
+
+        if cursor.rowcount == 0:
+            logger.debug(f"Song {song_id} not in builder state for session {session_id}")
+            return False
+
+        conn.commit()
+        logger.debug(f"Removed song {song_id} from builder state for session {session_id}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error removing song {song_id} from builder state: {e}")
+        conn.rollback()
+        raise
+
+
+def clear_builder_state(cursor, conn, session_id):
+    """Clear all songs from the playlist builder state for a session
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        session_id: Flask session ID
+
+    Returns:
+        Number of songs removed
+    """
+    try:
+        cursor.execute("""
+            DELETE FROM playlist_builder_state
+            WHERE session_id = ?
+        """, (session_id,))
+
+        count = cursor.rowcount
+        conn.commit()
+        logger.info(f"Cleared {count} songs from builder state for session {session_id}")
+        return count
+
+    except Exception as e:
+        logger.error(f"Error clearing builder state for session {session_id}: {e}")
+        conn.rollback()
+        raise

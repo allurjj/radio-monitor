@@ -1,6 +1,6 @@
 # Radio Monitor API Documentation
 
-**Version:** 1.0.0
+**Version:** 1.1.7
 **Base URL:**
 - Windows: `http://127.0.0.1:5000`
 - Linux/Mac: `http://localhost:5000`
@@ -17,6 +17,7 @@
 - [Lidarr](#lidarr)
 - [Plex](#plex)
 - [Playlists](#playlists)
+- [Playlist Builder](#playlist-builder) ✨ **NEW**
 - [Settings](#settings)
 - [Backup](#backup)
 - [Activity](#activity)
@@ -750,6 +751,274 @@ Trigger immediate update of auto playlist (alias for execute).
 {
   "success": true,
   "message": "Update triggered"
+}
+```
+
+---
+
+## Playlist Builder ✨ **NEW**
+
+**Version:** 1.1.7
+**Purpose:** Create custom playlists by manually selecting songs from the catalog
+
+### GET `/playlist-builder`
+
+Render manual playlist builder page.
+
+### GET `/api/playlist-builder/songs`
+
+Get paginated list of songs for browsing and selection.
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | integer | 1 | Page number (1-indexed) |
+| `limit` | integer | 100 | Items per page (max 500) |
+| `view_mode` | string | "song" | "artist" (grouped) or "song" (flat) |
+| `station_ids` | string | null | Comma-separated station IDs (e.g., "us99,wtmx") |
+| `from_date` | string | null | Start date (YYYY-MM-DD) |
+| `to_date` | string | null | End date (YYYY-MM-DD) |
+| `min_plays` | integer | null | Minimum play count |
+| `search` | string | null | Search song title OR artist name |
+
+**Response (view_mode=song):**
+```json
+{
+  "songs": [
+    {
+      "id": 123,
+      "title": "Blinding Lights",
+      "artist_name": "The Weeknd",
+      "artist_mbid": "5bc41f77-cce4-4e76-a3e9-324c0201824f",
+      "total_plays": 15,
+      "last_seen_at": "2026-02-23T10:30:00",
+      "first_seen_at": "2026-02-15T08:00:00"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 100,
+    "total_items": 1500,
+    "total_pages": 15
+  }
+}
+```
+
+**Response (view_mode=artist):**
+```json
+{
+  "artists": [
+    {
+      "artist_mbid": "5bc41f77-cce4-4e76-a3e9-324c0201824f",
+      "artist_name": "The Weeknd",
+      "songs": [
+        {
+          "id": 123,
+          "title": "Blinding Lights",
+          "total_plays": 15,
+          "last_seen_at": "2026-02-23T10:30:00"
+        }
+      ]
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 50,
+    "total_items": 800,
+    "total_pages": 16
+  }
+}
+```
+
+### POST `/api/playlist-builder/select`
+
+Add or remove songs from current selection.
+
+**Request Body:**
+```json
+{
+  "action": "add",
+  "song_ids": [123, 456, 789]
+}
+```
+
+| Action | Description |
+|--------|-------------|
+| `add` | Add songs to selection (ignores already selected) |
+| `remove` | Remove songs from selection |
+| `toggle` | Toggle songs (add if not selected, remove if selected) |
+| `set` | Replace selection with these songs |
+
+**Response:**
+```json
+{
+  "success": true,
+  "selected_count": 25,
+  "message": "Added 3 songs to selection"
+}
+```
+
+### GET `/api/playlist-builder/selections`
+
+Get current song selections.
+
+**Response:**
+```json
+{
+  "selections": [
+    {
+      "id": 123,
+      "title": "Blinding Lights",
+      "artist_name": "The Weeknd",
+      "total_plays": 15
+    }
+  ],
+  "total_count": 25
+}
+```
+
+### DELETE `/api/playlist-builder/selections`
+
+Clear all current selections.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Cleared all selections"
+}
+```
+
+### GET `/api/playlists/manual`
+
+Get all manual playlists.
+
+**Query Parameters:**
+- `sort` - Sort field (name, created_at, song_count)
+- `direction` - Sort direction (asc, desc)
+
+**Response:**
+```json
+{
+  "playlists": [
+    {
+      "id": 1,
+      "name": "My Favorites",
+      "song_count": 25,
+      "created_at": "2026-02-23T12:00:00",
+      "updated_at": "2026-02-23T14:30:00"
+    }
+  ]
+}
+```
+
+### POST `/api/playlists/manual`
+
+Create a new manual playlist.
+
+**Request Body:**
+```json
+{
+  "name": "My Favorites",
+  "song_ids": [123, 456, 789],
+  "sync_to_plex": true
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "playlist": {
+    "id": 1,
+    "name": "My Favorites",
+    "song_count": 3,
+    "created_at": "2026-02-23T15:00:00"
+  },
+  "plex_playlist_key": 12345,
+  "message": "Playlist created successfully and synced to Plex"
+}
+```
+
+### GET `/api/playlists/manual/<int:playlist_id>`
+
+Get details of a specific manual playlist.
+
+**Response:**
+```json
+{
+  "playlist": {
+    "id": 1,
+    "name": "My Favorites",
+    "song_count": 25,
+    "created_at": "2026-02-23T12:00:00",
+    "updated_at": "2026-02-23T14:30:00"
+  },
+  "songs": [
+    {
+      "id": 123,
+      "title": "Blinding Lights",
+      "artist_name": "The Weeknd",
+      "added_at": "2026-02-23T12:05:00"
+    }
+  ]
+}
+```
+
+### PUT `/api/playlists/manual/<int:playlist_id>`
+
+Update an existing manual playlist.
+
+**Request Body:**
+```json
+{
+  "name": "My Favorites (Updated)",
+  "add_song_ids": [789, 1011],
+  "remove_song_ids": [123],
+  "sync_to_plex": true
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "playlist": {
+    "id": 1,
+    "name": "My Favorites (Updated)",
+    "song_count": 26,
+    "updated_at": "2026-02-23T15:30:00"
+  },
+  "message": "Playlist updated successfully"
+}
+```
+
+### DELETE `/api/playlists/manual/<int:playlist_id>`
+
+Delete a manual playlist.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Playlist deleted successfully",
+  "plex_deleted": true
+}
+```
+
+### POST `/api/playlists/manual/<int:playlist_id>/sync-plex`
+
+Manually sync a playlist to Plex.
+
+**Response:**
+```json
+{
+  "success": true,
+  "plex_playlist_key": 12345,
+  "matched_songs": 25,
+  "unmatched_songs": 2,
+  "message": "Synced to Plex successfully"
 }
 ```
 
