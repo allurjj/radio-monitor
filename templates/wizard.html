@@ -489,12 +489,12 @@ function nextStep(currentStepNum) {
         const rootFolder = document.getElementById('lidarr-root-folder').value.trim();
 
         if (!url || !apiKey || !rootFolder) {
-            alert('Please fill in all required fields.');
+            Toast.warning('Please fill in all required fields.');
             return;
         }
 
         if (!lidarrTestPassed) {
-            alert('Please test your Lidarr connection before proceeding.');
+            Toast.warning('Please test your Lidarr connection before proceeding.');
             return;
         }
 
@@ -517,12 +517,12 @@ function nextStep(currentStepNum) {
         const library = document.getElementById('plex-library').value.trim();
 
         if (!url || !token || !library) {
-            alert('Please fill in all required fields.');
+            Toast.warning('Please fill in all required fields.');
             return;
         }
 
         if (!plexTestPassed) {
-            alert('Please test your Plex connection before proceeding.');
+            Toast.warning('Please test your Plex connection before proceeding.');
             return;
         }
 
@@ -544,7 +544,7 @@ function nextStep(currentStepNum) {
         });
 
         if (stations.length === 0) {
-            alert('Please select at least one station to monitor.');
+            Toast.warning('Please select at least one station to monitor.');
             return;
         }
 
@@ -595,7 +595,7 @@ async function testLidarrConnection() {
     const apiKey = document.getElementById('lidarr-api-key').value.trim();
 
     if (!url || !apiKey) {
-        alert('Please enter URL and API key first.');
+        Toast.warning('Please enter URL and API key first.');
         return;
     }
 
@@ -758,7 +758,7 @@ async function testPlexConnection() {
     const token = document.getElementById('plex-token').value.trim();
 
     if (!url || !token) {
-        alert('Please enter URL and token first.');
+        Toast.warning('Please enter URL and token first.');
         return;
     }
 
@@ -879,14 +879,16 @@ async function saveSettings() {
         const data = await response.json();
 
         if (data.success) {
-            alert('Settings saved successfully! Redirecting to dashboard...');
-            window.location.href = '/';
+            Toast.success('Settings saved successfully! Redirecting to dashboard...');
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 1000);
         } else {
-            alert('Error saving settings: ' + data.message);
+            Toast.error('Error saving settings: ' + data.message);
             hideLoading();
         }
     } catch (error) {
-        alert('Error: ' + error.message);
+        Toast.error('Error: ' + error.message);
         hideLoading();
     }
 }

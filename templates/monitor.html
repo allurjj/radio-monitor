@@ -237,9 +237,9 @@ function loadStations() {
 
             // Add event listeners for re-enable buttons
             document.querySelectorAll('.btn-reenable').forEach(btn => {
-                btn.addEventListener('click', function() {
+                btn.addEventListener('click', async function() {
                     const stationId = this.getAttribute('data-station');
-                    reenableStation(stationId);
+                    await reenableStation(stationId);
                 });
             });
         })
@@ -255,8 +255,22 @@ function loadStations() {
         });
 }
 
-function reenableStation(stationId) {
-    if (!confirm(`Re-enable station "${stationId}"?`)) {
+async function reenableStation(stationId) {
+    // Safety check - ensure Confirm is available
+    if (typeof Confirm === 'undefined') {
+        console.error('Confirm utility not loaded!');
+        Toast.error('Confirmation system not available. Please refresh the page.');
+        return;
+    }
+
+    // TEST: Show that we got here
+    console.log('About to show confirmation for station:', stationId);
+
+    const confirmed = await Confirm.confirm(`Re-enable station "${stationId}"?`, 'Confirm Re-enable');
+
+    console.log('Confirmation result:', confirmed);
+
+    if (!confirmed) {
         return;
     }
 
@@ -273,40 +287,40 @@ function reenableStation(stationId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert(`Station "${stationId}" re-enabled successfully`);
+                Toast.success(`Station "${stationId}" re-enabled successfully`);
                 loadStations();
             } else {
-                alert(`Error: ${data.message}`);
+                Toast.error(`Error: ${data.message}`);
             }
         })
         .catch(error => {
-            alert(`Error: ${error.message}`);
+            Toast.error(`Error: ${error.message}`);
         });
 }
 
 // Start monitoring
-document.getElementById('btn-start').addEventListener('click', function() {
+document.getElementById('btn-start').addEventListener('click', async function() {
     fetch('/api/monitor/start', { method: 'POST' })
         .then(response => response.json())
         .then(data => {
             if (data.status === 'started') {
                 loadMonitorStatus();
             } else {
-                alert(data.message || 'Already running');
+                Toast.warning(data.message || 'Already running');
                 // Always refresh status to ensure UI is in sync
                 loadMonitorStatus();
             }
         })
         .catch(error => {
-            alert('Error starting monitor: ' + error.message);
+            Toast.error('Error starting monitor: ' + error.message);
             // Always refresh status to ensure UI is in sync
             loadMonitorStatus();
         });
 });
 
 // Stop monitoring
-document.getElementById('btn-stop').addEventListener('click', function() {
-    if (!confirm('Stop monitoring? This will pause automatic scraping.')) {
+document.getElementById('btn-stop').addEventListener('click', async function() {
+    if (!await Confirm.confirm('Stop monitoring? This will pause automatic scraping.', 'Stop Monitoring')) {
         return;
     }
 
@@ -316,20 +330,20 @@ document.getElementById('btn-stop').addEventListener('click', function() {
             if (data.status === 'stopped') {
                 loadMonitorStatus();
             } else {
-                alert(data.message || 'Already stopped');
+                Toast.warning(data.message || 'Already stopped');
                 // Always refresh status to ensure UI is in sync
                 loadMonitorStatus();
             }
         })
         .catch(error => {
-            alert('Error stopping monitor: ' + error.message);
+            Toast.error('Error stopping monitor: ' + error.message);
             // Always refresh status to ensure UI is in sync
             loadMonitorStatus();
         });
 });
 
 // Scrape now button
-document.getElementById('btn-scrape-now').addEventListener('click', function() {
+document.getElementById('btn-scrape-now').addEventListener('click', async function() {
     const btn = document.getElementById('btn-scrape-now');
     btn.disabled = true;
     btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> <span class="spinner-border spinner-border-sm"></span> Scraping...';
@@ -338,15 +352,15 @@ document.getElementById('btn-scrape-now').addEventListener('click', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert(`Scrape complete! Found ${data.songs_scraped} songs from ${data.stations_scraped} stations.`);
+                Toast.success(`Scrape complete! Found ${data.songs_scraped} songs from ${data.stations_scraped} stations.`);
                 loadMonitorStatus();
                 loadStations();
             } else {
-                alert('Error: ' + (data.message || 'Scrape failed'));
+                Toast.error('Error: ' + (data.message || 'Scrape failed'));
             }
         })
         .catch(error => {
-            alert('Error triggering scrape: ' + error.message);
+            Toast.error('Error triggering scrape: ' + error.message);
         })
         .finally(() => {
             btn.disabled = false;
@@ -355,7 +369,7 @@ document.getElementById('btn-scrape-now').addEventListener('click', function() {
 });
 
 // Update scrape interval
-document.getElementById('btn-update-interval').addEventListener('click', function() {
+document.getElementById('btn-update-interval').addEventListener('click', async function() {
     const interval = document.getElementById('scrape-interval').value;
 
     fetch('/api/settings/update', {
@@ -372,13 +386,13 @@ document.getElementById('btn-update-interval').addEventListener('click', functio
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert('Scrape interval updated successfully');
+                Toast.success('Scrape interval updated successfully');
             } else {
-                alert('Error: ' + data.message);
+                Toast.error('Error: ' + data.message);
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            Toast.error('Error: ' + error.message);
         });
 });
 

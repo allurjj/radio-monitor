@@ -16,19 +16,19 @@ class ConfirmManager {
         if (!this.container) {
             this.container = document.createElement('div');
             this.container.id = 'confirm-modal';
-            this.container.className = 'modal';
+            this.container.className = 'custom-modal';  // Changed from 'modal' to avoid Bootstrap conflict
             this.container.innerHTML = `
-                <div class="modal-dialog modal-sm">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Confirm Action</h5>
-                            <button type="button" class="close" data-dismiss="modal">&times;</button>
+                <div class="custom-modal-dialog modal-sm">
+                    <div class="custom-modal-content">
+                        <div class="custom-modal-header">
+                            <h5 class="custom-modal-title">Confirm Action</h5>
+                            <button type="button" class="custom-modal-close">&times;</button>
                         </div>
-                        <div class="modal-body">
+                        <div class="custom-modal-body">
                             <div class="confirm-message"></div>
                         </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <div class="custom-modal-footer">
+                            <button type="button" class="btn btn-secondary custom-modal-cancel">Cancel</button>
                             <button type="button" class="btn btn-danger confirm-btn">Confirm</button>
                         </div>
                     </div>
@@ -37,10 +37,12 @@ class ConfirmManager {
             document.body.appendChild(this.container);
 
             // Add button handlers
-            const cancelBtn = this.container.querySelector('[data-dismiss="modal"]');
+            const cancelBtn = this.container.querySelector('.custom-modal-cancel');
+            const closeBtn = this.container.querySelector('.custom-modal-close');
             const confirmBtn = this.container.querySelector('.confirm-btn');
 
             cancelBtn.addEventListener('click', () => this.hide(false));
+            closeBtn.addEventListener('click', () => this.hide(false));
             confirmBtn.addEventListener('click', () => this.hide(true));
         }
     }
@@ -54,12 +56,14 @@ class ConfirmManager {
      * @returns {Promise<boolean>} - User's choice
      */
     confirm(message, title = 'Confirm Action', confirmText = 'Confirm', confirmClass = 'btn-danger') {
+        console.log('confirm() called, modal exists:', !!this.container);
         return new Promise((resolve) => {
             // Store callback
             this.currentCallback = resolve;
+            console.log('Callback stored, currentCallback:', !!this.currentCallback);
 
             // Update dialog content
-            const titleElement = this.container.querySelector('.modal-title');
+            const titleElement = this.container.querySelector('.custom-modal-title');
             const messageElement = this.container.querySelector('.confirm-message');
             const confirmBtn = this.container.querySelector('.confirm-btn');
 
@@ -72,6 +76,8 @@ class ConfirmManager {
 
             // Show modal
             this.container.classList.add('show');
+            console.log('Modal shown, classes:', this.container.className);
+            console.log('Modal display:', window.getComputedStyle(this.container).display);
         });
     }
 

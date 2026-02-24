@@ -697,15 +697,15 @@ function savePlaylist() {
 
     // Validate
     if (!name) {
-        alert('Please enter a playlist name');
+        Toast.warning('Please enter a playlist name');
         return;
     }
     if (stationIds.length === 0) {
-        alert('Please select at least one station');
+        Toast.warning('Please select at least one station');
         return;
     }
     if (isAuto && intervalMinutes < 10) {
-        alert('Update interval must be at least 10 minutes');
+        Toast.warning('Update interval must be at least 10 minutes');
         return;
     }
 
@@ -747,15 +747,15 @@ function savePlaylist() {
                     }, 5000);
                 }
             } else {
-                alert('Error: ' + (data.error || 'Unknown error'));
+                Toast.error('Error: ' + (data.error || 'Unknown error'));
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            Toast.error('Error: ' + error.message);
         });
 }
 
-function togglePlaylist(id) {
+async function togglePlaylist(id) {
     const playlist = playlists.find(p => p.id === id);
     if (!playlist) return;
 
@@ -764,17 +764,29 @@ function togglePlaylist(id) {
 
     if (newState && !currentState) {
         // Enabling auto: ask for interval
-        const interval = prompt('Enter update interval in minutes (minimum 10):', '360');
-        if (!interval) return; // User cancelled
+        let intervalMinutes = 360; // Default
+        let validInterval = false;
 
-        const intervalMinutes = parseInt(interval);
-        if (isNaN(intervalMinutes) || intervalMinutes < 10) {
-            alert('Interval must be at least 10 minutes');
-            return;
+        while (!validInterval) {
+            const interval = prompt('Enter update interval in minutes (minimum 10):', '360');
+            if (!interval) return; // User cancelled
+
+            intervalMinutes = parseInt(interval);
+            if (isNaN(intervalMinutes) || intervalMinutes < 10) {
+                Toast.error('Interval must be at least 10 minutes');
+                // Loop again to ask for input
+            } else {
+                validInterval = true;
+            }
         }
 
         // Confirm
-        if (!confirm(`Enable automatic updates for "${playlist.name}" every ${formatInterval(intervalMinutes)}?`)) {
+        if (!await Confirm.confirm(
+            `Enable automatic updates for "${playlist.name}" every ${formatInterval(intervalMinutes)}?`,
+            'Enable Automatic Updates',
+            'Enable',
+            'btn-success'
+        )) {
             return;
         }
 
@@ -790,18 +802,24 @@ function togglePlaylist(id) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                Toast.success('Automatic updates enabled');
                 loadPlaylists();
             } else {
-                alert('Error: ' + (data.error || 'Unknown error'));
+                Toast.error('Error: ' + (data.error || 'Unknown error'));
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            Toast.error('Error: ' + error.message);
         });
 
     } else if (!newState && currentState) {
         // Disabling auto: warn
-        if (!confirm(`Disable automatic updates for "${playlist.name}"?\n\nYou can still update it manually using the "Update Now" button.`)) {
+        if (!await Confirm.confirm(
+            `Disable automatic updates for "${playlist.name}"?\n\nYou can still update it manually using the "Update Now" button.`,
+            'Disable Automatic Updates',
+            'Disable',
+            'btn-warning'
+        )) {
             return;
         }
 
@@ -817,25 +835,32 @@ function togglePlaylist(id) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                Toast.success('Automatic updates disabled');
                 loadPlaylists();
             } else {
-                alert('Error: ' + (data.error || 'Unknown error'));
+                Toast.error('Error: ' + (data.error || 'Unknown error'));
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            Toast.error('Error: ' + error.message);
         });
     }
 }
 
-function executePlaylist(id) {
+async function executePlaylist(id) {
     const playlist = playlists.find(p => p.id === id);
     if (!playlist) return;
 
     const action = playlist.is_auto ? 'update' : 'create';
     const playlistName = playlist.name;
+    const actionText = action === 'create' ? 'Create' : 'Update';
 
-    if (!confirm(`${action === 'create' ? 'Create' : 'Update'} Plex playlist "${playlistName}"?`)) {
+    if (!await Confirm.confirm(
+        `${actionText} Plex playlist "${playlistName}"?`,
+        `${actionText} Playlist`,
+        actionText,
+        'btn-success'
+    )) {
         return;
     }
 
@@ -864,11 +889,11 @@ function executePlaylist(id) {
         });
 }
 
-function deletePlaylist(id) {
+async function deletePlaylist(id) {
     const playlist = playlists.find(p => p.id === id);
     if (!playlist) return;
 
-    if (!confirm(`Delete playlist "${playlist.name}"?`)) return;
+    if (!await Confirm.confirmDelete(playlist.name, 'playlist')) return;
 
     fetch(`/api/plex/playlists/${id}`, {
         method: 'DELETE'
@@ -878,11 +903,11 @@ function deletePlaylist(id) {
             if (data.success) {
                 loadPlaylists();
             } else {
-                alert('Error: ' + (data.error || 'Unknown error'));
+                Toast.error('Error: ' + (data.error || 'Unknown error'));
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            Toast.error('Error: ' + error.message);
         });
 }
 

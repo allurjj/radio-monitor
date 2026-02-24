@@ -731,7 +731,7 @@ class NotificationsView {
             this.notificationModal.classList.add('show');
         } catch (error) {
             console.error('Failed to load notification:', error);
-            alert('Failed to load notification');
+            Toast.error('Failed to load notification');
         }
     }
 
@@ -784,7 +784,7 @@ class NotificationsView {
         });
 
         if (triggers.length === 0) {
-            alert('Please select at least one trigger');
+            Toast.warning('Please select at least one trigger');
             return;
         }
 
@@ -818,11 +818,11 @@ class NotificationsView {
                 this.hideModal();
                 this.loadNotifications();
             } else {
-                alert('Failed to save notification: ' + (result.error || 'Unknown error'));
+                Toast.error('Failed to save notification: ' + (result.error || 'Unknown error'));
             }
         } catch (error) {
             console.error('Failed to save notification:', error);
-            alert('Failed to save notification');
+            Toast.error('Failed to save notification');
         }
     }
 
@@ -838,19 +838,24 @@ class NotificationsView {
             const data = await response.json();
 
             if (data.success) {
-                alert('Test notification sent successfully!');
+                Toast.success('Test notification sent successfully!');
                 this.loadNotifications();
             } else {
-                alert('Failed to send test notification: ' + (data.message || 'Unknown error'));
+                Toast.error('Failed to send test notification: ' + (data.message || 'Unknown error'));
             }
         } catch (error) {
             console.error('Failed to test notification:', error);
-            alert('Failed to send test notification');
+            Toast.error('Failed to send test notification');
         }
     }
 
     async deleteNotification(id) {
-        if (!confirm('Are you sure you want to delete this notification?')) {
+        if (!await Confirm.confirm(
+            'Are you sure you want to delete this notification?',
+            'Delete Notification',
+            'Delete',
+            'btn-danger'
+        )) {
             return;
         }
 
@@ -861,13 +866,14 @@ class NotificationsView {
             const data = await response.json();
 
             if (data.success) {
+                Toast.success('Notification deleted successfully');
                 this.loadNotifications();
             } else {
-                alert('Failed to delete notification: ' + (data.error || 'Unknown error'));
+                Toast.error('Failed to delete notification: ' + (data.error || 'Unknown error'));
             }
         } catch (error) {
             console.error('Failed to delete notification:', error);
-            alert('Failed to delete notification');
+            Toast.error('Failed to delete notification');
         }
     }
 

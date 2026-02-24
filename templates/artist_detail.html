@@ -347,7 +347,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (typeof showToast === 'function') {
                         showToast(data.message, 'success');
                     } else {
-                        alert(data.message);
+                        Toast.success(data.message);
                     }
 
                     // Change button to success state
@@ -373,7 +373,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (typeof showToast === 'function') {
                         showToast(data.message, 'error');
                     } else {
-                        alert(data.message);
+                        Toast.success(data.message);
                     }
 
                     // Re-enable button
@@ -387,7 +387,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (typeof showToast === 'function') {
                     showToast('Failed to import artist', 'error');
                 } else {
-                    alert('Failed to import artist');
+                    Toast.error('Failed to import artist');
                 }
 
                 // Re-enable button

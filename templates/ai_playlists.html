@@ -840,7 +840,12 @@ async function viewDetails(id) {
 
 // Delete AI playlist
 async function deleteAIPlaylist(id, playlistName) {
-    if (!confirm(`Delete "${playlistName}" from both Plex and the history?\n\nThis will permanently remove the playlist from Plex and delete this generation record.`)) {
+    if (!await Confirm.confirm(
+        `Delete "${playlistName}" from both Plex and the history?\n\nThis will permanently remove the playlist from Plex and delete this generation record.`,
+        'Delete AI Playlist',
+        'Delete',
+        'btn-danger'
+    )) {
         return;
     }
 

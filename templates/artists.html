@@ -866,7 +866,12 @@ async function saveMbidOverride() {
 
         if (validationResult.warnings && validationResult.warnings.length > 0) {
             const warnings = validationResult.warnings.map(w => w.message).join('\n\n');
-            if (!confirm('Warnings:\n\n' + warnings + '\n\nContinue anyway?')) {
+            if (!await Confirm.confirm(
+                'Warnings:\n\n' + warnings + '\n\nContinue anyway?',
+                'Import Warnings',
+                'Continue Anyway',
+                'btn-warning'
+            )) {
                 return;
             }
         }
@@ -1029,12 +1034,8 @@ document.getElementById('btn-confirm-delete').addEventListener('click', function
         // Close modal
         deleteArtistModal.hide();
 
-        // Show success message (with fallback)
-        if (typeof Toast !== 'undefined' && Toast.success) {
-            Toast.success(data.message || `Deleted "${name}"`);
-        } else {
-            alert(data.message || `Deleted "${name}"`);
-        }
+        // Show success message
+        Toast.success(data.message || `Deleted "${name}"`);
 
         // Remove row from table (visual feedback before reload)
         const row = document.querySelector(`tr[data-mbid="${mbid}"]`);

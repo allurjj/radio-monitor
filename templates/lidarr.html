@@ -405,12 +405,15 @@ document.getElementById('station-filter').addEventListener('change', function() 
 });
 
 // Reset Import Status button
-document.getElementById('btn-reset-import').addEventListener('click', function() {
-    if (!confirm(
+document.getElementById('btn-reset-import').addEventListener('click', async function() {
+    if (!await Confirm.confirm(
         '⚠️ Reset Import Status?\n\n' +
         'This will mark ALL artists as "Needs Import".\n' +
         'Useful when sharing databases with friends.\n\n' +
-        'Are you sure you want to continue?'
+        'Are you sure you want to continue?',
+        'Reset Import Status',
+        'Reset',
+        'btn-warning'
     )) {
         return;
     }
@@ -424,17 +427,17 @@ document.getElementById('btn-reset-import').addEventListener('click', function()
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert(`✓ ${data.message}`);
+            Toast.success(`✓ ${data.message}`);
             // Refresh artist list
             const minPlays = document.getElementById('min-plays').value;
             const station = document.getElementById('station-filter').value;
             loadArtists(parseInt(minPlays), station);
         } else {
-            alert('✗ Error: ' + (data.error || data.message));
+            Toast.error('✗ Error: ' + (data.error || data.message));
         }
     })
     .catch(error => {
-        alert('✗ Error: ' + error.message);
+        Toast.error('✗ Error: ' + error.message);
     });
 });
 
@@ -470,7 +473,7 @@ document.getElementById('select-all-page').addEventListener('change', function()
 });
 
 // Import button
-document.getElementById('btn-import').addEventListener('click', function() {
+document.getElementById('btn-import').addEventListener('click', async function() {
     const selectedCheckboxes = document.querySelectorAll('.artist-checkbox:checked');
     const mbids = Array.from(selectedCheckboxes).map(cb => ({
         mbid: cb.value,
@@ -478,11 +481,16 @@ document.getElementById('btn-import').addEventListener('click', function() {
     }));
 
     if (mbids.length === 0) {
-        alert('Please select at least one artist to import');
+        Toast.warning('Please select at least one artist to import');
         return;
     }
 
-    if (!confirm(`Import ${mbids.length} artists to Lidarr?`)) {
+    if (!await Confirm.confirm(
+        `Import ${mbids.length} artist${mbids.length > 1 ? 's' : ''} to Lidarr?`,
+        'Import Artists',
+        'Import',
+        'btn-success'
+    )) {
         return;
     }
 

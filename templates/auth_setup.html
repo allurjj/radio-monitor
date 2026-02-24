@@ -110,9 +110,14 @@
             }
         }
 
-        function skipSetup() {
-            if (confirm('Are you sure you want to skip authentication setup? ' +
-                       'Your application will be accessible without a password.')) {
+        async function skipSetup() {
+            if (await Confirm.confirm(
+                'Are you sure you want to skip authentication setup? ' +
+                'Your application will be accessible without a password.',
+                'Skip Authentication',
+                'Skip Setup',
+                'btn-warning'
+            )) {
                 window.location.href = '/';
             }
         }

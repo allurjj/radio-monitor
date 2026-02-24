@@ -178,7 +178,7 @@ body.loading-active {
 
 /* ===== MODALS ===== */
 
-.modal {
+.custom-modal {
     display: none;
     position: fixed;
     top: 0;
@@ -190,20 +190,65 @@ body.loading-active {
     overflow: auto;
 }
 
-.modal.show {
+.custom-modal.show {
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 20px;
 }
 
-.modal-dialog {
+.custom-modal-dialog {
     background: white;
     border-radius: 8px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     width: 100%;
     max-width: 500px;
     animation: modalSlideIn 0.3s ease;
+}
+
+.custom-modal-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.custom-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.custom-modal-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 500;
+}
+
+.custom-modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    color: #6c757d;
+}
+
+.custom-modal-close:hover {
+    color: #000;
+}
+
+.custom-modal-body {
+    padding: 1.5rem;
+}
+
+.custom-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #dee2e6;
 }
 
 .modal-sm {

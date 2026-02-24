@@ -341,11 +341,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.success) {
                     // Show success message
-                    if (typeof showToast === 'function') {
-                        showToast(`Artist ${name}: ${data.message}`, 'success');
-                    } else {
-                        alert(`Artist ${name}: ${data.message}`);
-                    }
+                    Toast.success(`Artist ${name}: ${data.message}`);
 
                     // Change button to success state
                     this.className = 'btn btn-success';
@@ -367,11 +363,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 } else {
                     // Show error message
-                    if (typeof showToast === 'function') {
-                        showToast(`Artist ${name}: ${data.message}`, 'error');
-                    } else {
-                        alert(`Artist ${name}: ${data.message}`);
-                    }
+                    Toast.error(`Artist ${name}: ${data.message}`);
 
                     // Re-enable button
                     this.disabled = false;
@@ -381,11 +373,7 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 console.error('Error importing artist:', error);
-                if (typeof showToast === 'function') {
-                    showToast('Failed to import artist', 'error');
-                } else {
-                    alert('Failed to import artist');
-                }
+                Toast.error('Failed to import artist');
 
                 // Re-enable button
                 this.disabled = false;

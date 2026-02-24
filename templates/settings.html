@@ -717,7 +717,7 @@ function loadSettings() {
         })
         .catch(error => {
             console.error('Error loading settings:', error);
-            alert('Error loading settings: ' + error.message);
+            Toast.error('Error loading settings: ' + error.message);
         });
 }
 
@@ -857,10 +857,10 @@ function displayStations(stations) {
                 </span>
             </td>
             <td>
-                <button class="btn btn-sm btn-outline-primary btn-toggle-station" data-station="${station.id}" title="Toggle">
+                <button type="button" class="btn btn-sm btn-outline-primary btn-toggle-station" data-station="${station.id}" title="Toggle">
                     <i class="bi bi-arrow-repeat"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-danger btn-delete-station" data-station="${station.id}" title="Delete">
+                <button type="button" class="btn btn-sm btn-outline-danger btn-delete-station" data-station="${station.id}" title="Delete">
                     <i class="bi bi-trash"></i>
                 </button>
             </td>
@@ -871,19 +871,72 @@ function displayStations(stations) {
 
     // Add event listeners for toggle buttons
     document.querySelectorAll('.btn-toggle-station').forEach(btn => {
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', async function() {
+            console.log('Toggle button clicked');
             const stationId = this.getAttribute('data-station');
-            toggleStation(stationId);
+            console.log('Station ID:', stationId);
+            const checkbox = document.querySelector(`.station-enabled-checkbox[data-station="${stationId}"]`);
+            const currentState = checkbox.checked;
+            const newState = !currentState;
+            const action = newState ? 'enable' : 'disable';
+
+            console.log('About to show confirmation for:', action, stationId);
+            console.log('Confirm object exists:', typeof Confirm, Confirm);
+
+            // Confirm before toggling
+            const confirmed = await Confirm.confirm(
+                `Are you sure you want to ${action} station "${stationId}"?`,
+                `${action.charAt(0).toUpperCase() + action.slice(1)} Station`,
+                `${action.charAt(0).toUpperCase() + action.slice(1)}`,
+                newState ? 'btn-success' : 'btn-warning'
+            );
+
+            console.log('Confirmed:', confirmed);
+
+            if (!confirmed) {
+                console.log('User cancelled');
+                return;
+            }
+
+            console.log('User confirmed, proceeding with toggle');
+            // User confirmed, proceed with toggle
+            await toggleStationWithState(stationId, newState);
+        });
+    });
+
+    // Add event listeners for station enabled checkboxes
+    document.querySelectorAll('.station-enabled-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', async function(e) {
+            e.preventDefault(); // Prevent the checkbox from changing immediately
+            const stationId = this.getAttribute('data-station');
+            const currentState = this.checked; // What it WILL be if we allow it
+            const action = currentState ? 'enable' : 'disable';
+
+            // Confirm before toggling
+            if (!await Confirm.confirm(
+                `Are you sure you want to ${action} station "${stationId}"?`,
+                `${action.charAt(0).toUpperCase() + action.slice(1)} Station`,
+                `${action.charAt(0).toUpperCase() + action.slice(1)}`,
+                currentState ? 'btn-success' : 'btn-warning'
+            )) {
+                // Revert the checkbox back to original state
+                this.checked = !currentState;
+                return;
+            }
+
+            // User confirmed, proceed with toggle
+            await toggleStationWithState(stationId, currentState);
         });
     });
 
     // Add event listeners for delete buttons
     document.querySelectorAll('.btn-delete-station').forEach(btn => {
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', async function() {
             const stationId = this.getAttribute('data-station');
-            if (confirm(`Are you sure you want to delete station "${stationId}"? This action cannot be undone.`)) {
-                deleteStation(stationId);
+            if (!await Confirm.confirmDelete(stationId, 'station')) {
+                return;
             }
+            deleteStation(stationId);
         });
     });
 }
@@ -891,8 +944,34 @@ function displayStations(stations) {
 function toggleStation(stationId) {
     // Get current enabled state
     const checkbox = document.querySelector(`.station-enabled-checkbox[data-station="${stationId}"]`);
-    const newEnabled = !checkbox.checked;
+    const currentState = checkbox.checked;
+    const newState = !currentState;
 
+    fetch(`/api/stations/${stationId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            enabled: newState,
+            consecutive_failures: 0
+        })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Toast.success(`Station ${newState ? 'enabled' : 'disabled'} successfully`);
+                loadStations();
+            } else {
+                Toast.error('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            Toast.error('Error: ' + error.message);
+        });
+}
+
+async function toggleStationWithState(stationId, newEnabled) {
     fetch(`/api/stations/${stationId}`, {
         method: 'PUT',
         headers: {
@@ -906,13 +985,14 @@ function toggleStation(stationId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                Toast.success(`Station ${newEnabled ? 'enabled' : 'disabled'} successfully`);
                 loadStations();
             } else {
-                alert('Error: ' + data.message);
+                Toast.error('Error: ' + data.message);
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            Toast.error('Error: ' + error.message);
         });
 }
 
@@ -926,13 +1006,14 @@ function deleteStation(stationId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                Toast.success('Station deleted successfully');
                 loadStations();
             } else {
-                alert('Error: ' + data.message);
+                Toast.error('Error: ' + data.message);
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            Toast.error('Error: ' + error.message);
         });
 }
 
@@ -948,13 +1029,13 @@ function addStation() {
 
     // Validate
     if (!stationId || !name || !url || !genre || !market) {
-        alert('Please fill in all required fields');
+        Toast.warning('Please fill in all required fields');
         return;
     }
 
     // Validate station ID format
     if (!/^[a-z0-9]+$/.test(stationId)) {
-        alert('Station ID must contain only lowercase letters and numbers (no spaces)');
+        Toast.error('Station ID must contain only lowercase letters and numbers (no spaces)');
         return;
     }
 
@@ -977,17 +1058,18 @@ function addStation() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                Toast.success('Station added successfully');
                 // Close modal and reload stations
                 const modal = bootstrap.Modal.getInstance(document.getElementById('addStationModal'));
                 modal.hide();
                 document.getElementById('add-station-form').reset();
                 loadStations();
             } else {
-                alert('Error: ' + data.message);
+                Toast.error('Error: ' + data.message);
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            Toast.error('Error: ' + error.message);
         });
 }
 
@@ -1089,11 +1171,11 @@ document.getElementById('btn-save-all').addEventListener('click', function() {
                     modal.show();
                 }
             } else {
-                alert('Error: ' + data.message);
+                Toast.error('Error: ' + data.message);
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            Toast.error('Error: ' + error.message);
         });
 });
 
@@ -1315,24 +1397,29 @@ function getFormSettings() {
 }
 
 // Reset button
-document.getElementById('btn-reset').addEventListener('click', function() {
-    if (confirm('Reset all settings to their saved values?')) {
-        loadSettings();
+document.getElementById('btn-reset').addEventListener('click', async function() {
+    if (!await Confirm.confirm('Reset all settings to their saved values?', 'Reset Settings', 'Reset', 'btn-warning')) {
+        return;
     }
+    loadSettings();
+    Toast.success('Settings reset to saved values');
 });
 
 // Shutdown application button
-document.getElementById('btn-shutdown-app').addEventListener('click', function() {
+document.getElementById('btn-shutdown-app').addEventListener('click', async function() {
     const resultDiv = document.getElementById('shutdown-result');
 
-    if (!confirm(
+    if (!await Confirm.confirm(
         '⚠️ Are you sure you want to shutdown Radio Monitor?\n\n' +
         'The web interface will become unavailable.\n\n' +
         'You can restart the application from:\n' +
         '• Windows: Double-click "Radio Monitor.exe"\n' +
         '• Linux: sudo systemctl start radio-monitor\n' +
         '• Docker: docker-compose up -d\n\n' +
-        'Continue with shutdown?'
+        'Continue with shutdown?',
+        'Shutdown Application',
+        'Shutdown',
+        'btn-danger'
     )) {
         return;
     }
@@ -1373,18 +1460,18 @@ document.getElementById('btn-shutdown-app').addEventListener('click', function()
 });
 
 // Backup button
-document.getElementById('btn-backup-create').addEventListener('click', function() {
+document.getElementById('btn-backup-create').addEventListener('click', async function() {
     fetch('/api/backup/create', { method: 'POST' })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert(`Backup created: ${data.backup_path}`);
+                Toast.success(`Backup created: ${data.backup_path}`);
             } else {
-                alert('Error: ' + data.message);
+                Toast.error('Error: ' + data.message);
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            Toast.error('Error: ' + error.message);
         });
 });
 
@@ -1455,15 +1542,20 @@ function displayBackups(backups) {
 
     // Add event listeners for restore buttons
     document.querySelectorAll('.btn-restore-backup').forEach(btn => {
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', async function() {
             const backupPath = this.getAttribute('data-backup');
-            restoreBackup(backupPath);
+            await restoreBackup(backupPath);
         });
     });
 }
 
-function restoreBackup(backupPath) {
-    if (!confirm(`Restore database from:\n${backupPath}\n\nCurrent database will be backed up first.`)) {
+async function restoreBackup(backupPath) {
+    if (!await Confirm.confirm(
+        `Restore database from:\n${backupPath}\n\nCurrent database will be backed up first.`,
+        'Restore Database',
+        'Restore',
+        'btn-warning'
+    )) {
         return;
     }
 
@@ -1477,25 +1569,30 @@ function restoreBackup(backupPath) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert('Database restored successfully!');
+                Toast.success('Database restored successfully!');
                 loadBackups();  // Refresh list
             } else {
-                alert('Error: ' + data.message);
+                Toast.error('Error: ' + data.message);
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            Toast.error('Error: ' + error.message);
         });
 }
 
 // Vacuum database button
-document.getElementById('btn-vacuum-db').addEventListener('click', function() {
-    if (!confirm('Vacuum the database? This optimizes the database file.\n\nMay take a few moments...')) {
+document.getElementById('btn-vacuum-db').addEventListener('click', async function() {
+    if (!await Confirm.confirm(
+        'Vacuum the database? This optimizes the database file.\n\nMay take a few moments...',
+        'Vacuum Database',
+        'Vacuum',
+        'btn-warning'
+    )) {
         return;
     }
 
     // This would require a CLI call - for now just show message
-    alert('Database vacuum can be performed from the command line:\n\npython -m radio_monitor.cli --vacuum-db');
+    Toast.info('Database vacuum can be performed from the command line:\n\npython -m radio_monitor.cli --vacuum-db');
 });
 
 // Export database button
@@ -1531,7 +1628,7 @@ document.getElementById('btn-export-db').addEventListener('click', function() {
 });
 
 // Import database button
-document.getElementById('btn-import-db').addEventListener('click', function() {
+document.getElementById('btn-import-db').addEventListener('click', async function() {
     const sourcePath = document.getElementById('import-source-path').value.trim();
     const resultDiv = document.getElementById('import-result');
 
@@ -1541,11 +1638,14 @@ document.getElementById('btn-import-db').addEventListener('click', function() {
     }
 
     // Show warning confirmation
-    if (!confirm(
+    if (!await Confirm.confirm(
         '⚠️ WARNING: This will OVERWRITE your current database!\n\n' +
         'All your data will be replaced with the imported database.\n' +
         'This cannot be undone.\n\n' +
-        'Are you sure you want to continue?'
+        'Are you sure you want to continue?',
+        'Import Database',
+        'Import',
+        'btn-danger'
     )) {
         return;
     }
@@ -1563,6 +1663,7 @@ document.getElementById('btn-import-db').addEventListener('click', function() {
     .then(data => {
         if (data.success) {
             resultDiv.innerHTML = `<div class="alert alert-success">✓ ${data.message}</div>`;
+            Toast.success('Database imported successfully');
             // Reload page after 2 seconds to show new data
             setTimeout(() => {
                 window.location.reload();

@@ -555,7 +555,7 @@
                                 <button type="button" class="btn btn-outline-primary w-100 mb-2" onclick="changePassword()">
                                     <i class="bi bi-key"></i> Change Password
                                 </button>
-                                <button type="button" class="btn btn-outline-danger w-100" onclick="disableAuth()">
+                                <button type="button" class="btn btn-outline-danger w-100" id="btn-disable-auth">
                                     <i class="bi bi-shield-x"></i> Disable Authentication
                                 </button>
                             </div>
@@ -738,9 +738,13 @@
         window.location.href = "/auth/setup";
     }
 
-    function disableAuth() {
-        if (!confirm("Are you sure you want to disable authentication?\\n\\n" +
-                    "Anyone on your network will be able to access Radio Monitor.")) {
+    async function disableAuth() {
+        if (!await Confirm.confirm(
+            "Are you sure you want to disable authentication?\n\nAnyone on your network will be able to access Radio Monitor.",
+            'Disable Authentication',
+            'Disable',
+            'btn-danger'
+        )) {
             return;
         }
 
@@ -748,14 +752,15 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    Toast.success("Authentication disabled successfully");
                     // Reload auth status
                     loadAuthStatus();
                 } else {
-                    alert("Error: " + data.message);
+                    Toast.error("Error: " + data.message);
                 }
             })
             .catch(error => {
-                alert("Error: " + error.message);
+                Toast.error("Error: " + error.message);
             });
     }
 
@@ -764,6 +769,17 @@
         const modal = new bootstrap.Modal(document.getElementById("changePasswordModal"));
         modal.show();
     }
+
+    // Add event listener for disable auth button
+    document.addEventListener('DOMContentLoaded', function() {
+        const disableAuthBtn = document.getElementById('btn-disable-auth');
+        if (disableAuthBtn) {
+            disableAuthBtn.addEventListener('click', async function(e) {
+                e.preventDefault();
+                await disableAuth();
+            });
+        }
+    });
 
     function submitChangePassword() {
         const current = document.getElementById("current-password").value;
