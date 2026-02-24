@@ -515,6 +515,298 @@ img[data-src]::before {
     }
 }
 
+/* ===== BUTTON HOVER EFFECTS ===== */
+
+/* Enhanced hover effects for action buttons */
+.btn-hover-effect {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.btn-hover-effect::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn-hover-effect:hover::before {
+    width: 300px;
+    height: 300px;
+}
+
+.btn-hover-effect:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-hover-effect:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Primary button hover effect */
+.btn-primary.btn-hover-effect:hover {
+    background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
+    box-shadow: 0 6px 16px rgba(13, 110, 253, 0.3);
+}
+
+/* Success button hover effect */
+.btn-success.btn-hover-effect:hover {
+    background: linear-gradient(135deg, #198754 0%, #157347 100%);
+    box-shadow: 0 6px 16px rgba(25, 135, 84, 0.3);
+}
+
+/* Danger button hover effect */
+.btn-danger.btn-hover-effect:hover {
+    background: linear-gradient(135deg, #dc3545 0%, #bb2d3b 100%);
+    box-shadow: 0 6px 16px rgba(220, 53, 69, 0.3);
+}
+
+/* Warning button hover effect */
+.btn-warning.btn-hover-effect:hover {
+    background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%);
+    box-shadow: 0 6px 16px rgba(255, 193, 7, 0.3);
+}
+
+/* Info button hover effect */
+.btn-info.btn-hover-effect:hover {
+    background: linear-gradient(135deg, #0dcaf0 0%, #0aa2c0 100%);
+    box-shadow: 0 6px 16px rgba(13, 202, 240, 0.3);
+}
+
+/* Icon button hover effect */
+.btn-icon-hover {
+    transition: all 0.2s ease;
+}
+
+.btn-icon-hover:hover {
+    transform: scale(1.1);
+    filter: brightness(1.2);
+}
+
+.btn-icon-hover:active {
+    transform: scale(0.95);
+}
+
+/* ===== TABLE ROW FADE-IN TRANSITIONS ===== */
+
+/* Smooth fade-in for table updates */
+table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+table tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* Fade-in animation for dynamically added rows */
+@keyframes fadeInRow {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in-row {
+    animation: fadeInRow 0.3s ease forwards;
+}
+
+/* Staggered fade-in for multiple rows */
+.fade-in-row:nth-child(1) { animation-delay: 0.05s; }
+.fade-in-row:nth-child(2) { animation-delay: 0.1s; }
+.fade-in-row:nth-child(3) { animation-delay: 0.15s; }
+.fade-in-row:nth-child(4) { animation-delay: 0.2s; }
+.fade-in-row:nth-child(5) { animation-delay: 0.25s; }
+.fade-in-row:nth-child(6) { animation-delay: 0.3s; }
+.fade-in-row:nth-child(7) { animation-delay: 0.35s; }
+.fade-in-row:nth-child(8) { animation-delay: 0.4s; }
+.fade-in-row:nth-child(9) { animation-delay: 0.45s; }
+.fade-in-row:nth-child(10) { animation-delay: 0.5s; }
+
+/* Smooth transition for filter changes */
+.filter-transition {
+    transition: all 0.3s ease;
+}
+
+.filter-transition.entering {
+    opacity: 0;
+    transform: translateY(-10px);
+}
+
+.filter-transition.entered {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.filter-transition.exiting {
+    opacity: 0;
+    transform: translateY(10px);
+}
+
+/* ===== PROGRESS BARS ===== */
+
+/* Progress bar for long operations */
+.progress-container {
+    margin: 20px 0;
+}
+
+.progress-bar-animated {
+    background: linear-gradient(90deg, #0d6efd 0%, #0dcaf0 50%, #0d6efd 100%);
+    background-size: 200% 100%;
+    animation: progressShine 2s ease infinite;
+}
+
+@keyframes progressShine {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* Striped progress bar */
+.progress-bar-striped {
+    background-image: linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.15) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.15) 50%,
+        rgba(255, 255, 255, 0.15) 75%,
+        transparent 75%,
+        transparent
+    );
+    background-size: 1rem 1rem;
+    animation: progressStripes 1s linear infinite;
+}
+
+@keyframes progressStripes {
+    from {
+        background-position: 1rem 0;
+    }
+    to {
+        background-position: 0 0;
+    }
+}
+
+/* Inline progress text */
+.progress-with-text {
+    position: relative;
+}
+
+.progress-with-text .progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    white-space: nowrap;
+}
+
+/* ===== KEYBOARD SHORTCUTS MODAL ===== */
+
+.keyboard-shortcuts-modal .modal-dialog {
+    max-width: 600px;
+}
+
+.keyboard-shortcuts-modal .keyboard-shortcuts-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.keyboard-shortcuts-modal .keyboard-shortcut-category {
+    font-size: 16px;
+    font-weight: 600;
+    color: #0d6efd;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.keyboard-shortcuts-modal .keyboard-shortcut-item {
+    padding: 12px 8px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.keyboard-shortcuts-modal .keyboard-shortcut-item:last-child {
+    border-bottom: none;
+}
+
+/* Keyboard shortcut badge */
+kbd.keyboard-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 80px;
+    text-align: center;
+    box-shadow: 0 2px 0 #adb5bd, 0 3px 3px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+kbd.keyboard-badge:hover {
+    transform: translateY(1px);
+    box-shadow: 0 1px 0 #adb5bd, 0 2px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Multi-key shortcuts */
+kbd.keyboard-badge kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    margin: 0 2px;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 3px;
+    font-size: 11px;
+    box-shadow: 0 1px 0 #dee2e6;
+}
+
+/* Keyboard shortcuts help button */
+.keyboard-shortcuts-help {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.keyboard-shortcuts-help:hover {
+    opacity: 1;
+}
+
+.keyboard-shortcuts-help .btn {
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
 /* ===== RESPONSIVE ===== */
 
 @media (max-width: 768px) {
@@ -532,5 +824,21 @@ img[data-src]::before {
         flex-direction: column;
         align-items: flex-start;
         gap: 4px;
+    }
+
+    .keyboard-shortcuts-help {
+        bottom: 10px;
+        right: 10px;
+    }
+
+    .keyboard-shortcuts-help .btn {
+        width: 45px;
+        height: 45px;
+        font-size: 18px;
+    }
+
+    .btn-hover-effect:hover::before {
+        width: 150px;
+        height: 150px;
     }
 }

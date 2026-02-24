@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements (VERSION.py is auto-generated from __init__.py during build)
+# NOTE: Only requirements.txt is copied - requirements-dev.txt (Playwright) is excluded
+# to avoid bloating the Docker image with ~350MB of browser binaries
 COPY requirements.txt .
 
 # Install Python dependencies to /usr/local

@@ -105,3 +105,12 @@ DEVELOPMENT_WORKFLOW.md
 # GITHUB*.md
 # DEPENDENCY*.md
 # QUICK*.md
+
+# ------------------------------------------
+# Development Tools (Playwright - for design/debugging only)
+# ------------------------------------------
+# Playwright browser binaries (~350MB) - never commit these
+ms-playwright/          # Windows Playwright binaries
+.playwright/            # Unix/Mac Playwright binaries
+playwright-screenshots/ # Screenshots captured during development
+playwright-*            # Playwright cache and report files
