@@ -10,6 +10,75 @@
     </div>
 </div>
 
+{% if (stats.total_artists if stats else 0) == 0 and (stats.total_songs if stats else 0) == 0 %}
+<!-- Empty State - No Data Yet -->
+<div class="row">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-body">
+                <div class="empty-state">
+                    <i class="bi bi-music-note-beamed empty-state-icon"></i>
+                    <h3 class="empty-state-title">Welcome to Radio Monitor!</h3>
+                    <p class="empty-state-description">
+                        You haven't discovered any music yet. Get started by configuring your radio stations
+                        and beginning to monitor for new songs.
+                    </p>
+                    <div class="empty-state-action mt-4">
+                        <a href="/monitor" class="btn btn-primary btn-lg me-2">
+                            <i class="bi bi-broadcast"></i> Configure Stations
+                        </a>
+                        <button id="btn-monitor-start-empty" class="btn btn-success btn-lg">
+                            <i class="bi bi-play-circle"></i> Start Monitoring
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Getting Started Guide -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> Getting Started</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center">
+                            <div class="badge bg-primary rounded-circle p-3 mb-2">
+                                <i class="bi bi-1 fs-4"></i>
+                            </div>
+                            <h6>Configure Stations</h6>
+                            <p class="text-muted small">Add radio stations to monitor in the Monitor settings</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center">
+                            <div class="badge bg-success rounded-circle p-3 mb-2">
+                                <i class="bi bi-2 fs-4"></i>
+                            </div>
+                            <h6>Start Monitoring</h6>
+                            <p class="text-muted small">Begin tracking songs from your configured stations</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center">
+                            <div class="badge bg-info rounded-circle p-3 mb-2">
+                                <i class="bi bi-3 fs-4"></i>
+                            </div>
+                            <h6>Import & Create</h6>
+                            <p class="text-muted small">Add artists to Lidarr and create playlists in Plex</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
 <!-- Quick Stats -->
 <div class="row mb-4">
     <div class="col-md-4">
@@ -157,6 +226,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block custom_js %}

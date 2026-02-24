@@ -315,6 +315,37 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Start monitoring button (empty state)
+    const startEmptyBtn = document.getElementById('btn-monitor-start-empty');
+    if (startEmptyBtn) {
+        startEmptyBtn.addEventListener('click', function() {
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Starting...';
+
+            fetch('/api/monitor/start', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'started') {
+                        showToast('Monitoring started successfully! Redirecting...', 'success');
+                        // Refresh page after 2 seconds to show updated dashboard
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        showToast(data.message || 'Monitoring already running', 'warning');
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="bi bi-play-circle"></i> Start Monitoring';
+                    }
+                })
+                .catch(error => {
+                    showToast('Error starting monitor: ' + error, 'danger');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-play-circle"></i> Start Monitoring';
+                });
+        });
+    }
+
     // Stop monitoring button
     const stopBtn = document.getElementById('btn-monitor-stop');
     if (stopBtn) {
