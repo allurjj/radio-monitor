@@ -864,6 +864,13 @@ async function executePlaylist(id) {
         return;
     }
 
+    // Find the execute button and add loading state
+    const button = document.querySelector(`button[onclick="executePlaylist(${id})"]`);
+    const originalHTML = button.innerHTML;
+    button.disabled = true;
+    button.classList.add('loading');
+    button.innerHTML = '<span class="inline-spinner"></span>';
+
     // Execute via API
     fetch(`/api/plex/playlists/${id}/execute`, {
         method: 'POST',
@@ -886,6 +893,12 @@ async function executePlaylist(id) {
         })
         .catch(error => {
             showResults(0, 0, error.message, true);
+        })
+        .finally(() => {
+            // Reset button state
+            button.disabled = false;
+            button.classList.remove('loading');
+            button.innerHTML = originalHTML;
         });
 }
 
