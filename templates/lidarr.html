@@ -494,14 +494,26 @@ document.getElementById('btn-import').addEventListener('click', async function()
         return;
     }
 
+    // Add loading state to button
+    const btn = this;
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.classList.add('loading');
+    btn.innerHTML = 'Importing <span class="inline-spinner"></span>';
+
     // Show progress
     document.getElementById('import-progress').style.display = 'block';
     document.getElementById('import-results').classList.remove('show');
 
-    importArtists(mbids);
+    importArtists(mbids, () => {
+        // Reset button when complete
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        updateImportButton();
+    });
 });
 
-function importArtists(artists) {
+function importArtists(artists, onComplete) {
     let imported = 0;
     let alreadyExists = 0;
     let failed = 0;
@@ -511,6 +523,7 @@ function importArtists(artists) {
         if (index >= artists.length) {
             // All done
             showImportResults(imported, alreadyExists, failed, failedArtists);
+            if (onComplete) onComplete();
             return;
         }
 
