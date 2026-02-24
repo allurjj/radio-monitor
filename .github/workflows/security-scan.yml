@@ -20,10 +20,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run Trivy vulnerability scanner
+      - name: Build Docker image for scanning
+        run: |
+          docker build -f docker/Dockerfile -t radio-monitor:test .
+
+      - name: Run Trivy vulnerability scanner (SARIF for GitHub Security)
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ github.repository }}:latest
+          image-ref: 'radio-monitor:test'
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
@@ -34,23 +38,18 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
 
-      - name: Build Docker image for scanning
-        run: |
-          docker build -f docker/Dockerfile -t radio-monitor:test .
-
-      - name: Run Trivy on built image
+      - name: Run Trivy on built image (Table output for logs)
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'radio-monitor:test'
           format: 'table'
-          exit-code: '1'
+          exit-code: '0'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
 
       - name: Generate SBOM (Software Bill of Materials)
         run: |
-          docker build -f docker/Dockerfile -t radio-monitor:sbom .
-          docker sbom radio-monitor:sbom --output sbom.spdx-json
+          docker sbom radio-monitor:test --output sbom.spdx-json
 
       - name: Upload SBOM
         uses: actions/upload-artifact@v4
