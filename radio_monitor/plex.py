@@ -1004,6 +1004,100 @@ def update_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, old_
         }
 
 
+def create_or_update_manual_playlist(playlist_name, songs, plex_url, plex_token, music_library_name='Music'):
+    """Create or update manual playlist in Plex using replace mode
+
+    This uses the same approach as auto playlists - clears existing playlist
+    and adds new songs, rather than deleting and recreating.
+
+    Args:
+        playlist_name: Name of playlist to create/update
+        songs: List of dicts with 'title' and 'artist_name' keys
+        plex_url: Plex server URL
+        plex_token: Plex server token
+        music_library_name: Name of music library in Plex
+
+    Returns:
+        dict with:
+        - success: True/False
+        - added: Number of songs added
+        - not_found: Number of songs not found
+        - not_found_list: List of songs not found
+        - error: Error message (if any)
+    """
+    try:
+        from plexapi.server import PlexServer
+
+        # Connect to Plex
+        plex = PlexServer(plex_url, plex_token, timeout=30)
+
+        # Get music library
+        try:
+            music_library = plex.library.section(music_library_name)
+        except Exception as e:
+            logger.error(f"Error accessing Plex music library '{music_library_name}': {e}")
+            return {
+                'success': False,
+                'added': 0,
+                'not_found': len(songs),
+                'not_found_list': songs,
+                'error': f"Music library '{music_library_name}' not found"
+            }
+
+        # Find songs in Plex
+        songs_to_add = []
+        not_found = []
+
+        for idx, song in enumerate(songs, 1):
+            song_title = song.get('title')
+            artist_name = song.get('artist_name')
+
+            if not song_title or not artist_name:
+                logger.warning(f"Skipping song {idx}: missing title or artist")
+                not_found.append(song)
+                continue
+
+            # Find track in Plex library
+            track = find_song_in_library(music_library, song_title, artist_name)
+
+            if track:
+                songs_to_add.append(track)
+            else:
+                logger.debug(f"Song not found in Plex: {song_title} - {artist_name}")
+                not_found.append(song)
+
+        # Create or update playlist using replace mode (same as auto playlists)
+        try:
+            # Try to get existing playlist
+            playlist = plex.playlist(playlist_name)
+            # Remove all existing items
+            playlist.removeItems(playlist.items())
+            # Add new items
+            playlist.addItems(songs_to_add)
+            logger.info(f"Updated manual playlist '{playlist_name}' with {len(songs_to_add)} songs")
+        except:
+            # Playlist doesn't exist, create it
+            playlist = plex.createPlaylist(playlist_name, items=songs_to_add)
+            logger.info(f"Created manual playlist '{playlist_name}' with {len(songs_to_add)} songs")
+
+        return {
+            'success': True,
+            'added': len(songs_to_add),
+            'not_found': len(not_found),
+            'not_found_list': not_found
+        }
+
+    except Exception as e:
+        logger.error(f"Error creating/updating manual playlist in Plex: {e}")
+        return {
+            'success': False,
+            'added': 0,
+            'not_found': len(songs),
+            'not_found_list': songs,
+            'error': str(e)
+        }
+
+
 def delete_plex_playlist(playlist_name, plex_url, plex_token):
     """Delete playlist from Plex
 

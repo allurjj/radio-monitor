@@ -22,6 +22,7 @@ const PlaylistBuilderState = {
     sort: { column: 'last_seen', direction: 'desc' },
     pagination: { page: 1, perPage: 50, total: 0 },
     editingPlaylistId: null,   // If editing existing playlist
+    editingPlaylistName: null, // Name of playlist being edited
     showOnlySelected: false,
     expandedArtists: new Set()  // Artist IDs with expanded song lists
 };
@@ -1200,8 +1201,14 @@ function handlePlaylistSelection() {
             loadPlaylistForEditing(playlistId);
         }
     } else {
+        // No playlist selected - exit edit mode
         btnLoad.disabled = true;
         btnDelete.disabled = true;
+
+        // If we were in edit mode, reset to create mode
+        if (PlaylistBuilderState.editingPlaylistId) {
+            resetUIToCreateMode();
+        }
     }
 }
 
@@ -1237,6 +1244,7 @@ async function loadPlaylistForEditing(playlistId) {
 
         // Update state
         PlaylistBuilderState.editingPlaylistId = playlistId;
+        PlaylistBuilderState.editingPlaylistName = data.name;
 
         // Reload selections from database
         const selResponse = await fetch('/api/playlist-builder/selections');
@@ -1321,6 +1329,10 @@ function resetUIToCreateMode() {
     document.getElementById('playlistDropdown').value = '';
     document.getElementById('btnLoadPlaylist').disabled = true;
     document.getElementById('btnDeletePlaylist').disabled = true;
+
+    // Clear editing state
+    PlaylistBuilderState.editingPlaylistId = null;
+    PlaylistBuilderState.editingPlaylistName = null;
 }
 
 /**
@@ -1334,10 +1346,18 @@ function handleCreatePlaylist() {
         return;
     }
 
-    // Clear form
-    document.getElementById('playlistName').value = '';
-    document.getElementById('plexPlaylistName').value = '';
-    document.getElementById('playlistNotes').value = '';
+    // Clear form or populate if editing
+    if (PlaylistBuilderState.editingPlaylistId && PlaylistBuilderState.editingPlaylistName) {
+        // Populate with existing playlist data
+        document.getElementById('playlistName').value = PlaylistBuilderState.editingPlaylistName;
+        document.getElementById('plexPlaylistName').value = ''; // Keep empty unless user wants to override
+        document.getElementById('playlistNotes').value = '';
+    } else {
+        // Clear form for new playlist
+        document.getElementById('playlistName').value = '';
+        document.getElementById('plexPlaylistName').value = '';
+        document.getElementById('playlistNotes').value = '';
+    }
 
     // Update summary
     updatePlaylistSummary(selectionCount);
@@ -1417,15 +1437,24 @@ async function handleSavePlaylist() {
             });
         }
 
-        if (!response.ok) throw new Error('Failed to save playlist');
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to save playlist');
+        }
 
         const data = await response.json();
 
         hideLoading();
 
         // Store playlist ID for Plex creation
-        const playlistId = data.id || PlaylistBuilderState.editingPlaylistId;
+        const playlistId = data.playlist_id || PlaylistBuilderState.editingPlaylistId;
         const finalPlexName = plexName || name;
+
+        // Update editing state if name changed
+        if (PlaylistBuilderState.editingPlaylistId) {
+            PlaylistBuilderState.editingPlaylistName = name;
+            updateUIForEditingMode(name);
+        }
 
         // Update summary to show Plex option
         updatePlaylistSummaryForPlex(playlistId, finalPlexName, name);
@@ -1441,7 +1470,7 @@ async function handleSavePlaylist() {
     } catch (error) {
         hideLoading();
         console.error('Error saving playlist:', error);
-        showError('Failed to save playlist');
+        showError(error.message || 'Failed to save playlist');
     }
 }
 

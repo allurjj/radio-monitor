@@ -687,8 +687,12 @@ def api_create_manual_playlist():
         finally:
             cursor.close()
     except Exception as e:
+        error_msg = str(e)
+        if 'UNIQUE constraint failed: manual_playlists.name' in error_msg:
+            logger.error(f"Playlist name already exists: {name}")
+            return jsonify({'error': f'Playlist "{name}" already exists. Please choose a different name.'}), 400
         logger.error(f"Error creating manual playlist: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': error_msg}), 500
 
 
 @playlist_builder_bp.route('/api/playlists/manual/<int:playlist_id>', methods=['PUT'])
@@ -834,6 +838,7 @@ def api_load_manual_playlist(playlist_id):
 
             return jsonify({
                 'success': True,
+                'name': playlist['name'],
                 'song_count': len(songs)
             })
         finally:
@@ -860,7 +865,7 @@ def api_create_playlist_in_plex(playlist_id):
     """
     from radio_monitor.gui import load_settings
     from radio_monitor.database.queries import get_manual_playlist, get_manual_playlist_songs
-    from radio_monitor.plex import create_plex_manual_playlist
+    from radio_monitor.plex import create_or_update_manual_playlist
 
     db = get_db()
     if not db:
@@ -880,6 +885,10 @@ def api_create_playlist_in_plex(playlist_id):
             if not songs:
                 return jsonify({'error': 'Playlist has no songs'}), 400
 
+            # Map song_title to title for Plex compatibility
+            for song in songs:
+                song['title'] = song.get('song_title')
+
             # Get Plex settings
             settings = load_settings()
             plex_url = settings.get('plex', {}).get('url', 'http://localhost:32400')
@@ -888,11 +897,12 @@ def api_create_playlist_in_plex(playlist_id):
             if not plex_token:
                 return jsonify({'error': 'Plex token not configured'}), 500
 
-            # Create playlist in Plex
+            # Create/update playlist in Plex
             playlist_name = playlist.get('plex_playlist_name') or playlist['name']
-            music_library_name = settings.get('plex', {}).get('music_library_name', 'Music')
+            music_library_name = settings.get('plex', {}).get('music_library_name') or 'Music'
 
-            result = create_plex_manual_playlist(
+            # Use the same approach as auto playlists - replace mode
+            result = create_or_update_manual_playlist(
                 playlist_name=playlist_name,
                 songs=songs,
                 plex_url=plex_url,
@@ -946,6 +956,10 @@ def api_update_playlist_in_plex(playlist_id):
             if not songs:
                 return jsonify({'error': 'Playlist has no songs'}), 400
 
+            # Map song_title to title for Plex compatibility
+            for song in songs:
+                song['title'] = song.get('song_title')
+
             # Get Plex settings
             settings = load_settings()
             plex_url = settings.get('plex', {}).get('url', 'http://localhost:32400')
@@ -956,7 +970,7 @@ def api_update_playlist_in_plex(playlist_id):
 
             # Update playlist in Plex (delete and recreate)
             playlist_name = playlist.get('plex_playlist_name') or playlist['name']
-            music_library_name = settings.get('plex', {}).get('music_library_name', 'Music')
+            music_library_name = settings.get('plex', {}).get('music_library_name') or 'Music'
 
             result = update_plex_manual_playlist(
                 playlist_name=playlist_name,
