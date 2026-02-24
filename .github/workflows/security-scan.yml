@@ -49,7 +49,7 @@ jobs:
 
       - name: Generate SBOM (Software Bill of Materials)
         run: |
-          docker sbom radio-monitor:test --output sbom.spdx-json
+          docker sbom radio-monitor:test > sbom.spdx-json
 
       - name: Upload SBOM
         uses: actions/upload-artifact@v4
