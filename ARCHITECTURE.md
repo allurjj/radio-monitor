@@ -118,6 +118,7 @@ radio_monitor/
 ├── scrapers.py              # Radio station scraping (Selenium)
 ├── mbid.py                 # MusicBrainz API + fuzzy matching
 ├── mbid_retry.py           # PENDING artist retry manager
+├── multi_artist_resolver.py # Multi-artist collaboration resolution
 ├── lidarr.py               # Lidarr API client
 ├── plex.py                 # Plex API client + fuzzy matching
 ├── auto_playlists.py       # Auto playlist scheduler

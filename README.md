@@ -1,7 +1,7 @@
 # Radio Monitor
 
-**Version:** 1.1.7
-**Database Schema:** v12 (12 tables)
+**Version:** 1.1.8
+**Database Schema:** v12 (15 tables)
 **Python:** 3.10+
 **License:** MIT
 
@@ -17,12 +17,13 @@ Radio Monitor is a comprehensive web application for automatically discovering m
 2. **Music Discovery** - Identifies artists and songs using MusicBrainz API
 3. **Lidarr Integration** - One-click import of discovered artists to Lidarr
 4. **Plex Integration** - Creates dynamic Plex playlists with fuzzy matching
-5. **Manual Playlist Builder** - Create custom playlists by manually selecting songs ✨ **NEW**
+5. **Manual Playlist Builder** - Create custom playlists by manually selecting songs
 6. **AI-Powered Playlists** - Generate playlists using natural language instructions (Experimental)
-7. **Web GUI** - Browser-based management with modern sidebar navigation
-8. **Analytics** - Play counts, charts, and activity timeline
-9. **Automation** - Scheduled scraping, importing, and playlist creation
-10. **Notifications** - 17 notification providers (Discord, Slack, Email, Telegram, etc.)
+7. **Multi-Artist Resolution** - Advanced collaboration detection and resolution ✨ **NEW**
+8. **Web GUI** - Browser-based management with modern sidebar navigation
+9. **Analytics** - Play counts, charts, and activity timeline
+10. **Automation** - Scheduled scraping, importing, and playlist creation
+11. **Notifications** - 17 notification providers (Discord, Slack, Email, Telegram, etc.)
 
 ---
 
@@ -71,6 +72,47 @@ Default credentials:
 | **Analytics** | Play counts, charts, and activity timeline |
 | **Automation** | APScheduler for background jobs |
 | **Notifications** | 17 providers (Discord, Slack, Email, Telegram, etc.) |
+
+---
+
+## 🆕 New in Version 1.1.8
+
+### Multi-Artist Resolution
+
+**Automatically resolves multi-artist collaborations that couldn't be found by MusicBrainz API.**
+
+#### Problem Solved:
+Radio stations often list collaborations as "Artist1 Artist2" (missing separators) or "Artist1 & Artist2 & Artist3" (multiple artists). MusicBrainz expects single artist names, so these would create PENDING entries that never get resolved.
+
+#### Solution:
+Advanced multi-artist resolution with smart word-grouping strategies:
+- **Smart Grouping**: Tries different splits like ["Artist1", "Artist2"] (2+1), ["Artist1", "Artist2 Artist3"] (1+2), etc.
+- **Hybrid Validation**: Splits names AND validates both parts against MusicBrainz API
+- **Duplicate Merging**: If target artist already has the song, merges play counts
+- **Prevention**: Scraper integration prevents new PENDING entries from being created
+
+#### Examples of Successfully Resolved Collaborations:
+- "Kenny Chesneyuncle Kracker" → Kenny Chesney (missing separator)
+- "Rihanna Jay Z" → Rihanna (word separator)
+- "Yusuf Cat Stevens" → Yusuf (former name)
+- "Mumford Sons Hozier" → Mumford & Sons (missing ampersand)
+- "Black Label Society Zakk Wylde" → Black Label Society (no separator)
+
+#### CLI Command:
+```bash
+# Resolve all PENDING multi-artist entries
+python -m radio_monitor.cli --resolve-multi-artist
+
+# Test with dry-run (no changes)
+python -m radio_monitor.cli --resolve-multi-artist --dry-run
+
+# Limit to first 5 artists
+python -m radio_monitor.cli --resolve-multi-artist --max-artists 5
+```
+
+#### Success Rate:
+- **85% success rate** (34 out of 40 PENDING artists resolved)
+- Remaining failures are artists not in MusicBrainz database
 
 ---
 

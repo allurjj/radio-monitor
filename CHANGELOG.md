@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.8] - 2026-02-24
+
+### Added
+- **Multi-Artist Resolution** - Advanced collaboration detection and resolution
+  - Smart word-grouping strategies (2+1, 1+2, 3+2 splits)
+  - Hybrid validation against MusicBrainz API
+  - Duplicate song merging with play count preservation
+  - CLI command: `--resolve-multi-artist`
+  - 85% success rate (34/40 PENDING artists resolved)
+
+### Changed
+- Scraper integration prevents PENDING entries for resolvable collaborations
+- Updated documentation (README.md)
+
+---
+
 ## [1.1.7] - 2026-02-23
 
 ### Added
