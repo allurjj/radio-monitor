@@ -4,7 +4,39 @@
 {% block title %}Settings - Radio Monitor 1.0{% endblock %}
 
 {% block custom_css %}
-<style>
+    /* Grid Layout for Condensed Settings */
+    .settings-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .settings-grid.full-width {
+        grid-template-columns: 1fr;
+    }
+
+    /* Compact Cards */
+    .settings-card {
+        min-height: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .settings-card .card-body {
+        flex: 1;
+    }
+
+    /* Responsive */
+    @media (max-width: 992px) {
+        .settings-grid {
+            grid-template-columns: 1fr;
+        }
+        .settings-card {
+            min-height: auto;
+        }
+    }
+
     .test-result {
         margin-top: 0.5rem;
         padding: 0.5rem;
@@ -29,314 +61,249 @@
         background-color: #e9ecef;
         opacity: 0.7;
     }
-</style>
 {% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
         <h1><i class="bi bi-gear"></i> Settings</h1>
-        <p class="text-muted">Configure Radio Monitor settings</p>
+        <p class="text-muted mb-0">Configure Radio Monitor settings</p>
+    </div>
+    <div>
+        <button type="button" class="btn btn-outline-secondary me-2" id="btn-reset">
+            <i class="bi bi-arrow-counterclockwise"></i> Reset
+        </button>
+        <button type="button" class="btn btn-primary btn-lg" id="btn-save-all">
+            <i class="bi bi-save"></i> Save All Settings
+        </button>
     </div>
 </div>
 
 <form id="settings-form">
-    <!-- Lidarr Section -->
-    <div class="card card-standard">
-        <h2><i class="bi bi-cloud-download"></i> Lidarr</h2>
-        <div class="row">
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="lidarr-url" class="form-label">Lidarr URL</label>
-                    <input type="url" class="form-control" id="lidarr-url" required>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="lidarr-api-key" class="form-label">API Key</label>
-                    <input type="password" class="form-control" id="lidarr-api-key" required>
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="lidarr-root-folder" class="form-label">Root Folder Path</label>
-                    <div class="input-group">
-                        <select class="form-select" id="lidarr-root-folder" required>
-                            <option value="">Loading...</option>
-                        </select>
-                        <button class="btn btn-outline-secondary" type="button" id="btn-refresh-root-folders" title="Refresh root folders">
-                            <i class="bi bi-arrow-clockwise"></i>
-                        </button>
+    <!-- Row 1: Integrations (Lidarr + Plex) -->
+    <div class="settings-grid">
+        <!-- Lidarr Section -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-cloud-download text-primary"></i> Lidarr</h5>
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <label for="lidarr-url" class="form-label form-label-sm">URL</label>
+                        <input type="url" class="form-control form-control-sm" id="lidarr-url" required autocomplete="off">
+                    </div>
+                    <div class="col-6">
+                        <label for="lidarr-api-key" class="form-label form-label-sm">API Key</label>
+                        <input type="password" class="form-control form-control-sm" id="lidarr-api-key" required autocomplete="off">
                     </div>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <div class="mb-3">
-                    <label for="lidarr-quality-profile" class="form-label">Quality Profile</label>
-                    <div class="input-group">
-                        <select class="form-select" id="lidarr-quality-profile" required>
-                            <option value="">Loading...</option>
-                        </select>
-                        <button class="btn btn-outline-secondary" type="button" id="btn-refresh-quality-profiles" title="Refresh quality profiles">
-                            <i class="bi bi-arrow-clockwise"></i>
-                        </button>
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <label for="lidarr-root-folder" class="form-label form-label-sm">Root Folder</label>
+                        <div class="input-group input-group-sm">
+                            <select class="form-select" id="lidarr-root-folder" required>
+                                <option value="">Loading...</option>
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" id="btn-refresh-root-folders" title="Refresh">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
                     </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="mb-3">
-                    <label for="lidarr-metadata-profile" class="form-label">Metadata Profile</label>
-                    <div class="input-group">
-                        <select class="form-select" id="lidarr-metadata-profile" required>
-                            <option value="">Loading...</option>
-                        </select>
-                        <button class="btn btn-outline-secondary" type="button" id="btn-refresh-metadata-profiles" title="Refresh metadata profiles">
-                            <i class="bi bi-arrow-clockwise"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-md-4">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="lidarr-monitor-new">
-                    <label class="form-check-label" for="lidarr-monitor-new">
-                        Monitor new artists
-                    </label>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="lidarr-search-missing">
-                    <label class="form-check-label" for="lidarr-search-missing">
-                        Search for missing albums
-                    </label>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="lidarr-auto-import">
-                    <label class="form-check-label" for="lidarr-auto-import">
-                        Auto-import artists
-                    </label>
-                    <div class="form-text text-warning">
-                        <i class="bi bi-exclamation-triangle"></i> Automatically imports all discovered artists to Lidarr
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-md-6">
-                <label for="lidarr-min-plays" class="form-label">Minimum Plays for Auto-Import</label>
-                <input type="number" class="form-control" id="lidarr-min-plays" min="1" max="1000" value="5">
-                <div class="form-text text-muted">
-                    <i class="bi bi-info-circle"></i> Only auto-import artists with at least this many total plays (default: 5)
-                </div>
-            </div>
-            <div class="col-md-6">
-                <label for="lidarr-min-songs" class="form-label">Minimum Songs for Auto-Import</label>
-                <input type="number" class="form-control" id="lidarr-min-songs" min="1" max="50" value="1">
-                <div class="form-text text-muted">
-                    <i class="bi bi-info-circle"></i> Only auto-import artists with at least this many different songs (default: 1)
-                </div>
-            </div>
-        </div>
-        <div class="mt-3">
-            <button type="button" class="btn btn-outline-primary" id="btn-test-lidarr">
-                <i class="bi bi-wifi"></i> Test Connection
-            </button>
-            <div id="lidarr-test-result" class="test-result"></div>
-        </div>
-    </div>
-
-    <!-- Plex Section -->
-    <div class="card card-standard">
-        <h2><i class="bi bi-music-note-list"></i> Plex</h2>
-        <div class="row">
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="plex-url" class="form-label">Plex URL</label>
-                    <input type="url" class="form-control" id="plex-url" required>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="plex-token" class="form-label">Plex Token</label>
-                    <input type="password" class="form-control" id="plex-token" required>
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-md-12">
-                <div class="mb-3">
-                    <label for="plex-library" class="form-label">Music Library Name</label>
-                    <div class="input-group">
-                        <select class="form-select" id="plex-library" required>
-                            <option value="">Loading...</option>
-                        </select>
-                        <button class="btn btn-outline-secondary" type="button" id="btn-refresh-plex-libraries" title="Refresh libraries">
-                            <i class="bi bi-arrow-clockwise"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="mt-3">
-            <button type="button" class="btn btn-outline-primary" id="btn-test-plex">
-                <i class="bi bi-wifi"></i> Test Connection
-            </button>
-            <div id="plex-test-result" class="test-result"></div>
-        </div>
-    </div>
-
-    <!-- OpenRouter AI Section (Experimental) -->
-    <div class="card card-standard border-warning">
-        <div class="card-header bg-warning text-dark">
-            <h2 class="mb-0"><i class="bi bi-cpu"></i> OpenRouter AI <span class="badge bg-danger">Experimental</span></h2>
-        </div>
-        <div class="card-body">
-            <p class="text-muted">
-                Configure OpenRouter.ai for AI-powered playlist generation.
-                <a href="https://openrouter.ai/keys" target="_blank">Get your API key here</a>.
-            </p>
-            <div class="alert alert-warning">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-                <strong>Experimental Feature:</strong> AI playlist generation is cutting-edge technology.
-                Results may vary based on the AI model and your instructions.
-            </div>
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="openrouter-api-key" class="form-label">API Key</label>
-                        <input type="password" class="form-control" id="openrouter-api-key">
-                        <div class="form-text">
-                            <i class="bi bi-info-circle"></i> API key from https://openrouter.ai/keys
+                    <div class="col-6">
+                        <label for="lidarr-quality-profile" class="form-label form-label-sm">Quality Profile</label>
+                        <div class="input-group input-group-sm">
+                            <select class="form-select" id="lidarr-quality-profile" required>
+                                <option value="">Loading...</option>
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" id="btn-refresh-quality-profiles" title="Refresh">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="openrouter-model" class="form-label">AI Model</label>
-                        <input type="text" class="form-control" id="openrouter-model" value="qwen/qwen3-next-80b-a3b-instruct:free">
-                        <div class="form-text">
-                            <i class="bi bi-info-circle"></i> Model must support free tier (default: qwen/qwen3-next-80b-a3b-instruct:free)
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <label for="lidarr-metadata-profile" class="form-label form-label-sm">Metadata Profile</label>
+                        <div class="input-group input-group-sm">
+                            <select class="form-select" id="lidarr-metadata-profile" required>
+                                <option value="">Loading...</option>
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" id="btn-refresh-metadata-profiles" title="Refresh">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <label for="lidarr-min-plays" class="form-label form-label-sm">Min Plays</label>
+                        <input type="number" class="form-control form-control-sm" id="lidarr-min-plays" min="1" max="1000" value="5">
+                    </div>
+                    <div class="col-3">
+                        <label for="lidarr-min-songs" class="form-label form-label-sm">Min Songs</label>
+                        <input type="number" class="form-control form-control-sm" id="lidarr-min-songs" min="1" max="50" value="1">
+                    </div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-12">
+                        <div class="d-flex gap-3">
+                            <div class="form-check form-check-sm">
+                                <input class="form-check-input" type="checkbox" id="lidarr-monitor-new">
+                                <label class="form-check-label" for="lidarr-monitor-new">Monitor new</label>
+                            </div>
+                            <div class="form-check form-check-sm">
+                                <input class="form-check-input" type="checkbox" id="lidarr-search-missing">
+                                <label class="form-check-label" for="lidarr-search-missing">Search missing</label>
+                            </div>
+                            <div class="form-check form-check-sm">
+                                <input class="form-check-input" type="checkbox" id="lidarr-auto-import">
+                                <label class="form-check-label text-warning" for="lidarr-auto-import">Auto-import ⚠</label>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="row">
-                <div class="col-md-4">
-                    <div class="mb-3">
-                        <label for="openrouter-timeout" class="form-label">Timeout (seconds)</label>
-                        <input type="number" class="form-control" id="openrouter-timeout" min="5" max="300" value="120">
-                        <div class="form-text">API request timeout (default: 120)</div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="mb-3">
-                        <label for="openrouter-max-retries" class="form-label">Max Retries</label>
-                        <input type="number" class="form-control" id="openrouter-max-retries" min="0" max="10" value="3">
-                        <div class="form-text">Retry failed requests (default: 3)</div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="mb-3">
-                        <label for="openrouter-rate-limit" class="form-label">Rate Limit (per minute)</label>
-                        <input type="number" class="form-control" id="openrouter-rate-limit" min="1" max="10" value="1" disabled>
-                        <div class="form-text">Requests per minute (default: 1, currently disabled)</div>
-                    </div>
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="openrouter-max-tokens" class="form-label">Max Output Tokens</label>
-                        <input type="number" class="form-control" id="openrouter-max-tokens"
-                               min="1000" max="200000" step="1000" value="100000">
-                        <div class="form-text">
-                            Maximum tokens AI can return (1000-200000). Higher values allow larger playlists.<br>
-                            <strong>Recommended:</strong> 100000 for models with 1M+ context, 8000 for smaller models.
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="openrouter-max-songs-input" class="form-label">Max Input Songs</label>
-                        <input type="number" class="form-control" id="openrouter-max-songs-input"
-                               min="100" max="10000" step="100" value="5000">
-                        <div class="form-text">
-                            Maximum songs to send to AI (100-10000). Larger libraries need more tokens.<br>
-                            <strong>At 5000 songs:</strong> ~150,000 input tokens. Requires model with 200k+ context.
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Monitor Section -->
-    <div class="card card-standard">
-        <h2><i class="bi bi-broadcast"></i> Monitor</h2>
-        <div class="row">
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="monitor-database" class="form-label">Database File</label>
-                    <input type="text" class="form-control" id="monitor-database" required>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="monitor-interval" class="form-label">Scrape Interval (minutes)</label>
-                    <input type="number" class="form-control" id="monitor-interval" min="1" max="60" required>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Database Section -->
-    <div class="card card-standard">
-        <h2><i class="bi bi-database"></i> Database</h2>
-        <div class="row">
-            <div class="col-md-4">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="db-backup-enabled">
-                    <label class="form-check-label" for="db-backup-enabled">
-                        Enable automatic backups
-                    </label>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="mb-3">
-                    <label for="db-retention" class="form-label">Backup Retention (days)</label>
-                    <input type="number" class="form-control" id="db-retention" min="1" max="365" value="7">
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="mb-3">
-                    <label for="db-backup-path" class="form-label">Backup Path</label>
-                    <input type="text" class="form-control" id="db-backup-path" value="backups/">
-                </div>
-            </div>
-        </div>
-
-        <!-- Backup Actions -->
-        <div class="row mt-3">
-            <div class="col-12">
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-primary" id="btn-backup-create">
-                        <i class="bi bi-save"></i> Create Backup
+                <div class="mt-auto">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="btn-test-lidarr">
+                        <i class="bi bi-wifi"></i> Test Connection
                     </button>
-                    <button type="button" class="btn btn-outline-secondary" id="btn-backup-list">
-                        <i class="bi bi-list-ul"></i> List Backups
+                    <div id="lidarr-test-result" class="test-result"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Plex Section -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-music-note-list text-warning"></i> Plex</h5>
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <label for="plex-url" class="form-label form-label-sm">URL</label>
+                        <input type="url" class="form-control form-control-sm" id="plex-url" required autocomplete="off">
+                    </div>
+                    <div class="col-6">
+                        <label for="plex-token" class="form-label form-label-sm">Token</label>
+                        <input type="password" class="form-control form-control-sm" id="plex-token" required autocomplete="off">
+                    </div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-12">
+                        <label for="plex-library" class="form-label form-label-sm">Music Library</label>
+                        <div class="input-group input-group-sm">
+                            <select class="form-select" id="plex-library" required>
+                                <option value="">Loading...</option>
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" id="btn-refresh-plex-libraries" title="Refresh">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-auto">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="btn-test-plex">
+                        <i class="bi bi-wifi"></i> Test Connection
                     </button>
-                    <button type="button" class="btn btn-outline-warning" id="btn-vacuum-db">
-                        <i class="bi bi-arrow-clockwise"></i> Vacuum Database
+                    <div id="plex-test-result" class="test-result"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 2: AI + Monitor -->
+    <div class="settings-grid">
+        <!-- OpenRouter AI Section (Experimental) -->
+        <div class="card card-standard settings-card border-warning">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-cpu text-danger"></i> OpenRouter AI <span class="badge bg-danger ms-2">Experimental</span></h5>
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <label for="openrouter-api-key" class="form-label form-label-sm">API Key</label>
+                        <input type="password" class="form-control form-control-sm" id="openrouter-api-key" autocomplete="off">
+                    </div>
+                    <div class="col-6">
+                        <label for="openrouter-model" class="form-label form-label-sm">Model</label>
+                        <input type="text" class="form-control form-control-sm" id="openrouter-model" value="qwen/qwen3-next-80b-a3b-instruct:free" autocomplete="off">
+                        <input type="hidden" id="openrouter-rate-limit" value="1">
+                    </div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-3">
+                        <label for="openrouter-timeout" class="form-label form-label-sm">Timeout (s)</label>
+                        <input type="number" class="form-control form-control-sm" id="openrouter-timeout" min="5" max="300" value="120">
+                    </div>
+                    <div class="col-3">
+                        <label for="openrouter-max-retries" class="form-label form-label-sm">Retries</label>
+                        <input type="number" class="form-control form-control-sm" id="openrouter-max-retries" min="0" max="10" value="3">
+                    </div>
+                    <div class="col-3">
+                        <label for="openrouter-max-tokens" class="form-label form-label-sm">Max Tokens</label>
+                        <input type="number" class="form-control form-control-sm" id="openrouter-max-tokens" min="1000" max="200000" step="1000" value="100000">
+                    </div>
+                    <div class="col-3">
+                        <label for="openrouter-max-songs-input" class="form-label form-label-sm">Max Songs</label>
+                        <input type="number" class="form-control form-control-sm" id="openrouter-max-songs-input" min="100" max="10000" step="100" value="5000">
+                    </div>
+                </div>
+                <div class="alert alert-warning alert-sm py-2 mb-0">
+                    <small><i class="bi bi-exclamation-triangle"></i> Experimental feature - results may vary</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Monitor Section -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-broadcast text-info"></i> Monitor</h5>
+                <div class="row g-2 mb-2">
+                    <div class="col-12">
+                        <label for="monitor-database" class="form-label form-label-sm">Database File</label>
+                        <input type="text" class="form-control form-control-sm" id="monitor-database" required autocomplete="off">
+                    </div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-12">
+                        <label for="monitor-interval" class="form-label form-label-sm">Scrape Interval (minutes)</label>
+                        <input type="number" class="form-control form-control-sm" id="monitor-interval" min="1" max="60" required autocomplete="off">
+                    </div>
+                </div>
+                <div class="alert alert-info alert-sm py-2 mb-0">
+                    <small><i class="bi bi-info-circle"></i> Scraping runs every <strong id="interval-display">12</strong> minutes</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 3: Database + GUI -->
+    <div class="settings-grid">
+        <!-- Database Section -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-database text-success"></i> Database</h5>
+                <div class="row g-2 mb-2">
+                    <div class="col-12">
+                        <div class="form-check form-check-sm">
+                            <input class="form-check-input" type="checkbox" id="db-backup-enabled">
+                            <label class="form-check-label" for="db-backup-enabled">Enable automatic backups</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <label for="db-retention" class="form-label form-label-sm">Retention (days)</label>
+                        <input type="number" class="form-control form-control-sm" id="db-retention" min="1" max="365" value="7">
+                    </div>
+                    <div class="col-6">
+                        <label for="db-backup-path" class="form-label form-label-sm">Backup Path</label>
+                        <input type="text" class="form-control form-control-sm" id="db-backup-path" value="backups/">
+                    </div>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-backup-create">
+                        <i class="bi bi-save"></i> Backup
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-backup-list">
+                        <i class="bi bi-list-ul"></i> List
+                    </button>
+                    <button type="button" class="btn btn-outline-warning btn-sm" id="btn-vacuum-db">
+                        <i class="bi bi-arrow-clockwise"></i> Vacuum
                     </button>
                 </div>
-
                 <!-- Backup List (hidden by default) -->
                 <div id="backup-list" style="display: none;" class="mt-3">
                     <h6>Available Backups:</h6>
@@ -365,218 +332,120 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Database Sharing Section -->
-    <div class="card card-standard">
-        <h2><i class="bi bi-share"></i> Database Sharing</h2>
-        <p class="text-muted">Export your database to share with friends, or import a database from a friend.</p>
-
-        <div class="row">
-            <!-- Export Database -->
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="bi bi-box-arrow-up-right"></i> Export Database for Sharing</h5>
+        <!-- GUI Section -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-window text-dark"></i> GUI</h5>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label for="gui-host" class="form-label form-label-sm">Host</label>
+                        <input type="text" class="form-control form-control-sm" id="gui-host" value="0.0.0.0" required autocomplete="off">
                     </div>
-                    <div class="card-body">
-                        <p class="text-muted small">
-                            Exports a clean copy of your database with:
-                            <ul class="mb-0">
-                                <li>All discovery data (artists, songs, play counts)</li>
-                                <li>Removed: Playlists, activity logs, Plex failures, notifications</li>
-                                <li>Reset: Lidarr import status (friends need to do their own import)</li>
-                            </ul>
-                            <div class="mt-2">
-                                <small class="text-info">
-                                    <i class="bi bi-info-circle"></i>
-                                    File is saved to your backup directory. You can then share it with friends via cloud storage, email, etc.
-                                </small>
-                            </div>
-                        </p>
-                        <div class="mb-3">
-                            <label for="export-filename" class="form-label">Filename</label>
-                            <input type="text" class="form-control" id="export-filename"
-                                   placeholder="radio_monitor_shared.db">
+                    <div class="col-3">
+                        <label for="gui-port" class="form-label form-label-sm">Port</label>
+                        <input type="number" class="form-control form-control-sm" id="gui-port" min="1" max="65535" value="5000" required autocomplete="off">
+                    </div>
+                    <div class="col-3 d-flex align-items-end">
+                        <div class="form-check form-check-sm mt-3">
+                            <input class="form-check-input" type="checkbox" id="gui-debug">
+                            <label class="form-check-label" for="gui-debug">Debug mode</label>
                         </div>
-                        <button type="button" class="btn btn-primary" id="btn-export-db">
-                            <i class="bi bi-download"></i> Export Database
-                        </button>
-                        <div id="export-result" class="mt-2"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Import Database -->
-            <div class="col-md-6">
-                <div class="card border-warning">
-                    <div class="card-header bg-warning text-dark">
-                        <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill"></i> Import Shared Database</h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="text-muted small">
-                            Import a database shared by a friend.
-                            <br><br>
-                            <strong>⚠️ WARNING:</strong> This will <strong>OVERWRITE</strong> your current database!
-                            <br>
-                            All your data will be replaced with the imported database.
-                        </p>
-                        <div class="mb-3">
-                            <label for="import-source-path" class="form-label">Source Path</label>
-                            <input type="text" class="form-control" id="import-source-path"
-                                   placeholder="backups/radio_monitor_shared.db">
-                            <div class="form-text">Path to the shared database file</div>
-                        </div>
-                        <button type="button" class="btn btn-warning" id="btn-import-db">
-                            <i class="bi bi-upload"></i> Import Database
-                        </button>
-                        <div id="import-result" class="mt-2"></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- GUI Section -->
-    <div class="card card-standard">
-        <h2><i class="bi bi-window"></i> GUI</h2>
-        <div class="row">
-            <div class="col-md-4">
-                <div class="mb-3">
-                    <label for="gui-host" class="form-label">Host</label>
-                    <input type="text" class="form-control" id="gui-host" value="0.0.0.0" required>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="mb-3">
-                    <label for="gui-port" class="form-label">Port</label>
-                    <input type="number" class="form-control" id="gui-port" min="1" max="65535" value="5000" required>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="form-check mt-4">
-                    <input class="form-check-input" type="checkbox" id="gui-debug">
-                    <label class="form-check-label" for="gui-debug">
-                        Debug mode
-                    </label>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Logging Section -->
-    <div class="card card-standard">
-        <h2><i class="bi bi-journal-text"></i> Logging</h2>
-        <div class="row">
-            <div class="col-md-4">
-                <div class="mb-3">
-                    <label for="log-file" class="form-label">Log File</label>
-                    <input type="text" class="form-control" id="log-file" value="radio_monitor.log">
-                    <small class="form-text text-muted">Path to log file (relative or absolute)</small>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="mb-3">
-                    <label for="log-console-level" class="form-label">Console Level</label>
-                    <select class="form-select" id="log-console-level">
-                        <option value="DEBUG">Debug</option>
-                        <option value="INFO" selected>Info</option>
-                        <option value="WARNING">Warning</option>
-                        <option value="ERROR">Error</option>
-                    </select>
-                    <small class="form-text text-muted">Messages shown in terminal</small>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="mb-3">
-                    <label for="log-file-level" class="form-label">File Level</label>
-                    <select class="form-select" id="log-file-level">
-                        <option value="DEBUG">Debug</option>
-                        <option value="INFO">Info</option>
-                        <option value="WARNING">Warning</option>
-                        <option value="ERROR" selected>Error</option>
-                    </select>
-                    <small class="form-text text-muted">Messages saved to log file</small>
-                </div>
-            </div>
-        </div>
-        <div class="alert alert-info mb-0" role="alert">
-            <i class="bi bi-info-circle"></i>
-            <strong>Tip:</strong> Set File Level to <strong>WARNING</strong> or <strong>INFO</strong> to see more logs in the Log Viewer page.
-            Current setting (<strong>ERROR</strong>) only shows errors and critical issues.
-        </div>
-    </div>
-
-    <!-- Stations Section -->
-    <div class="card card-standard">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2><i class="bi bi-broadcast"></i> Stations</h2>
-            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addStationModal">
-                <i class="bi bi-plus-circle"></i> Add Station
-            </button>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-hover station-table">
-                <thead>
-                    <tr>
-                        <th>Enabled</th>
-                        <th>ID</th>
-                        <th>Name</th>
-                        <th>Genre</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="stations-table-body">
-                    <tr>
-                        <td colspan="6" class="text-center">
-                            <div class="spinner-border" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Application Control Section -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-danger">
-                <div class="card-header bg-danger text-white">
-                    <h5 class="mb-0"><i class="bi bi-power"></i> Application Control</h5>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted mb-3">
-                        <strong>Shutdown the Radio Monitor application.</strong><br>
-                        The web interface will become unavailable. You can restart the application from:
-                    </p>
-                    <ul class="text-muted small">
-                        <li><strong>Windows (.exe):</strong> Double-click <code>Radio Monitor.exe</code></li>
-                        <li><strong>Windows (source):</strong> Run <code>pythonw.exe -m radio_monitor.cli --gui</code></li>
-                        <li><strong>Linux:</strong> <code>sudo systemctl start radio-monitor</code></li>
-                        <li><strong>Docker:</strong> <code>docker-compose up -d</code></li>
-                    </ul>
-                    <button type="button" class="btn btn-danger" id="btn-shutdown-app">
-                        <i class="bi bi-power"></i> Shutdown Application
+    <!-- Row 4: Stations (Full Width) -->
+    <div class="settings-grid full-width">
+        <!-- Stations Section -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="card-title mb-0"><i class="bi bi-broadcast text-primary"></i> Stations <span class="badge bg-secondary ms-2" id="station-count">0</span></h5>
+                    <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addStationModal">
+                        <i class="bi bi-plus-circle"></i> Add Station
                     </button>
-                    <div id="shutdown-result" class="mt-3"></div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover station-table">
+                        <thead>
+                            <tr>
+                                <th>Enabled</th>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Genre</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stations-table-body">
+                            <tr>
+                                <td colspan="6" class="text-center">
+                                    <div class="spinner-border spinner-border-sm" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Save Button -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex gap-2">
-                <button type="button" class="btn btn-primary btn-lg" id="btn-save-all">
-                    <i class="bi bi-save"></i> Save All Settings
-                </button>
-                <button type="button" class="btn btn-outline-secondary" id="btn-reset">
-                    <i class="bi bi-arrow-counterclockwise"></i> Reset
-                </button>
+    <!-- Row 6: Database Sharing + Application Control (Side by Side) -->
+    <div class="settings-grid">
+        <!-- Database Sharing Section -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-share text-info"></i> Database Sharing</h5>
+                <p class="text-muted small mb-2">Export your database to share with friends, or import a database from a friend.</p>
+
+                <div class="row g-2 mb-2">
+                    <div class="col-12">
+                        <label for="export-filename" class="form-label form-label-sm">Export Filename</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" id="export-filename" placeholder="radio_monitor_shared.db">
+                            <button class="btn btn-primary" type="button" id="btn-export-db">
+                                <i class="bi bi-download"></i> Export
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="row g-2">
+                    <div class="col-12">
+                        <label for="import-source-path" class="form-label form-label-sm">Import Source Path ⚠</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" id="import-source-path" placeholder="backups/radio_monitor_shared.db">
+                            <button class="btn btn-warning" type="button" id="btn-import-db">
+                                <i class="bi bi-upload"></i> Import
+                            </button>
+                        </div>
+                        <small class="text-danger"><strong>WARNING:</strong> This will OVERWRITE your current database!</small>
+                    </div>
+                </div>
+                <div id="export-result" class="mt-2"></div>
+                <div id="import-result" class="mt-2"></div>
+            </div>
+        </div>
+
+        <!-- Application Control Section -->
+        <div class="card border-danger bg-danger bg-opacity-10 settings-card">
+            <div class="card-body">
+                <div class="d-flex flex-column h-100">
+                    <div>
+                        <h5 class="card-title mb-1"><i class="bi bi-power text-danger"></i> Application Control</h5>
+                        <p class="text-muted small mb-3">Shutdown the Radio Monitor application</p>
+                    </div>
+                    <div class="mt-auto">
+                        <button type="button" class="btn btn-danger w-100" id="btn-shutdown-app">
+                            <i class="bi bi-power"></i> Shutdown Application
+                        </button>
+                        <div id="shutdown-result" class="mt-2"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -698,6 +567,15 @@ document.addEventListener('DOMContentLoaded', function() {
     loadSettings();
     loadStations();
 
+    // Update interval display
+    const intervalInput = document.getElementById('monitor-interval');
+    const intervalDisplay = document.getElementById('interval-display');
+    if (intervalInput && intervalDisplay) {
+        intervalInput.addEventListener('input', function() {
+            intervalDisplay.textContent = this.value;
+        });
+    }
+
     // Add event listeners for refresh buttons
     document.getElementById('btn-refresh-root-folders').addEventListener('click', loadLidarrRootFolders);
     document.getElementById('btn-refresh-quality-profiles').addEventListener('click', loadLidarrQualityProfiles);
@@ -768,7 +646,13 @@ function populateForm(settings) {
     // Monitor
     if (settings.monitor) {
         document.getElementById('monitor-database').value = settings.monitor.database_file || 'radio_songs.db';
-        document.getElementById('monitor-interval').value = settings.monitor.scrape_interval_minutes || 10;
+        const interval = settings.monitor.scrape_interval_minutes || 10;
+        document.getElementById('monitor-interval').value = interval;
+        // Update interval display
+        const intervalDisplay = document.getElementById('interval-display');
+        if (intervalDisplay) {
+            intervalDisplay.textContent = interval;
+        }
     }
 
     // Database
@@ -785,11 +669,15 @@ function populateForm(settings) {
         document.getElementById('gui-debug').checked = settings.gui.debug || false;
     }
 
-    // Logging
+    // Logging (section may not exist in all versions)
     if (settings.logging) {
-        document.getElementById('log-file').value = settings.logging.file || 'radio_monitor.log';
-        document.getElementById('log-console-level').value = settings.logging.console_level || 'INFO';
-        document.getElementById('log-file-level').value = settings.logging.file_level || 'ERROR';
+        const logFile = document.getElementById('log-file');
+        const logConsoleLevel = document.getElementById('log-console-level');
+        const logFileLevel = document.getElementById('log-file-level');
+
+        if (logFile) logFile.value = settings.logging.file || 'radio_monitor.log';
+        if (logConsoleLevel) logConsoleLevel.value = settings.logging.console_level || 'INFO';
+        if (logFileLevel) logFileLevel.value = settings.logging.file_level || 'ERROR';
     }
 
     // OpenRouter
@@ -1380,9 +1268,9 @@ function getFormSettings() {
             debug: document.getElementById('gui-debug').checked
         },
         logging: {
-            file: document.getElementById('log-file').value,
-            console_level: document.getElementById('log-console-level').value,
-            file_level: document.getElementById('log-file-level').value
+            file: document.getElementById('log-file')?.value || 'radio_monitor.log',
+            console_level: document.getElementById('log-console-level')?.value || 'INFO',
+            file_level: document.getElementById('log-file-level')?.value || 'ERROR'
         },
         openrouter: {
             api_key: document.getElementById('openrouter-api-key').value,
