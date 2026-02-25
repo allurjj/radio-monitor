@@ -42,7 +42,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
-# Chrome for Selenium removed in v1.1.0 (WTMX station no longer supported)
 
 # Copy Python dependencies from builder
 COPY --from=builder /install /usr/local

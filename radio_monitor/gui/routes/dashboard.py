@@ -12,11 +12,9 @@ logger = logging.getLogger(__name__)
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
-
 def get_db():
     """Get database instance from Flask app config"""
     return current_app.config.get('db')
-
 
 @dashboard_bp.route('/')
 @requires_auth
@@ -44,7 +42,6 @@ def dashboard():
 
     return render_template('dashboard.html', stats=stats, recent_plays=recent_plays)
 
-
 @dashboard_bp.route('/charts')
 @requires_auth
 def charts():
@@ -56,7 +53,6 @@ def charts():
         return redirect(url_for('wizard'))
 
     return render_template('charts.html')
-
 
 @dashboard_bp.route('/api/stats')
 @requires_auth
@@ -81,7 +77,6 @@ def api_stats():
 
     return jsonify({'error': 'Database not initialized'}), 500
 
-
 @dashboard_bp.route('/api/plays/recent')
 @requires_auth
 def api_plays_recent():
@@ -97,8 +92,7 @@ def api_plays_recent():
                 "timestamp": "2025-02-06 12:34:56",
                 "artist_name": "Taylor Swift",
                 "song_title": "Anti-Hero",
-                "station_id": "wtmx",
-                "station_name": "WTMX 101.9fm Chicago"
+                "station_id": "station_name": ""
             },
             ...
         ]
@@ -118,7 +112,6 @@ def api_plays_recent():
             return jsonify({'error': str(e)}), 500
 
     return jsonify({'error': 'Database not initialized'}), 500
-
 
 @dashboard_bp.route('/api/charts/plays-over-time')
 @requires_auth
@@ -158,7 +151,6 @@ def api_charts_plays_over_time():
     except Exception as e:
         logger.error(f"Error getting plays over time: {e}")
         return jsonify({'error': str(e)}), 500
-
 
 @dashboard_bp.route('/api/charts/top-songs')
 @requires_auth
@@ -210,7 +202,6 @@ def api_charts_top_songs():
         logger.error(f"Error getting top songs: {e}")
         return jsonify({'error': str(e)}), 500
 
-
 @dashboard_bp.route('/api/charts/top-artists')
 @requires_auth
 def api_charts_top_artists():
@@ -260,7 +251,6 @@ def api_charts_top_artists():
         logger.error(f"Error getting top artists: {e}")
         return jsonify({'error': str(e)}), 500
 
-
 @dashboard_bp.route('/api/charts/station-distribution')
 @requires_auth
 def api_charts_station_distribution():
@@ -303,7 +293,6 @@ def api_charts_station_distribution():
         logger.error(f"Error getting station distribution: {e}")
         return jsonify({'error': str(e)}), 500
 
-
 @dashboard_bp.route('/api/stations/dropdown')
 @requires_auth
 def api_stations_dropdown():
@@ -312,7 +301,7 @@ def api_stations_dropdown():
     Returns JSON:
         {
             "stations": [
-                {"id": "wtmx", "name": "WTMX 101.9fm Chicago"},
+                {"id": "name": ""},
                 ...
             ]
         }
@@ -343,7 +332,6 @@ def api_stations_dropdown():
     except Exception as e:
         logger.error(f"Error getting stations: {e}")
         return jsonify({'error': str(e)}), 500
-
 
 @dashboard_bp.route('/api/mbid-retry/stats')
 @requires_auth

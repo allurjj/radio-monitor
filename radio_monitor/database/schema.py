@@ -312,16 +312,15 @@ def create_tables(cursor):
 
 
 def populate_stations(cursor):
-    """Populate stations table with initial 12 stations
+    """Populate stations table with initial 11 stations
 
-    Includes 8 Chicago stations + 4 additional iHeartRadio stations
+    Includes 7 Chicago stations + 4 additional iHeartRadio stations
 
     Args:
         cursor: SQLite cursor object
     """
     stations = [
-        # Chicago stations (8)
-        ('wtmx', 'WTMX 101.9fm Chicago', 'https://wtmx.com/listen/', 'Pop', 'Chicago', 1, 'wtmx', 10),
+        # Chicago stations (7)
         ('us99', 'US99 99.5fm Chicago', 'https://www.iheart.com/live/us-99-10819/', 'Country', 'Chicago', 0, 'iheart', 15),
         ('wls', '94.7 WLS Chicago', 'https://www.iheart.com/live/947-wls-5367/', 'Classic Hits', 'Chicago', 0, 'iheart', 15),
         ('rock955', 'Rock 95.5 Chicago', 'https://www.iheart.com/live/rock-955-857/', 'Rock', 'Chicago', 0, 'iheart', 15),

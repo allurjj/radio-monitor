@@ -9,7 +9,7 @@ Package Structure:
 radio_monitor/
 ├── __init__.py           # Package initialization (this file)
 ├── database.py           # Database schema, queries, migrations
-├── scrapers.py           # Station scraping (WTMX, iHeartRadio)
+├── scrapers.py           # Station scraping iHeartRadio)
 ├── mbid.py              # MusicBrainz API lookups
 ├── lidarr.py            # Lidarr import (lookup-first approach)
 ├── plex.py              # Plex playlist creation (multi-strategy fuzzy matching)
@@ -66,7 +66,7 @@ Key Design Decisions:
 Usage:
 ------
 # CLI mode
-python -m radio_monitor.cli --station wtmx --loop --interval 10
+python -m radio_monitor.cli --station us99 --loop --interval 10
 
 # GUI mode (default)
 python -m radio_monitor.cli
@@ -84,7 +84,6 @@ __version__ = "1.1.8"
 __author__ = "Radio Monitor Team"
 __github_url__ = "https://github.com/allurjj/radio-monitor"
 
-
 def get_version():
     """Get the actual running version from VERSION.py if it exists, else use package version
 
@@ -101,7 +100,6 @@ def get_version():
     except ImportError:
         # Fallback to package version (development mode)
         return __version__
-
 
 def get_github_url():
     """Get the GitHub URL from VERSION.py if it exists, else use package default

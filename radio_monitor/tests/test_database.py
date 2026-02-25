@@ -20,7 +20,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from radio_monitor.database import RadioDatabase
 
-
 class TestDatabaseArtist(unittest.TestCase):
     """Test artist CRUD operations"""
 
@@ -53,7 +52,7 @@ class TestDatabaseArtist(unittest.TestCase):
         name = "Duplicate Artist"
 
         # Add same artist twice
-        self.db.add_artist(mbid, name, "wtmx")
+        self.db.add_artist(mbid, name)
         self.db.add_artist(mbid, name, "us99")
 
         # Should still have only one artist with this MBID
@@ -66,7 +65,7 @@ class TestDatabaseArtist(unittest.TestCase):
         mbid = "test-mbid-789"
         name = "Searchable Artist"
 
-        self.db.add_artist(mbid, name, "wtmx")
+        self.db.add_artist(mbid, name)
 
         # Search by exact name
         artist = self.db.get_artist_by_name(name)
@@ -84,7 +83,7 @@ class TestDatabaseArtist(unittest.TestCase):
 
         # Add artists
         for mbid in mbids:
-            self.db.add_artist(mbid, f"Artist {mbid}", "wtmx")
+            self.db.add_artist(mbid, f"Artist {mbid}")
 
         # Mark as imported
         self.db.mark_artists_imported(mbids)
@@ -97,7 +96,6 @@ class TestDatabaseArtist(unittest.TestCase):
             self.assertIsNotNone(artist['lidarr_imported_at'],
                               f"Artist {mbid} should have import timestamp")
 
-
 class TestDatabaseSong(unittest.TestCase):
     """Test song CRUD operations"""
 
@@ -107,7 +105,7 @@ class TestDatabaseSong(unittest.TestCase):
         self.db.connect()
         # Add test artist
         self.mbid = "test-mbid-songs"
-        self.db.add_artist(self.mbid, "Test Artist", "wtmx")
+        self.db.add_artist(self.mbid, "Test Artist")
 
     def tearDown(self):
         """Clean up test database"""
@@ -160,14 +158,13 @@ class TestDatabaseSong(unittest.TestCase):
 
         # Add more plays via increment
         for i in range(5):
-            self.db.increment_play_count("2025-01-07", i, song_id, "wtmx")
+            self.db.increment_play_count("2025-01-07", i, song_id)
 
         # Get top songs (returns tuples: (title, artist, plays))
         songs = self.db.get_top_songs(limit=1)
         self.assertEqual(len(songs), 1, "Should have 1 song")
         # Should have 6 plays total (1 from add_song + 5 from increments)
         self.assertEqual(songs[0][2], 6, "Play count should be 6 (1 from add + 5 increments)")
-
 
 class TestDatabaseStats(unittest.TestCase):
     """Test statistics queries"""
@@ -181,7 +178,7 @@ class TestDatabaseStats(unittest.TestCase):
         self.mbid1 = "mbid-stats-1"
         self.mbid2 = "mbid-stats-2"
 
-        self.db.add_artist(self.mbid1, "Artist One", "wtmx")
+        self.db.add_artist(self.mbid1, "Artist One")
         self.db.add_artist(self.mbid2, "Artist Two", "us99")
 
         # Add songs
@@ -190,7 +187,7 @@ class TestDatabaseStats(unittest.TestCase):
 
         # Add more plays
         for i in range(9):  # 9 more = 10 total with add_song
-            self.db.increment_play_count("2025-01-07", i, self.song1, "wtmx")
+            self.db.increment_play_count("2025-01-07", i, self.song1)
         for i in range(4):  # 4 more = 5 total with add_song
             self.db.increment_play_count("2025-01-07", i, self.song2, "us99")
 
@@ -217,7 +214,6 @@ class TestDatabaseStats(unittest.TestCase):
         self.assertEqual(songs[0][0], "Song One", "Top song should be Song One")
         # Play count includes 1 from add_song + 9 from increment = 10 total
         self.assertGreaterEqual(songs[0][2], 9, "Song One should have at least 9 plays")
-
 
 class TestStationHealth(unittest.TestCase):
     """Test station health tracking"""
@@ -290,7 +286,6 @@ class TestStationHealth(unittest.TestCase):
         health = self.db.get_station_health(station_id)
         self.assertIn('Degraded', health['status'], "Status should be Degraded")
         self.assertEqual(health['status_class'], 'warning', "Class should be warning")
-
 
 if __name__ == '__main__':
     unittest.main()

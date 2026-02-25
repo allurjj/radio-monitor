@@ -12,11 +12,9 @@ logger = logging.getLogger(__name__)
 
 plex_bp = Blueprint('plex', __name__)
 
-
 def get_db():
     """Get database instance from Flask app config"""
     return current_app.config.get('db')
-
 
 @plex_bp.route('/plex')
 @requires_auth
@@ -30,7 +28,6 @@ def plex():
 
     return render_template('plex.html')
 
-
 @plex_bp.route('/api/plex/preview', methods=['POST'])
 @requires_auth
 def api_plex_preview():
@@ -40,7 +37,7 @@ def api_plex_preview():
         {
             "filters": {
                 "days": 7,
-                "station_ids": ["wtmx", "us99"],  // Array of station IDs
+                "station_ids": ["us99"],  // Array of station IDs
                 "limit": 50
             }
         }
@@ -89,7 +86,6 @@ def api_plex_preview():
         logger.error(f"Error previewing playlist: {e}")
         return jsonify({'error': str(e)}), 500
 
-
 @plex_bp.route('/api/plex/create', methods=['POST'])
 @requires_auth
 def api_plex_create():
@@ -101,8 +97,7 @@ def api_plex_create():
             "mode": "merge",
             "filters": {
                 "days": 7,
-                "station_id": "wtmx",
-                "limit": 50
+                "station_id": "limit": 50
             }
         }
 
@@ -183,7 +178,6 @@ def api_plex_create():
             'error': str(e)
         }), 500
 
-
 @plex_bp.route('/api/test/plex', methods=['POST'])
 @requires_auth
 def api_test_plex():
@@ -236,7 +230,6 @@ def api_test_plex():
             'success': False,
             'message': str(e)
         })
-
 
 @plex_bp.route('/api/plex/libraries', methods=['GET'])
 @requires_auth

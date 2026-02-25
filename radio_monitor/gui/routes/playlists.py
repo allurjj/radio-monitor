@@ -13,16 +13,13 @@ logger = logging.getLogger(__name__)
 
 playlists_bp = Blueprint('playlists', __name__)
 
-
 def get_db():
     """Get database instance from Flask app config"""
     return current_app.config.get('db')
 
-
 def get_scheduler():
     """Get scheduler instance from Flask app config"""
     return current_app.config.get('scheduler')
-
 
 def scheduler_alive_callback(scheduler):
     """Create a callback that checks if scheduler is alive (not if scraping is running)
@@ -40,7 +37,6 @@ def scheduler_alive_callback(scheduler):
         return scheduler.scheduler.running if scheduler and scheduler.scheduler else False
     return callback
 
-
 @playlists_bp.route('/playlists')
 @requires_auth
 def playlists():
@@ -52,7 +48,6 @@ def playlists():
         return redirect(url_for('wizard'))
 
     return render_template('playlists.html')
-
 
 @playlists_bp.route('/api/plex/playlists', methods=['GET'])
 @requires_auth
@@ -75,7 +70,6 @@ def api_playlists():
             return jsonify({'error': str(e)}), 500
     return jsonify({'error': 'Database not initialized'}), 500
 
-
 @playlists_bp.route('/api/plex/playlists', methods=['POST'])
 @requires_auth
 def api_create_playlist():
@@ -86,7 +80,7 @@ def api_create_playlist():
             "name": "Playlist Name",
             "is_auto": true/false,
             "interval_minutes": 360,  // required if is_auto=true
-            "station_ids": ["wtmx", "us99"],
+            "station_ids": ["us99"],
             "max_songs": 50,
             "mode": "merge",
             "min_plays": 5,
@@ -237,7 +231,6 @@ def api_create_playlist():
         logger.error(f"Error creating playlist: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
-
 @playlists_bp.route('/api/plex/playlists/<int:playlist_id>', methods=['PUT'])
 @requires_auth
 def api_update_playlist(playlist_id):
@@ -356,7 +349,6 @@ def api_update_playlist(playlist_id):
         logger.error(f"Error updating playlist: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
-
 @playlists_bp.route('/api/plex/playlists/<int:playlist_id>', methods=['DELETE'])
 @requires_auth
 def api_delete_playlist(playlist_id):
@@ -414,7 +406,6 @@ def api_delete_playlist(playlist_id):
     except Exception as e:
         logger.error(f"Error deleting playlist: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
-
 
 @playlists_bp.route('/api/plex/playlists/<int:playlist_id>/toggle-auto', methods=['POST'])
 @requires_auth
@@ -507,7 +498,6 @@ def api_toggle_playlist_auto(playlist_id):
     except Exception as e:
         logger.error(f"Error toggling auto: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
-
 
 @playlists_bp.route('/api/plex/playlists/<int:playlist_id>/execute', methods=['POST'])
 @requires_auth
@@ -620,7 +610,6 @@ def api_execute_playlist(playlist_id):
         logger.error(f"Error executing playlist: {e}", exc_info=True)
         return jsonify({'error': str(e), 'added': 0, 'not_found': 0}), 500
 
-
 @playlists_bp.route('/api/plex/playlists/<int:playlist_id>/trigger', methods=['POST'])
 @requires_auth
 def api_trigger_playlist(playlist_id):
@@ -678,7 +667,6 @@ def api_trigger_playlist(playlist_id):
     except Exception as e:
         logger.error(f"Error triggering playlist update: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
-
 
 def _execute_playlist_immediate(playlist_id, db_path, plex_config):
     """Execute a playlist immediately (called by scheduler in background)

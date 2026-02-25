@@ -150,7 +150,6 @@ options = [
     '--hidden-import=apscheduler',
     '--hidden-import=apscheduler.schedulers.background',
     '--hidden-import=apscheduler.triggers.cron',
-    # Selenium removed in v1.1.0 (WTMX station no longer supported)
     # lxml removed in v1.1.0 (BeautifulSoup uses built-in html.parser)
     '--hidden-import=beautifulsoup4',
     '--hidden-import=plexapi',

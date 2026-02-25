@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 # Thread-safe lock for MBID update operations to prevent race conditions
 _mbid_update_lock = threading.Lock()
 
-
 # ==================== STATION CRUD ====================
 
 def add_station(cursor, conn, station_id, name, url, genre, market, has_mbid=False, scraper_type='iheart', wait_time=10):
@@ -38,8 +37,7 @@ def add_station(cursor, conn, station_id, name, url, genre, market, has_mbid=Fal
         genre: Music genre (e.g., 'Pop', 'Rock')
         market: Market/location (e.g., 'Chicago')
         has_mbid: Whether station provides MBIDs (default: False)
-        scraper_type: Type of scraper (ONLY 'iheart' supported as of v1.1.0, default: 'iheart')
-                     Note: 'wtmx' type is NO LONGER SUPPORTED (Selenium removed)
+        scraper_type: Type of scraper (ONLY 'iheart' supported, default: 'iheart')
         wait_time: Page load wait time in seconds (default: 10)
 
     Returns:
@@ -55,7 +53,7 @@ def add_station(cursor, conn, station_id, name, url, genre, market, has_mbid=Fal
             raise ValueError(
                 f"Unsupported scraper_type: '{scraper_type}'. "
                 f"Only 'iheart' is supported. "
-                f"The 'wtmx' type is no longer supported (Selenium dependency removed in v1.1.0)."
+
             )
 
         # Check if station already exists
@@ -81,7 +79,6 @@ def add_station(cursor, conn, station_id, name, url, genre, market, has_mbid=Fal
         logger.error(f"Error adding station {station_id}: {e}")
         conn.rollback()
         raise
-
 
 def update_station(cursor, conn, station_id, **kwargs):
     """Update station fields
@@ -130,7 +127,6 @@ def update_station(cursor, conn, station_id, **kwargs):
         conn.rollback()
         raise
 
-
 def delete_station(cursor, conn, station_id):
     """Delete a station from the database
 
@@ -164,7 +160,6 @@ def delete_station(cursor, conn, station_id):
         conn.rollback()
         raise
 
-
 def disable_station(cursor, conn, station_id):
     """Disable a station (after too many failures)
 
@@ -176,7 +171,6 @@ def disable_station(cursor, conn, station_id):
     cursor.execute("UPDATE stations SET enabled = 0 WHERE id = ?", (station_id,))
     conn.commit()
 
-
 def enable_station(cursor, conn, station_id):
     """Enable a station
 
@@ -187,7 +181,6 @@ def enable_station(cursor, conn, station_id):
     """
     cursor.execute("UPDATE stations SET enabled = 1 WHERE id = ?", (station_id,))
     conn.commit()
-
 
 def increment_station_failure_count(cursor, conn, station_id):
     """Increment station failure count and update timestamp
@@ -230,7 +223,6 @@ def increment_station_failure_count(cursor, conn, station_id):
         logger.error(f"Station {station_id} disabled after {new_failures} consecutive failures")
 
     return auto_disabled
-
 
 # ==================== ARTIST CRUD ====================
 
@@ -294,7 +286,6 @@ def add_artist(cursor, conn, mbid, name, first_seen_station):
         conn.commit()
         return True
 
-
 def update_artist_last_seen(cursor, conn, mbid):
     """Update artist's last_seen_at timestamp
 
@@ -310,7 +301,6 @@ def update_artist_last_seen(cursor, conn, mbid):
         WHERE mbid = ?
     """, (now, mbid))
     conn.commit()
-
 
 def mark_artists_imported_to_lidarr(cursor, conn, mbids):
     """Mark multiple artists as imported to Lidarr
@@ -341,7 +331,6 @@ def mark_artists_imported_to_lidarr(cursor, conn, mbids):
         conn.rollback()
         raise
 
-
 def mark_single_artist_imported_to_lidarr(cursor, conn, mbid):
     """Mark single artist as imported to Lidarr
 
@@ -366,7 +355,6 @@ def mark_single_artist_imported_to_lidarr(cursor, conn, mbid):
         logger.error(f"Error marking artist {mbid} as imported: {e}")
         conn.rollback()
         raise
-
 
 def delete_artist(cursor, conn, mbid):
     """Delete an artist and all related data (cascade)
@@ -475,7 +463,6 @@ def delete_artist(cursor, conn, mbid):
             'overrides_deleted': 0
         }
 
-
 def reset_all_lidarr_import_status(cursor, conn):
     """Reset all artists to "Needs Import" status
 
@@ -507,7 +494,6 @@ def reset_all_lidarr_import_status(cursor, conn):
         logger.error(f"Error resetting import status: {e}")
         conn.rollback()
         raise
-
 
 def update_artist_mbid_from_pending(cursor, conn, artist_name, mbid):
     """Update artist MBID (for resolving NULL or PENDING MBIDs)
@@ -713,7 +699,6 @@ def update_artist_mbid_from_pending(cursor, conn, artist_name, mbid):
         finally:
             logger.debug(f"Releasing MBID update lock for {artist_name}")
 
-
 def update_multi_artist_resolution(cursor, conn, old_collaboration_name, old_mbid, new_primary_mbid, new_primary_name):
     """Update database when multi-artist collaboration is resolved to primary artist
 
@@ -859,7 +844,6 @@ def update_multi_artist_resolution(cursor, conn, old_collaboration_name, old_mbi
         finally:
             logger.debug(f"Releasing MBID update lock for multi-artist resolution: {old_collaboration_name}")
 
-
 # ==================== SONG CRUD ====================
 
 def add_song(cursor, conn, artist_mbid, artist_name, song_title, station_id=None):
@@ -920,7 +904,6 @@ def add_song(cursor, conn, artist_mbid, artist_name, song_title, station_id=None
 
         return (True, song_id, 1)
 
-
 def update_song_play_count(cursor, conn, song_id, increment=1):
     """Update song play count
 
@@ -938,7 +921,6 @@ def update_song_play_count(cursor, conn, song_id, increment=1):
         WHERE id = ?
     """, (increment, now, song_id))
     conn.commit()
-
 
 def add_or_update_song_play(cursor, conn, date, hour, song_id, station_id, play_count=1):
     """Add or update a play record in song_plays_daily
@@ -961,7 +943,6 @@ def add_or_update_song_play(cursor, conn, date, hour, song_id, station_id, play_
 
     conn.commit()
 
-
 def increment_play_count(cursor, conn, date, hour, song_id, station_id):
     """Increment play count for a song on a specific date/hour/station
 
@@ -981,7 +962,6 @@ def increment_play_count(cursor, conn, date, hour, song_id, station_id):
     """, (date, hour, song_id, station_id))
 
     conn.commit()
-
 
 # ==================== PLAYLIST CRUD ====================
 
@@ -1047,7 +1027,6 @@ def add_playlist(cursor, conn, name, is_auto, interval_minutes=None, station_ids
         logger.error(f"Error adding playlist: {e}")
         conn.rollback()
         raise
-
 
 def update_playlist(cursor, conn, playlist_id, name=None, is_auto=None, interval_minutes=None,
                    station_ids=None, max_songs=None, mode=None,
@@ -1137,7 +1116,6 @@ def update_playlist(cursor, conn, playlist_id, name=None, is_auto=None, interval
         conn.rollback()
         raise
 
-
 def delete_playlist(cursor, conn, playlist_id):
     """Delete playlist (manual or auto)
 
@@ -1159,7 +1137,6 @@ def delete_playlist(cursor, conn, playlist_id):
         logger.error(f"Error deleting playlist {playlist_id}: {e}")
         conn.rollback()
         raise
-
 
 def set_playlist_enabled(cursor, conn, playlist_id, enabled):
     """Enable or disable playlist
@@ -1187,7 +1164,6 @@ def set_playlist_enabled(cursor, conn, playlist_id, enabled):
         logger.error(f"Error setting enabled for playlist {playlist_id}: {e}")
         conn.rollback()
         raise
-
 
 def update_playlist_next_run(cursor, conn, playlist_id, interval_minutes=None):
     """Update the next_run time for a playlist
@@ -1226,7 +1202,6 @@ def update_playlist_next_run(cursor, conn, playlist_id, interval_minutes=None):
         logger.error(f"Error updating next run for playlist {playlist_id}: {e}")
         conn.rollback()
         raise
-
 
 def record_playlist_update(cursor, conn, playlist_id, success=True, last_updated=None, next_update=None):
     """Record a playlist update attempt
@@ -1283,7 +1258,6 @@ def record_playlist_update(cursor, conn, playlist_id, success=True, last_updated
         conn.rollback()
         raise
 
-
 # ==================== MANUAL MBID OVERRIDE CRUD ====================
 
 def add_manual_mbid_override(cursor, artist_name_original, mbid, notes=None):
@@ -1321,7 +1295,6 @@ def add_manual_mbid_override(cursor, artist_name_original, mbid, notes=None):
 
     return cursor.fetchone()[0]
 
-
 def get_manual_mbid_override(cursor, artist_name):
     """Look up manual MBID override by artist name
 
@@ -1346,7 +1319,6 @@ def get_manual_mbid_override(cursor, artist_name):
 
     result = cursor.fetchone()
     return result[0] if result else None
-
 
 def get_all_manual_mbid_overrides(cursor, limit=None, offset=None):
     """Get all manual MBID overrides with pagination
@@ -1391,7 +1363,6 @@ def get_all_manual_mbid_overrides(cursor, limit=None, offset=None):
 
     return results
 
-
 def delete_manual_mbid_override(cursor, artist_name):
     """Delete a manual MBID override
 
@@ -1414,7 +1385,6 @@ def delete_manual_mbid_override(cursor, artist_name):
 
     return cursor.rowcount > 0
 
-
 # ==================== HEALTH TRACKING ====================
 
 def record_scrape_success(cursor, conn, station_id):
@@ -1425,7 +1395,7 @@ def record_scrape_success(cursor, conn, station_id):
     Args:
         cursor: SQLite cursor object
         conn: SQLite connection object
-        station_id: Station ID (e.g., 'wtmx')
+        station_id: Station ID (e.g.)
     """
     cursor.execute("""
         UPDATE stations
@@ -1434,7 +1404,6 @@ def record_scrape_success(cursor, conn, station_id):
         WHERE id = ?
     """, (station_id,))
     conn.commit()
-
 
 def record_scrape_failure(cursor, conn, station_id):
     """Record failed scrape for a station
@@ -1445,13 +1414,12 @@ def record_scrape_failure(cursor, conn, station_id):
     Args:
         cursor: SQLite cursor object
         conn: SQLite connection object
-        station_id: Station ID (e.g., 'wtmx')
+        station_id: Station ID (e.g.)
 
     Returns:
         True if station was auto-disabled, False otherwise
     """
     return increment_station_failure_count(cursor, conn, station_id)
-
 
 # ==================== SCRAPING HELPERS ====================
 
@@ -1493,7 +1461,6 @@ def add_artist_if_new(cursor, conn, mbid, name):
         logger.error(f"Error adding artist {mbid}: {e}")
         conn.rollback()
         raise
-
 
 def add_song_if_new(cursor, conn, artist_mbid, song_title):
     """Add song to database if not already present
@@ -1543,7 +1510,6 @@ def add_song_if_new(cursor, conn, artist_mbid, song_title):
         logger.error(f"Error adding song '{song_title}': {e}")
         conn.rollback()
         raise
-
 
 def record_play(cursor, conn, song_id, station_id, play_count=1):
     """Record a play for a song on a station
@@ -1649,7 +1615,6 @@ def record_play(cursor, conn, song_id, station_id, play_count=1):
         conn.rollback()
         raise
 
-
 def delete_pending_artists_older_than(cursor, conn, days=30):
     """Delete PENDING artists older than specified days
 
@@ -1693,7 +1658,6 @@ def delete_pending_artists_older_than(cursor, conn, days=30):
         conn.rollback()
         raise
 
-
 # ==================== MANUAL PLAYLIST CRUD ====================
 
 def create_manual_playlist(cursor, conn, name, plex_playlist_name=None):
@@ -1735,7 +1699,6 @@ def create_manual_playlist(cursor, conn, name, plex_playlist_name=None):
         logger.error(f"Error creating manual playlist '{name}': {e}")
         conn.rollback()
         raise
-
 
 def update_manual_playlist(cursor, conn, playlist_id, name=None, plex_playlist_name=None):
     """Update manual playlist metadata
@@ -1794,7 +1757,6 @@ def update_manual_playlist(cursor, conn, playlist_id, name=None, plex_playlist_n
         conn.rollback()
         raise
 
-
 def delete_manual_playlist(cursor, conn, playlist_id):
     """Delete a manual playlist and all its song associations
 
@@ -1825,7 +1787,6 @@ def delete_manual_playlist(cursor, conn, playlist_id):
         logger.error(f"Error deleting manual playlist ID {playlist_id}: {e}")
         conn.rollback()
         raise
-
 
 def add_song_to_manual_playlist(cursor, conn, playlist_id, song_id):
     """Add a song to a manual playlist
@@ -1861,7 +1822,6 @@ def add_song_to_manual_playlist(cursor, conn, playlist_id, song_id):
         conn.rollback()
         raise
 
-
 def remove_song_from_manual_playlist(cursor, conn, playlist_id, song_id):
     """Remove a song from a manual playlist
 
@@ -1893,7 +1853,6 @@ def remove_song_from_manual_playlist(cursor, conn, playlist_id, song_id):
         conn.rollback()
         raise
 
-
 def clear_manual_playlist(cursor, conn, playlist_id):
     """Remove all songs from a manual playlist (keep playlist, clear songs)
 
@@ -1920,7 +1879,6 @@ def clear_manual_playlist(cursor, conn, playlist_id):
         logger.error(f"Error clearing playlist {playlist_id}: {e}")
         conn.rollback()
         raise
-
 
 # ==================== PLAYLIST BUILDER STATE CRUD ====================
 
@@ -1960,7 +1918,6 @@ def add_song_to_builder_state(cursor, conn, session_id, song_id):
         conn.rollback()
         raise
 
-
 def remove_song_from_builder_state(cursor, conn, session_id, song_id):
     """Remove a song from the playlist builder state
 
@@ -1992,7 +1949,6 @@ def remove_song_from_builder_state(cursor, conn, session_id, song_id):
         conn.rollback()
         raise
 
-
 def clear_builder_state(cursor, conn, session_id):
     """Clear all songs from the playlist builder state for a session
 
@@ -2019,7 +1975,6 @@ def clear_builder_state(cursor, conn, session_id):
         logger.error(f"Error clearing builder state for session {session_id}: {e}")
         conn.rollback()
         raise
-
 
 def add_songs_to_builder_state_batch(cursor, session_id, song_ids):
     """Batch add songs to the playlist builder state (no commit)
@@ -2051,7 +2006,6 @@ def add_songs_to_builder_state_batch(cursor, session_id, song_ids):
             logger.warning(f"Error adding song {song_id} to builder state: {e}")
 
     return added_count
-
 
 def remove_songs_from_builder_state_batch(cursor, session_id, song_ids):
     """Batch remove songs from the playlist builder state (no commit)

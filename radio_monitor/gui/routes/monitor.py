@@ -12,11 +12,9 @@ logger = logging.getLogger(__name__)
 
 monitor_bp = Blueprint('monitor', __name__)
 
-
 def get_db():
     """Get database instance from Flask app config"""
     return current_app.config.get('db')
-
 
 @monitor_bp.route('/monitor')
 @requires_auth
@@ -29,7 +27,6 @@ def monitor():
         return redirect(url_for('wizard'))
 
     return render_template('monitor.html')
-
 
 @monitor_bp.route('/api/monitor/start', methods=['POST'])
 @requires_auth
@@ -62,7 +59,6 @@ def api_monitor_start():
 
     return jsonify({'error': 'Scheduler not initialized'}), 500
 
-
 @monitor_bp.route('/api/monitor/stop', methods=['POST'])
 @requires_auth
 def api_monitor_stop():
@@ -93,7 +89,6 @@ def api_monitor_stop():
             return jsonify({'error': str(e)}), 500
 
     return jsonify({'error': 'Scheduler not initialized'}), 500
-
 
 @monitor_bp.route('/api/monitor/status')
 @requires_auth
@@ -134,7 +129,6 @@ def api_monitor_status():
 
     logger.warning("[api_monitor_status] Scheduler not initialized")
     return jsonify({'error': 'Scheduler not initialized'}), 500
-
 
 @monitor_bp.route('/api/monitor/scrape', methods=['POST'])
 @requires_auth
@@ -178,7 +172,6 @@ def api_monitor_scrape():
             'error': str(e)
         }), 500
 
-
 @monitor_bp.route('/api/stations/<station_id>', methods=['PUT'])
 @requires_auth
 def api_stations_update(station_id):
@@ -218,7 +211,6 @@ def api_stations_update(station_id):
 
     return jsonify({'error': 'Database not initialized'}), 500
 
-
 @monitor_bp.route('/api/stations/<station_id>', methods=['DELETE'])
 @requires_auth
 def api_stations_delete(station_id):
@@ -255,7 +247,6 @@ def api_stations_delete(station_id):
             'success': False,
             'message': str(e)
         }), 500
-
 
 @monitor_bp.route('/api/stations/add', methods=['POST'])
 @requires_auth
@@ -306,13 +297,12 @@ def api_stations_add():
         scraper_type = data.get('scraper_type', 'iheart')
         wait_time = data.get('wait_time', 10)
 
-        # Validate scraper_type (v1.1.0: only iheart supported)
+        # Validate scraper_type (only iheart supported)
         if scraper_type != 'iheart':
             return jsonify({
                 'success': False,
                 'message': f"Unsupported scraper_type: '{scraper_type}'. "
-                           f"Only 'iheart' is supported. "
-                           f"The 'wtmx' type is no longer supported (Selenium removed in v1.1.0)."
+                           f"Only 'iheart' is supported."
             }), 400
 
         # Add station
@@ -341,7 +331,6 @@ def api_stations_add():
             'success': False,
             'message': str(e)
         }), 500
-
 
 @monitor_bp.route('/api/status/lidarr')
 @requires_auth
@@ -376,7 +365,6 @@ def api_status_lidarr():
             'success': False,
             'message': str(e)
         })
-
 
 @monitor_bp.route('/api/status/plex')
 @requires_auth

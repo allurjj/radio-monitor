@@ -18,7 +18,6 @@ import re
 
 logger = logging.getLogger(__name__)
 
-
 def capitalize_name_properly(name):
     """Capitalize artist name properly (title case with exceptions)
 
@@ -90,7 +89,6 @@ def capitalize_name_properly(name):
 
     return ' '.join(words)
 
-
 # ==================== STATION QUERIES ====================
 
 def get_station_by_id(cursor, station_id):
@@ -98,7 +96,7 @@ def get_station_by_id(cursor, station_id):
 
     Args:
         cursor: SQLite cursor object
-        station_id: Station ID (e.g., 'wtmx')
+        station_id: Station ID (e.g.)
 
     Returns:
         Station dict or None if not found
@@ -116,7 +114,6 @@ def get_station_by_id(cursor, station_id):
     columns = ['id', 'name', 'url', 'genre', 'market', 'has_mbid', 'scraper_type', 'wait_time', 'enabled']
     return dict(zip(columns, row))
 
-
 def get_all_stations(cursor):
     """Get all stations with health status
 
@@ -132,7 +129,6 @@ def get_all_stations(cursor):
         ORDER BY id
     """)
     return cursor.fetchall()
-
 
 def get_all_stations_with_health(cursor):
     """Get all stations with health status
@@ -192,13 +188,12 @@ def get_all_stations_with_health(cursor):
 
     return stations
 
-
 def get_station_health(cursor, station_id):
     """Get health status for a single station
 
     Args:
         cursor: SQLite cursor object
-        station_id: Station ID (e.g., 'wtmx')
+        station_id: Station ID (e.g.)
 
     Returns:
         Dict with station health info or None if not found
@@ -213,7 +208,6 @@ def get_station_health(cursor, station_id):
     if not row:
         return None
 
-
 def get_station_config(cursor, station_id):
     """Get station scraper configuration by ID
 
@@ -221,7 +215,7 @@ def get_station_config(cursor, station_id):
 
     Args:
         cursor: SQLite cursor object
-        station_id: Station ID (e.g., 'wtmx')
+        station_id: Station ID (e.g.)
 
     Returns:
         Dict with station config or None if not found
@@ -239,7 +233,6 @@ def get_station_config(cursor, station_id):
 
     columns = ['id', 'name', 'url', 'scraper_type', 'has_mbid', 'wait_time']
     return dict(zip(columns, row))
-
 
     columns = ['id', 'name', 'enabled', 'consecutive_failures', 'last_failure_at']
     station = dict(zip(columns, row))
@@ -270,7 +263,6 @@ def get_station_config(cursor, station_id):
 
     return station
 
-
 # ==================== ARTIST QUERIES ====================
 
 def get_artist_by_mbid(cursor, mbid):
@@ -291,7 +283,6 @@ def get_artist_by_mbid(cursor, mbid):
         return dict(zip(columns, row))
     return None
 
-
 def get_artist_by_name(cursor, name):
     """Get artist by name
 
@@ -310,7 +301,6 @@ def get_artist_by_name(cursor, name):
         return dict(zip(columns, row))
     return None
 
-
 def get_all_artists(cursor):
     """Get all artists
 
@@ -323,7 +313,6 @@ def get_all_artists(cursor):
     cursor.execute("SELECT * FROM artists ORDER BY name")
     columns = [desc[0] for desc in cursor.description]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
-
 
 def get_pending_artists(cursor):
     """Get all artists with PENDING MBIDs
@@ -342,7 +331,6 @@ def get_pending_artists(cursor):
     """)
 
     return cursor.fetchall()
-
 
 def get_artists_for_import(cursor, min_plays=5, station_id=None, sort='total_plays', direction='desc'):
     """Get artists that need Lidarr import
@@ -419,7 +407,6 @@ def get_artists_for_import(cursor, min_plays=5, station_id=None, sort='total_pla
 
     columns = ['mbid', 'name', 'total_plays']
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
-
 
 def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', direction='asc'):
     """Get paginated list of artists with filtering and sorting
@@ -601,7 +588,6 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
         'limit': limit
     }
 
-
 def get_artist_detail(cursor, mbid):
     """Get detailed artist information
 
@@ -640,7 +626,6 @@ def get_artist_detail(cursor, mbid):
                'lidarr_imported_at', 'total_plays', 'song_count']
     return dict(zip(columns, row))
 
-
 def get_artist_songs(cursor, mbid, limit=50):
     """Get songs by artist with play counts
 
@@ -667,7 +652,6 @@ def get_artist_songs(cursor, mbid, limit=50):
 
     columns = ['id', 'song_title', 'play_count', 'first_seen_at', 'last_seen_at']
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
-
 
 def get_artist_play_history(cursor, mbid, days=30):
     """Get artist play history over time
@@ -696,7 +680,6 @@ def get_artist_play_history(cursor, mbid, days=30):
 
     columns = ['date', 'play_count', 'station_name']
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
-
 
 # ==================== SONG PAGINATION QUERIES ====================
 
@@ -848,7 +831,6 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
         'limit': limit
     }
 
-
 def get_song_detail(cursor, song_id):
     """Get detailed song information
 
@@ -905,7 +887,6 @@ def get_song_detail(cursor, song_id):
 
     return result
 
-
 def get_song_play_history(cursor, song_id, days=30):
     """Get song play history over time
 
@@ -932,7 +913,6 @@ def get_song_play_history(cursor, song_id, days=30):
 
     columns = ['date', 'play_count', 'station_name']
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
-
 
 # ==================== STATION DETAIL QUERIES ====================
 
@@ -979,7 +959,6 @@ def get_station_detail(cursor, station_id):
                'song_count', 'total_plays']
     return dict(zip(columns, row))
 
-
 def get_station_stats(cursor, station_id, days=30):
     """Get station statistics for a time period
 
@@ -1012,7 +991,6 @@ def get_station_stats(cursor, station_id, days=30):
         'total_plays': row[2] or 0
     }
 
-
 def get_station_top_songs(cursor, station_id, limit=50, days=30):
     """Get top songs for a station
 
@@ -1043,7 +1021,6 @@ def get_station_top_songs(cursor, station_id, limit=50, days=30):
     columns = ['song_title', 'artist_name', 'play_count', 'last_seen']
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-
 # ==================== SONG QUERIES ====================
 
 def get_song_by_id(cursor, song_id):
@@ -1063,7 +1040,6 @@ def get_song_by_id(cursor, song_id):
         columns = [desc[0] for desc in cursor.description]
         return dict(zip(columns, row))
     return None
-
 
 def get_all_songs(cursor, station_id=None):
     """Get all songs for export (legacy compatibility)
@@ -1096,7 +1072,6 @@ def get_all_songs(cursor, station_id=None):
         """)
 
     return cursor.fetchall()
-
 
 def get_top_songs(cursor, days=None, station_id=None, station_ids=None, limit=50):
     """Get top songs by play count
@@ -1172,7 +1147,6 @@ def get_top_songs(cursor, days=None, station_id=None, station_ids=None, limit=50
 
     return cursor.fetchall()
 
-
 def get_recent_songs(cursor, days=None, station_ids=None, limit=50):
     """Get most recently played songs (ordered by last_seen_at)
 
@@ -1227,7 +1201,6 @@ def get_recent_songs(cursor, days=None, station_ids=None, limit=50):
         """, (limit,))
 
     return cursor.fetchall()
-
 
 def get_top_artists(cursor, days=None, station_ids=None, limit=50):
     """Get top artists by play count
@@ -1288,7 +1261,6 @@ def get_top_artists(cursor, days=None, station_ids=None, limit=50):
 
     return cursor.fetchall()
 
-
 def get_trending_songs(cursor, days=90):
     """Get trending songs (recent plays vs older plays)
 
@@ -1321,7 +1293,6 @@ def get_trending_songs(cursor, days=90):
         results.append((song_title, artist_name, recent, older, growth))
 
     return results
-
 
 def get_recent_plays(cursor, limit=10, station_id=None):
     """Get recent plays for dashboard live feed
@@ -1380,7 +1351,6 @@ def get_recent_plays(cursor, limit=10, station_id=None):
     results = [dict(zip(columns, row)) for row in cursor.fetchall()]
     return results
 
-
 # ==================== STATISTICS QUERIES ====================
 
 def get_statistics(cursor):
@@ -1415,7 +1385,6 @@ def get_statistics(cursor):
         'plays_today': plays_today
     }
 
-
 def get_dashboard_stats(cursor):
     """Alias for get_statistics (for GUI compatibility)
 
@@ -1426,7 +1395,6 @@ def get_dashboard_stats(cursor):
         Dict with database statistics
     """
     return get_statistics(cursor)
-
 
 def get_daily_plays_chart_data(cursor, days=30, station_id=None):
     """Get play counts over time for line chart
@@ -1460,7 +1428,6 @@ def get_daily_plays_chart_data(cursor, days=30, station_id=None):
     columns = ['date', 'total_plays']
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-
 def get_hourly_plays_chart_data(cursor):
     """Get hourly play distribution for heat map
 
@@ -1484,7 +1451,6 @@ def get_hourly_plays_chart_data(cursor):
     columns = ['day_of_week', 'hour', 'total_plays']
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-
 def get_plays_over_time(cursor, days=30, station_id=None):
     """Alias for get_daily_plays_chart_data
 
@@ -1497,7 +1463,6 @@ def get_plays_over_time(cursor, days=30, station_id=None):
         List of dicts with date and total_plays
     """
     return get_daily_plays_chart_data(cursor, days, station_id)
-
 
 def get_station_distribution(cursor, days=None):
     """Get play distribution by station for pie chart
@@ -1531,7 +1496,6 @@ def get_station_distribution(cursor, days=None):
 
     columns = ['station_name', 'play_count']
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
-
 
 # ==================== PLAYLIST QUERIES ====================
 
@@ -1579,7 +1543,6 @@ def get_playlist(cursor, playlist_id):
         'created_at': row[15]
     }
 
-
 def get_playlists(cursor):
     """Get all playlists (manual and auto)
 
@@ -1624,7 +1587,6 @@ def get_playlists(cursor):
 
     return playlists
 
-
 def get_due_playlists(cursor):
     """Get auto playlists that need updating
 
@@ -1663,7 +1625,6 @@ def get_due_playlists(cursor):
         })
 
     return playlists
-
 
 def get_random_songs(cursor, station_ids=None, min_plays=1, max_plays=None, days=None, limit=50):
     """Get random songs from filtered results
@@ -1720,7 +1681,6 @@ def get_random_songs(cursor, station_ids=None, min_plays=1, max_plays=None, days
 
     cursor.execute(query, params)
     return cursor.fetchall()
-
 
 def get_ai_playlist_songs(cursor, station_ids=None, min_plays=1, first_seen=None, last_seen=None):
     """Get songs for AI playlist generation
@@ -1781,7 +1741,6 @@ def get_ai_playlist_songs(cursor, station_ids=None, min_plays=1, first_seen=None
 
     return results
 
-
 def format_songs_for_ai(songs):
     """Format song list for AI consumption
 
@@ -1792,7 +1751,6 @@ def format_songs_for_ai(songs):
         List of strings in "1. Artist: Song" format
     """
     return [f"{i + 1}. {artist}: {song}" for i, (artist, song) in enumerate(songs)]
-
 
 # ==================== MANUAL PLAYLIST QUERIES ====================
 
@@ -1832,7 +1790,6 @@ def get_manual_playlists(cursor):
 
     return playlists
 
-
 def get_manual_playlist(cursor, playlist_id):
     """Get a single manual playlist by ID
 
@@ -1871,7 +1828,6 @@ def get_manual_playlist(cursor, playlist_id):
         'song_count': row[5]
     }
 
-
 def get_manual_playlist_by_name(cursor, name):
     """Get a manual playlist by name
 
@@ -1908,7 +1864,6 @@ def get_manual_playlist_by_name(cursor, name):
         'updated_at': row[4],
         'song_count': row[5]
     }
-
 
 def get_manual_playlist_songs(cursor, playlist_id, limit=None, offset=None):
     """Get all songs in a manual playlist
@@ -1957,7 +1912,6 @@ def get_manual_playlist_songs(cursor, playlist_id, limit=None, offset=None):
 
     return songs
 
-
 def get_song_count_in_manual_playlist(cursor, playlist_id):
     """Get the number of songs in a manual playlist
 
@@ -1975,7 +1929,6 @@ def get_song_count_in_manual_playlist(cursor, playlist_id):
     """, (playlist_id,))
 
     return cursor.fetchone()[0]
-
 
 def is_song_in_manual_playlist(cursor, playlist_id, song_id):
     """Check if a song is in a manual playlist
@@ -1995,7 +1948,6 @@ def is_song_in_manual_playlist(cursor, playlist_id, song_id):
     """, (playlist_id, song_id))
 
     return cursor.fetchone() is not None
-
 
 # ==================== PLAYLIST BUILDER STATE QUERIES ====================
 
@@ -2034,7 +1986,6 @@ def get_builder_state_songs(cursor, session_id):
 
     return songs
 
-
 def get_builder_state_song_count(cursor, session_id):
     """Get the number of songs in the playlist builder state for a session
 
@@ -2052,7 +2003,6 @@ def get_builder_state_song_count(cursor, session_id):
     """, (session_id,))
 
     return cursor.fetchone()[0]
-
 
 def is_song_in_builder_state(cursor, session_id, song_id):
     """Check if a song is in the playlist builder state for a session
@@ -2073,7 +2023,6 @@ def is_song_in_builder_state(cursor, session_id, song_id):
 
     return cursor.fetchone() is not None
 
-
 def get_builder_state_song_ids(cursor, session_id):
     """Get list of song IDs in the playlist builder state for a session
 
@@ -2093,7 +2042,6 @@ def get_builder_state_song_ids(cursor, session_id):
 
     return [row[0] for row in cursor.fetchall()]
 
-
 def get_artist_song_ids(cursor, artist_mbid):
     """Get all song IDs for an artist
 
@@ -2111,7 +2059,6 @@ def get_artist_song_ids(cursor, artist_mbid):
     """, (artist_mbid,))
 
     return [row[0] for row in cursor.fetchall()]
-
 
 def get_artist_stations(cursor, artist_mbid):
     """Get all stations where an artist's songs have been played

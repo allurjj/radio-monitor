@@ -8,7 +8,6 @@ bcrypt==4.1.2
 # No external dependencies - using SQLite built-in
 
 # Web Scraping
-# Selenium removed in v1.1.0 (WTMX station no longer supported)
 requests==2.31.0
 beautifulsoup4==4.12.2
 

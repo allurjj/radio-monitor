@@ -5,8 +5,7 @@ This module handles web scraping of radio station websites to capture
 currently playing songs. Supports iHeartRadio stations only.
 
 Key Features:
-- Fast scraping system:
-  * requests+BeautifulSoup for all iHeartRadio stations (46x faster than Selenium)
+- Fast scraping system using requests+BeautifulSoup
   * 0.43s average scraping time
 - Multiple retry attempts with exponential backoff (7 attempts, ~112 seconds max)
 - Artist/song validation to prevent swap bugs and data corruption
@@ -15,8 +14,6 @@ Key Features:
 - MusicBrainz MBID lookup (via API)
 - Extensive filtering for taglines, ads, news
 - Graceful cancellation support
-
-Note: WTMX station support removed in v1.1.0 (Selenium dependency removed)
 """
 
 import os
@@ -239,12 +236,6 @@ def is_valid_artist_name(artist_name):
 # Station configurations (fallback for backward compatibility)
 # NOTE: This is kept as fallback but database configs take precedence
 STATION_CONFIGS = {
-    'wtmx': {
-        'url': 'https://wtmx.com/listen/?utm_source=station-website&utm_medium=widget&utm_campaign=livebar',
-        'type': 'wtmx',
-        'has_mbid': True,
-        'wait_time': 10
-    },
     'us99': {
         'url': 'https://www.iheart.com/live/us-99-10819/',
         'type': 'iheart',
@@ -380,16 +371,14 @@ def get_station_config(db, station_id):
     )
 
 def scrape_station_iheart_fast(config, max_retries=7, initial_wait=4):
-    """Scrape iHeartRadio station using requests+BeautifulSoup (ONLY method)
+    """Scrape iHeartRadio station using requests+BeautifulSoup
 
     This is the iHeart scraper that:
-    - Uses requests+BeautifulSoup (46x faster than Selenium: 0.43s vs 20s)
+    - Uses requests+BeautifulSoup (0.43s average scraping time)
     - Parses HTML structure directly (immune to text-based swap bugs)
     - Gets all 12 songs at once
     - Has retry mechanism with exponential backoff (7 attempts, ~112 seconds max)
     - Validates artist/song pairs to prevent data corruption
-
-    Note: Selenium fallback has been removed. This is now the only scraping method.
 
     Args:
         config: Station configuration dict
@@ -602,8 +591,7 @@ def _validate_artist_song_pair(artist_name, song_title):
 def scrape_single_station(db, station_id):
     """Scrape a single station and return current songs
 
-    Note: This function now only supports iHeartRadio stations using the fast scraper.
-    WTMX station (Selenium-based) is no longer supported.
+    Note: This function only supports iHeartRadio stations using the fast scraper.
 
     Args:
         db: RadioDatabase instance (for loading station configs)
@@ -627,15 +615,7 @@ def scrape_single_station(db, station_id):
     try:
         logger.info(f"Scraping {station_id}: {config['url']}")
 
-        # Validate station type
-        if config['type'] == 'wtmx':
-            raise ValueError(
-                f"WTMX station type is no longer supported (Selenium dependency removed). "
-                f"Please delete or disable the '{station_id}' station from the database. "
-                f"See documentation for migration instructions."
-            )
-
-        # Only iHeartRadio stations are supported (fast scraper only)
+        # Only iHeartRadio stations are supported
         if config['type'] != 'iheart':
             raise ValueError(
                 f"Unsupported station type: '{config['type']}'. "
