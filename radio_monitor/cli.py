@@ -402,6 +402,93 @@ def cmd_retry_pending(args, settings):
     return 0
 
 
+def cmd_resolve_multi_artist(args, settings):
+    """Resolve multi-artist PENDING entries using advanced resolution
+
+    Usage: --resolve-multi-artist [--max-artists N] [--dry-run]
+    """
+    from radio_monitor.multi_artist_resolver import resolve_multi_artist_batch
+
+    db = load_database(settings)
+
+    max_artists = args.max_artists if hasattr(args, 'max_artists') and args.max_artists else None
+    dry_run = args.dry_run if hasattr(args, 'dry_run') and args.dry_run else False
+
+    print("\n[INFO] Multi-Artist Resolution")
+    print("=" * 50)
+    print("This command attempts to resolve multi-artist collaborations")
+    print("(e.g., 'Kenny Chesneyuncle Kracker') to their primary artists.")
+    print("\nStrategies used:")
+    print("  - Direct separator detection (&, And, feat., with)")
+    print("  - Missing separator detection (capital letters)")
+    print("  - Song title context validation")
+    print("  - Former name handling (e.g., 'Yusuf Cat Stevens')")
+    print("\nThis may take a while (1 second per artist due to MusicBrainz API)\n")
+
+    # Get user_agent for MusicBrainz
+    user_agent = settings.get('musicbrainz', {}).get('user_agent')
+
+    if not user_agent:
+        print("[WARN] No MusicBrainz user_agent configured in settings")
+        print("       Add 'musicbrainz.user_agent' to radio_monitor_settings.json")
+
+    # Dry run warning
+    if dry_run:
+        print("[INFO] DRY RUN MODE - No changes will be made\n")
+
+    # Confirm if many artists
+    cursor = db.get_cursor()
+    try:
+        cursor.execute("SELECT COUNT(*) FROM artists WHERE mbid LIKE 'PENDING-%'")
+        pending_count = cursor.fetchone()[0]
+    finally:
+        cursor.close()
+
+    if max_artists:
+        print(f"Will resolve up to {max_artists} of {pending_count} PENDING artists")
+    else:
+        print(f"Will resolve all {pending_count} PENDING artists")
+
+    if not dry_run and not args.force and pending_count > 5:
+        response = input(f"\nProceed? (yes/no): ")
+        if response.lower() not in ['yes', 'y']:
+            print("[INFO] Resolution cancelled")
+            return 0
+
+    # Resolve
+    results = resolve_multi_artist_batch(
+        db=db,
+        user_agent=user_agent,
+        max_artists=max_artists,
+        dry_run=dry_run
+    )
+
+    # Show results
+    print(f"\n{'=' * 50}")
+    print(f"[INFO] Resolution complete!")
+    print(f"  Total artists: {results['total']}")
+    print(f"  Resolved: {results['resolved']}")
+    print(f"  Failed: {results['failed']}")
+
+    if results['resolved'] > 0:
+        print(f"\n[OK] Resolved artists:")
+        for result in results['results']:
+            if result['resolved']:
+                print(f"  [OK] {result['name']}: {result['old_mbid']} -> {result['new_mbid']}")
+
+    if results['failed'] > 0:
+        print(f"\n[INFO] Failed to resolve (will remain PENDING):")
+        for result in results['results']:
+            if not result['resolved']:
+                print(f"  [FAIL] {result['name']}")
+
+    if dry_run:
+        print(f"\n[INFO] This was a DRY RUN - no changes were made")
+        print(f"       Run without --dry-run to apply changes")
+
+    return 0 if results['failed'] == 0 else 1
+
+
 def cmd_test(args, settings):
     """Test smoke test - check database, MusicBrainz, Lidarr, Plex
 
@@ -628,6 +715,10 @@ def main():
                        help='Retry MBID lookup for PENDING artists')
     parser.add_argument('--max-pending', type=int, metavar='N',
                        help='Maximum PENDING artists to retry (default: all)')
+    parser.add_argument('--resolve-multi-artist', action='store_true',
+                       help='Resolve multi-artist PENDING entries using advanced resolution')
+    parser.add_argument('--max-artists', type=int, metavar='N',
+                       help='Maximum artists to resolve (default: all)')
     parser.add_argument('--min-plays', type=int, default=5,
                        help='Minimum plays for Lidarr import (default: 5)')
     parser.add_argument('--dry-run', action='store_true',
@@ -672,6 +763,8 @@ def main():
         return cmd_import_lidarr(args, settings)
     elif args.retry_pending:
         return cmd_retry_pending(args, settings)
+    elif args.resolve_multi_artist:
+        return cmd_resolve_multi_artist(args, settings)
     elif args.install:
         return cmd_install(args, settings)
     elif args.uninstall:

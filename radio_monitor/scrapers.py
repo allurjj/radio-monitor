@@ -823,6 +823,29 @@ def scrape_all_stations(db=None, station_ids=None):
                             finally:
                                 cursor.close()
 
+                        # If still no MBID, try multi-artist resolution (ONE-TIME attempt)
+                        if not primary_artist_mbid:
+                            try:
+                                from radio_monitor.multi_artist_resolver import resolve_multi_artist
+
+                                # Try to resolve as multi-artist collaboration
+                                logger.info(f"No MBID found for '{primary_artist}', trying multi-artist resolution...")
+                                primary_artist_mbid = resolve_multi_artist(
+                                    cursor=None,
+                                    conn=db.conn,
+                                    artist_name=primary_artist,
+                                    song_title=None,  # Could fetch from songs table if needed
+                                    db=db,
+                                    user_agent=user_agent
+                                )
+
+                                if primary_artist_mbid:
+                                    logger.info(f"Multi-artist resolution successful for '{primary_artist}': {primary_artist_mbid}")
+                                else:
+                                    logger.debug(f"Multi-artist resolution failed for '{primary_artist}'")
+                            except Exception as e:
+                                logger.warning(f"Multi-artist resolution error for '{primary_artist}': {e}")
+
                         # If still no MBID, use a placeholder (PENDING)
                         if not primary_artist_mbid:
                             # Create temporary MBID placeholder

@@ -282,6 +282,28 @@ class RadioDatabase:
         finally:
             cursor.close()
 
+    def update_multi_artist_resolution(self, old_collaboration_name, old_mbid, new_primary_mbid, new_primary_name):
+        """Update database when multi-artist collaboration is resolved to primary artist
+
+        This function atomically updates the database when a multi-artist collaboration
+        (e.g., "Kenny Chesneyuncle Kracker") is resolved to its primary artist.
+
+        Args:
+            old_collaboration_name: Original collaboration name
+            old_mbid: Old PENDING MBID
+            new_primary_mbid: Primary artist's MBID
+            new_primary_name: Primary artist's name
+
+        Returns:
+            True if update succeeded, False otherwise
+        """
+        cursor = self.conn.cursor()
+        try:
+            return crud.update_multi_artist_resolution(cursor, self.conn, old_collaboration_name,
+                                                      old_mbid, new_primary_mbid, new_primary_name)
+        finally:
+            cursor.close()
+
     def get_artists_for_import(self, min_plays=5, station_id=None, sort='total_plays', direction='desc'):
         """Get artists that need Lidarr import
 

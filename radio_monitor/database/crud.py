@@ -714,6 +714,152 @@ def update_artist_mbid_from_pending(cursor, conn, artist_name, mbid):
             logger.debug(f"Releasing MBID update lock for {artist_name}")
 
 
+def update_multi_artist_resolution(cursor, conn, old_collaboration_name, old_mbid, new_primary_mbid, new_primary_name):
+    """Update database when multi-artist collaboration is resolved to primary artist
+
+    This function atomically updates the database when a multi-artist collaboration
+    (e.g., "Kenny Chesneyuncle Kracker") is resolved to its primary artist (e.g., "Kenny Chesney").
+
+    Transaction flow:
+    1. Check if new MBID already exists in database
+    2. If not exists, create new artist entry
+    3. Update all songs to point to new primary MBID
+    4. Delete old PENDING collaboration entry
+
+    Thread-safe: Uses application-level lock (_mbid_update_lock) to prevent race conditions.
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        old_collaboration_name: Original collaboration name (e.g., "Kenny Chesneyuncle Kracker")
+        old_mbid: Old PENDING MBID (e.g., "PENDING-abc123")
+        new_primary_mbid: Primary artist's MBID (e.g., "5bc41f77-cce4-4e76-a3e9-324c0201824f")
+        new_primary_name: Primary artist's name (e.g., "Kenny Chesney")
+
+    Returns:
+        True if update succeeded, False otherwise
+    """
+    with _mbid_update_lock:
+        logger.debug(f"Acquired MBID update lock for multi-artist resolution: {old_collaboration_name}")
+
+        try:
+            # Check if old MBID still exists (might have been merged by another thread)
+            cursor.execute("""
+                SELECT mbid FROM artists WHERE mbid = ?
+            """, (old_mbid,))
+            if not cursor.fetchone():
+                logger.info(f"Old collaboration {old_mbid} already resolved by another thread")
+                return True
+
+            try:
+                # Disable foreign keys BEFORE starting transaction
+                cursor.execute("PRAGMA foreign_keys = OFF")
+                cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+
+                # Step 1: Check if new MBID already exists
+                cursor.execute("""
+                    SELECT mbid FROM artists WHERE mbid = ?
+                """, (new_primary_mbid,))
+                existing_mbid = cursor.fetchone()
+
+                if not existing_mbid:
+                    # Step 2: Create new artist entry
+                    logger.debug(f"Creating new artist entry: {new_primary_name} ({new_primary_mbid})")
+                    cursor.execute("""
+                        INSERT INTO artists (mbid, name, first_seen_at, last_seen_at, needs_lidarr_import)
+                        VALUES (?, ?, datetime('now'), datetime('now'), 1)
+                    """, (new_primary_mbid, new_primary_name))
+                else:
+                    logger.debug(f"Artist {new_primary_name} ({new_primary_mbid}) already exists")
+
+                # Step 3: Handle songs - merge play counts for duplicates, update for non-duplicates
+                logger.debug(f"Merging songs from {old_mbid} to {new_primary_mbid}")
+
+                # Get all songs from PENDING artist
+                cursor.execute("""
+                    SELECT id, song_title, play_count, first_seen_at, last_seen_at
+                    FROM songs
+                    WHERE artist_mbid = ?
+                """, (old_mbid,))
+                pending_songs = cursor.fetchall()
+
+                songs_merged = 0
+                songs_updated = 0
+                songs_deleted = 0
+
+                for pending_song_id, song_title, play_count, first_seen, last_seen in pending_songs:
+                    # Check if target artist already has this song
+                    cursor.execute("""
+                        SELECT id, play_count FROM songs
+                        WHERE artist_mbid = ? AND song_title = ?
+                    """, (new_primary_mbid, song_title))
+                    existing_song = cursor.fetchone()
+
+                    if existing_song:
+                        # Song exists - merge play counts
+                        existing_song_id, existing_play_count = existing_song
+                        new_play_count = existing_play_count + play_count
+
+                        # Update play count and last_seen
+                        cursor.execute("""
+                            UPDATE songs
+                            SET play_count = ?,
+                                last_seen_at = CASE
+                                    WHEN last_seen_at < ? THEN ?
+                                    ELSE last_seen_at
+                                END
+                            WHERE id = ?
+                        """, (new_play_count, last_seen, last_seen, existing_song_id))
+
+                        # Delete the duplicate PENDING song (cascades to song_plays_daily)
+                        cursor.execute("""
+                            DELETE FROM songs
+                            WHERE id = ?
+                        """, (pending_song_id,))
+
+                        songs_merged += 1
+                        logger.debug(f"Merged song '{song_title}': {existing_play_count} + {play_count} = {new_play_count} plays")
+                    else:
+                        # Song doesn't exist - just update the artist MBID and name
+                        cursor.execute("""
+                            UPDATE songs
+                            SET artist_mbid = ?, artist_name = ?
+                            WHERE id = ?
+                        """, (new_primary_mbid, new_primary_name, pending_song_id))
+
+                        songs_updated += 1
+                        logger.debug(f"Updated song '{song_title}' to {new_primary_name}")
+
+                # Step 4: Delete old PENDING collaboration entry
+                logger.debug(f"Deleting old collaboration entry: {old_mbid}")
+                cursor.execute("""
+                    DELETE FROM artists WHERE mbid = ?
+                """, (old_mbid,))
+
+                # Re-enable foreign keys
+                cursor.execute("PRAGMA foreign_keys = ON")
+
+                conn.commit()
+                logger.info(f"Successfully resolved '{old_collaboration_name}' -> '{new_primary_name}' ({songs_updated} updated, {songs_merged} merged, {songs_deleted} deleted)")
+                return True
+
+            except sqlite3.IntegrityError as e:
+                # Race condition or constraint violation
+                logger.warning(f"Integrity error during multi-artist resolution: {e}")
+                conn.rollback()
+                cursor.execute("PRAGMA foreign_keys = ON")  # Ensure FKs are re-enabled
+                return False
+
+        except Exception as e:
+            logger.error(f"Error during multi-artist resolution: {e}")
+            conn.rollback()
+            cursor.execute("PRAGMA foreign_keys = ON")  # Ensure FKs are re-enabled
+            return False
+
+        finally:
+            logger.debug(f"Releasing MBID update lock for multi-artist resolution: {old_collaboration_name}")
+
+
 # ==================== SONG CRUD ====================
 
 def add_song(cursor, conn, artist_mbid, artist_name, song_title, station_id=None):
