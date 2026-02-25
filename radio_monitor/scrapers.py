@@ -824,23 +824,30 @@ def scrape_all_stations(db=None, station_ids=None):
                                 cursor.close()
 
                         # If still no MBID, try multi-artist resolution (ONE-TIME attempt)
+                        # Note: This only returns the MBID - no database updates during scraping
+                        # Database updates happen only during manual CLI command to avoid transaction conflicts
                         if not primary_artist_mbid:
                             try:
-                                from radio_monitor.multi_artist_resolver import resolve_multi_artist
+                                from radio_monitor.multi_artist_resolver import try_split_and_validate
 
                                 # Try to resolve as multi-artist collaboration
                                 logger.info(f"No MBID found for '{primary_artist}', trying multi-artist resolution...")
-                                primary_artist_mbid = resolve_multi_artist(
-                                    cursor=None,
-                                    conn=db.conn,
-                                    artist_name=primary_artist,
-                                    song_title=None,  # Could fetch from songs table if needed
-                                    db=db,
-                                    user_agent=user_agent
-                                )
 
-                                if primary_artist_mbid:
-                                    logger.info(f"Multi-artist resolution successful for '{primary_artist}': {primary_artist_mbid}")
+                                # Use the smart grouping resolver to find the primary MBID
+                                validated_artists = try_split_and_validate(primary_artist, db, user_agent)
+
+                                if validated_artists:
+                                    # Get the MBID of the first (primary) artist
+                                    from radio_monitor.mbid import lookup_artist_mbid
+                                    primary_name = validated_artists[0]
+                                    primary_artist_mbid = lookup_artist_mbid(
+                                        artist_name=primary_name,
+                                        db=db,
+                                        user_agent=user_agent
+                                    )
+
+                                if primary_artist_mbid and not primary_artist_mbid.startswith('PENDING'):
+                                    logger.info(f"Multi-artist resolution successful for '{primary_artist}' -> '{primary_name}': {primary_artist_mbid}")
                                 else:
                                     logger.debug(f"Multi-artist resolution failed for '{primary_artist}'")
                             except Exception as e:
