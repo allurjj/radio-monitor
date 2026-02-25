@@ -91,20 +91,13 @@ build/                 # Build artifacts (but not dist/ for releases)
 VERSION.py             # Auto-generated version file (created by pyinstaller/build.py)
 
 # ------------------------------------------
-# Documentation (Internal docs only - user docs are kept)
+# Documentation (All documentation excluded - keep out of git until ready)
 # ------------------------------------------
-CLAUDE.md
-MEMORY.md
-PUSH_CHECKLIST.md
-DEVELOPMENT_WORKFLOW.md
-# Uncomment these if you want to ignore internal development docs:
-# PHASE*.md
-# SELENIUM*.md
-# DEPLOYMENT*.md
-# Justin*.md
-# GITHUB*.md
-# DEPENDENCY*.md
-# QUICK*.md
+*.md
+docs/                  # Entire docs directory excluded
+!linux/**/*.md          # Allow .md files in linux/ subdirectory
+!docker/**/*.md         # Allow .md files in docker/ subdirectory
+!pyinstaller/**/*.md    # Allow .md files in pyinstaller/ subdirectory
 
 # ------------------------------------------
 # Development Tools (Playwright - for design/debugging only)
