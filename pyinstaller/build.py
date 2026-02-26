@@ -1,5 +1,5 @@
 """
-PyInstaller Build Script for Radio Monitor 1.1.0
+PyInstaller Build Script for Radio Monitor 1.1.11
 
 This script builds a Windows executable from the Radio Monitor Python source code.
 
@@ -13,17 +13,17 @@ Requirements:
     - PyInstaller: pip install pyinstaller
     - Icon file: static/favicon.ico
 
-Version 1.1.0 Changes:
-    - Fixed total_plays filter bug in Artists page (HAVING clause for aggregates)
-    - Implemented dynamic versioning with VERSION.py build-time generation
-    - Fixed GitHub URL in footer (corrected to allurjj/radio-monitor)
-    - Version now displays consistently across all UI elements
+Version 1.1.11 Changes:
+    - Fixed Windows DLL loading issues
+    - Added runtime hook for temp directory
+    - Added Windows manifest for compatibility
 """
 
 import PyInstaller.__main__
 import os
 import sys
 import shutil
+import subprocess
 
 # Get the project root directory
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -102,6 +102,7 @@ options = [
     '--onedir',                       # Directory mode (not single file)
     '--noconsole',                    # NO console window (logs go to file only)
     '--clean',                        # Clean PyInstaller cache before building
+    '--noconfirm',                    # Overwrite output directory without asking
 
     # Icon (using favicon.ico from static directory)
     f'--icon={os.path.join(PROJECT_ROOT, "static", "favicon.ico")}',
@@ -183,9 +184,6 @@ options = [
     '--runtime-tmpdir=.',               # Use local directory for temp files (not C:\temp)
     f'--runtime-hook={os.path.join(SCRIPT_DIR, "pyi_rth_radio_monitor.py")}',  # Fix temp path issues
 
-    # Manifest options (fixes DLL loading issues)
-    '--no-embed-manifest',              # Don't embed manifest (avoids Windows defender issues)
-
     # Workpath (where build files go) - absolute path
     f'--workpath={os.path.join(PROJECT_ROOT, "build", "pyinstaller")}',
 
@@ -193,7 +191,12 @@ options = [
     f'--distpath={os.path.join(PROJECT_ROOT, "dist", "pyinstaller")}',
 ]
 
-print("Step 2: Building Windows executable...")
+print("Step 2: Setting up environment for PyInstaller...")
+# Set environment variables to avoid C:\temp issues
+os.environ['PYINSTALLER_COMPILE_BOOTLOADER'] = '1'
+print("  [OK] Environment configured\n")
+
+print("Step 3: Building Windows executable...")
 print("This may take several minutes...")
 print()
 
