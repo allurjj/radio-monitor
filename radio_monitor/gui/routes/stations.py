@@ -148,3 +148,44 @@ def api_update_station(station_id):
         cursor.close()
 
     return jsonify({'success': True})
+
+
+@stations_bp.route('/api/stations/<station_id>/test', methods=['POST'])
+@requires_auth
+def api_test_station(station_id):
+    """Test scraper for a single station
+
+    Returns JSON:
+        {
+            "success": true/false,
+            "message": "Scrape complete",
+            "songs_found": 10
+        }
+    """
+    db = get_db()
+
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    try:
+        from radio_monitor.scrapers import scrape_single_station
+
+        logger.info(f"Test scrape triggered for station: {station_id}")
+
+        # Run single station scrape (returns list of songs)
+        songs = scrape_single_station(db, station_id)
+
+        logger.info(f"Test scrape complete for {station_id}: {len(songs)} songs found")
+
+        return jsonify({
+            'success': True,
+            'message': f"Scrape complete - found {len(songs)} songs",
+            'songs_found': len(songs)
+        })
+
+    except Exception as e:
+        logger.error(f"Error during test scrape for {station_id}: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500

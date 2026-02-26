@@ -137,29 +137,41 @@ def get_all_stations_with_health(cursor):
         cursor: SQLite cursor object
 
     Returns:
-        List of dicts with station info and health status
+        List of dicts with station info and health status, including songs_scraped count
     """
     cursor.execute("""
         SELECT
-            id,
-            name,
-            url,
-            genre,
-            market,
-            has_mbid,
-            scraper_type,
-            wait_time,
-            enabled,
-            consecutive_failures,
-            last_failure_at,
-            created_at
-        FROM stations
-        ORDER BY name
+            s.id,
+            s.name,
+            s.url,
+            s.genre,
+            s.market,
+            s.has_mbid,
+            s.scraper_type,
+            s.wait_time,
+            s.enabled,
+            s.consecutive_failures,
+            s.last_failure_at,
+            s.created_at,
+            COALESCE(DISTINCT_COUNT.song_count, 0) as songs_scraped,
+            LAST_SCRAPE.last_scrape_at
+        FROM stations s
+        LEFT JOIN (
+            SELECT station_id, COUNT(DISTINCT song_id) as song_count
+            FROM song_plays_daily
+            GROUP BY station_id
+        ) DISTINCT_COUNT ON s.id = DISTINCT_COUNT.station_id
+        LEFT JOIN (
+            SELECT station_id, MAX(date) as last_scrape_at
+            FROM song_plays_daily
+            GROUP BY station_id
+        ) LAST_SCRAPE ON s.id = LAST_SCRAPE.station_id
+        ORDER BY s.enabled DESC, s.name
     """)
 
     columns = ['id', 'name', 'url', 'genre', 'market', 'has_mbid',
               'scraper_type', 'wait_time', 'enabled', 'consecutive_failures',
-              'last_failure_at', 'created_at']
+              'last_failure_at', 'created_at', 'songs_scraped', 'last_scrape_at']
 
     stations = []
     for row in cursor.fetchall():
@@ -167,10 +179,10 @@ def get_all_stations_with_health(cursor):
         # Calculate human-readable status
         if station['enabled']:
             if station['consecutive_failures'] == 0:
-                station['status'] = 'Enabled'
+                station['status'] = 'Active'
                 station['status_class'] = 'success'
             else:
-                station['status'] = f"Enabled ({station['consecutive_failures']} failures)"
+                station['status'] = f"{station['consecutive_failures']} failures"
                 station['status_class'] = 'warning'
         else:
             if station['last_failure_at']:
@@ -180,10 +192,15 @@ def get_all_stations_with_health(cursor):
                 else:
                     failure_time = station['last_failure_at']
                 days_ago = (datetime.now() - failure_time).days
-                station['status'] = f"Disabled ({station['consecutive_failures']} failures since {days_ago} days ago)"
+                if station['consecutive_failures'] >= 3:
+                    station['status'] = 'Auto-disabled'
+                    station['status_class'] = 'danger'
+                else:
+                    station['status'] = 'Disabled'
+                    station['status_class'] = 'secondary'
             else:
-                station['status'] = f"Disabled ({station['consecutive_failures']} failures)"
-            station['status_class'] = 'danger'
+                station['status'] = 'Disabled'
+                station['status_class'] = 'secondary'
         stations.append(station)
 
     return stations
