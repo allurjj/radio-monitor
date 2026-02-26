@@ -4,37 +4,32 @@
 
 {% block custom_css %}
 <style>
-.station-card {
-    border-top: 1px solid #dee2e6;
-    border-right: 1px solid #dee2e6;
-    border-bottom: 1px solid #dee2e6;
-    border-left: 4px solid #dee2e6;
+/* Station card styles (NOTE: Using inline styles due to CSS loading issue) */
+#stations-container .station-card {
+    border: 1px solid #dee2e6;
+    border-left: 4px solid #28a745;
     border-radius: 8px;
-    padding: 1.25rem;
-    margin-top: 0;
-    margin-right: 0;
-    margin-bottom: 2rem !important;
-    margin-left: 0;
+    padding: 1rem;
+    margin-bottom: 1rem;
     background: #f8f9fa;
     transition: all 0.2s;
-    width: 100%;
 }
 
-.station-card:hover {
+#stations-container .station-card:hover {
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-.station-card h6 {
+#stations-container .station-card h6 {
     font-size: 1.1rem;
     font-weight: 600;
 }
 
-.station-card .btn-group {
+#stations-container .station-card .btn-group {
     flex-wrap: wrap;
 }
 
 #stations-container {
-    padding: 0.5rem 0;
+    padding: 0;
 }
 
 /* Spinning icon animation */
@@ -253,7 +248,6 @@ function displayStations() {
         const lastScrape = formatRelativeTime(station.last_scrape_at);
 
         // Determine card border color
-        let borderLeftClass = '';
         let borderLeftColor = '#28a745'; // default green
         if (!station.enabled) {
             borderLeftColor = station.consecutive_failures >= 3 ? '#dc3545' : '#6c757d';
@@ -261,8 +255,16 @@ function displayStations() {
             borderLeftColor = '#ffc107';
         }
 
+        // Determine card border color class (for potential future CSS use)
+        let borderClass = 'border-green'; // default green
+        if (!station.enabled) {
+            borderClass = station.consecutive_failures >= 3 ? 'border-red' : 'border-gray';
+        } else if (station.consecutive_failures > 0) {
+            borderClass = 'border-yellow';
+        }
+
         html += `
-            <div class="station-card" id="station-${station.id}" style="border-left-color: ${borderLeftColor};">
+            <div class="station-card ${borderClass}" id="station-${station.id}" style="border: 1px solid #dee2e6 !important; border-left: 4px solid ${borderLeftColor} !important; border-radius: 8px !important; padding: 1rem !important; margin-bottom: 1rem !important; background: #f8f9fa !important; display: block !important;">
                 <div class="d-flex justify-content-between align-items-start">
                     <div style="flex: 1;">
                         <h6 class="mb-2">
@@ -291,7 +293,7 @@ function displayStations() {
                             </small>
                         </p>
                     </div>
-                    <div class="btn-group" role="group" style="margin-left: 1rem;">
+                    <div class="btn-group ms-3" role="group">
                         <a href="/stations/${station.id}" class="btn btn-sm btn-outline-primary" title="View Details">
                             <i class="bi bi-eye"></i>
                         </a>
