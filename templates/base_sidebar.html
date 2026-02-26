@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Radio Monitor 1.0{% endblock %}</title>
+    <title>{% block title %}Radio Monitor {{ config.get('VERSION', '1.1.9') }}{% endblock %}</title>
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
@@ -22,10 +22,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-polish.css') }}">
 
     <!-- Theme System CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/typography.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}">
 
     <!-- Phase 7 Enhancement CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/empty-state.css') }}">
@@ -190,11 +189,6 @@
                             <input type="text" class="form-control" placeholder="Search (Ctrl+K)" id="global-search">
                             <i class="bi bi-search"></i>
                         </div>
-
-                        <!-- Theme Toggle Button -->
-                        <button class="btn btn-link" id="theme-toggle" title="Toggle theme (Light/Dark)">
-                            <i class="bi bi-sun-fill" id="theme-icon"></i>
-                        </button>
 
                         <!-- Status Icons -->
                         <div class="topbar-status-icons ms-3">

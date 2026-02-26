@@ -1,6 +1,6 @@
 {% extends "base_sidebar.html" %}
 
-{% block title %}{{ song.song_title }} by {{ song.artist_name }} - Radio Monitor 1.0{% endblock %}
+{% block title %}{{ song.song_title }} by {{ song.artist_name }} - Radio Monitor {{ config.get('VERSION', '1.1.9') }}{% endblock %}
 
 {% block content %}
 <div class="row mb-4">

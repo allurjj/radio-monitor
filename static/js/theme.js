@@ -1,49 +1,16 @@
 // ==========================================
-// THEME TOGGLE LOGIC
+// MULTI-THEME SYSTEM
 // ==========================================
 
 (function() {
     'use strict';
 
-    // Theme toggle functionality
-    const themeToggle = document.getElementById('theme-toggle');
-    const themeIcon = document.getElementById('theme-icon');
+    // Available themes (10 total)
+    const THEMES = ['light', 'dark', 'ocean', 'forest', 'sunset', 'midnight', 'rose', 'arctic', 'grape', 'caramel'];
 
-    // Load saved theme
+    // Load saved theme on page load
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
-    updateThemeIcon(savedTheme);
-
-    // Toggle theme on button click
-    if (themeToggle) {
-        themeToggle.addEventListener('click', () => {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-
-            // Apply new theme
-            document.documentElement.setAttribute('data-theme', newTheme);
-            localStorage.setItem('theme', newTheme);
-            updateThemeIcon(newTheme);
-
-            // Update Chart.js instances if they exist
-            if (typeof updateChartsTheme === 'function') {
-                updateChartsTheme(newTheme);
-            }
-        });
-    }
-
-    // Update theme icon
-    function updateThemeIcon(theme) {
-        if (!themeIcon) return;
-
-        if (theme === 'dark') {
-            themeIcon.classList.remove('bi-sun-fill');
-            themeIcon.classList.add('bi-moon-fill');
-        } else {
-            themeIcon.classList.remove('bi-moon-fill');
-            themeIcon.classList.add('bi-sun-fill');
-        }
-    }
 
     // Expose theme functions globally
     window.getCurrentTheme = function() {
@@ -51,11 +18,60 @@
     };
 
     window.setTheme = function(theme) {
+        if (!THEMES.includes(theme)) {
+            console.warn(`Invalid theme: ${theme}. Using 'light' instead.`);
+            theme = 'light';
+        }
+
+        // Apply new theme
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('theme', theme);
-        updateThemeIcon(theme);
+
+        // Update theme selector UI
+        updateThemeSelectorUI(theme);
+
+        // Update Chart.js instances if they exist
         if (typeof updateChartsTheme === 'function') {
             updateChartsTheme(theme);
         }
+
+        // Dispatch event for other components
+        document.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme } }));
     };
+
+    // Update theme selector UI (active state)
+    function updateThemeSelectorUI(activeTheme) {
+        document.querySelectorAll('.theme-option').forEach(option => {
+            option.classList.remove('active');
+            if (option.dataset.theme === activeTheme) {
+                option.classList.add('active');
+            }
+        });
+    }
+
+    // Initialize theme selector on page load
+    function initializeThemeSelector() {
+        const currentTheme = getCurrentTheme();
+        updateThemeSelectorUI(currentTheme);
+
+        // Add click handlers to theme options
+        document.querySelectorAll('.theme-option').forEach(option => {
+            option.addEventListener('click', function() {
+                const theme = this.dataset.theme;
+                if (theme) {
+                    setTheme(theme);
+                }
+            });
+        });
+    }
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeThemeSelector);
+    } else {
+        initializeThemeSelector();
+    }
+
+    // Export for use in other scripts
+    window.THEMES = THEMES;
 })();

@@ -1,7 +1,7 @@
 {% extends "base_sidebar.html" %}
 
 {# TEMPLATE UPDATED: 2026-02-09 15:30 - Phase 1 #}
-{% block title %}Settings - Radio Monitor 1.0{% endblock %}
+{% block title %}Settings - Radio Monitor {{ config.get('VERSION', '1.1.9') }}{% endblock %}
 
 {% block custom_css %}
     /* Grid Layout for Condensed Settings */
@@ -393,6 +393,106 @@
                     <div class="col-md-3">
                         <label for="openrouter-max-songs-input" class="form-label form-label-sm">Max Songs</label>
                         <input type="number" class="form-control form-control-sm" id="openrouter-max-songs-input" min="100" max="10000" step="100" value="5000">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Theme Selection -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-palette text-info"></i> Theme</h5>
+                <p class="text-muted mb-3">Choose your preferred color scheme. Changes take effect instantly.</p>
+
+                <div class="theme-selector">
+                    <!-- Light Theme -->
+                    <div class="theme-option" data-theme="light">
+                        <div class="theme-preview light">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Light</span>
+                    </div>
+
+                    <!-- Dark Theme -->
+                    <div class="theme-option" data-theme="dark">
+                        <div class="theme-preview dark">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Dark</span>
+                    </div>
+
+                    <!-- Ocean Theme -->
+                    <div class="theme-option" data-theme="ocean">
+                        <div class="theme-preview ocean">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Ocean</span>
+                    </div>
+
+                    <!-- Forest Theme -->
+                    <div class="theme-option" data-theme="forest">
+                        <div class="theme-preview forest">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Forest</span>
+                    </div>
+
+                    <!-- Sunset Theme -->
+                    <div class="theme-option" data-theme="sunset">
+                        <div class="theme-preview sunset">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Sunset</span>
+                    </div>
+
+                    <!-- Midnight Theme -->
+                    <div class="theme-option" data-theme="midnight">
+                        <div class="theme-preview midnight">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Midnight</span>
+                    </div>
+
+                    <!-- Rose Theme -->
+                    <div class="theme-option" data-theme="rose">
+                        <div class="theme-preview rose">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Rose</span>
+                    </div>
+
+                    <!-- Arctic Theme -->
+                    <div class="theme-option" data-theme="arctic">
+                        <div class="theme-preview arctic">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Arctic</span>
+                    </div>
+
+                    <!-- Grape Theme -->
+                    <div class="theme-option" data-theme="grape">
+                        <div class="theme-preview grape">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Grape</span>
+                    </div>
+
+                    <!-- Caramel Theme -->
+                    <div class="theme-option" data-theme="caramel">
+                        <div class="theme-preview caramel">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Caramel</span>
                     </div>
                 </div>
             </div>

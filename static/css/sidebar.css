@@ -4,17 +4,20 @@
  */
 
 :root {
+    /* Sidebar dimensions */
     --sidebar-width: 250px;
     --sidebar-collapsed-width: 0px;
-    --sidebar-bg-dark: #1a1a1a;
-    --sidebar-bg-darker: #141414;
-    --sidebar-text-primary: #e0e0e0;
-    --sidebar-text-secondary: #a0a0a0;
-    --sidebar-accent: #4a9eff;
-    --sidebar-hover: #2a2a2a;
-    --sidebar-border: #333333;
     --topbar-height: 56px;
     --footer-height: 60px;
+
+    /* Light Theme Sidebar (Default) */
+    --sidebar-bg-dark: #2c3e50;
+    --sidebar-bg-darker: #1a252f;
+    --sidebar-text-primary: #ecf0f1;
+    --sidebar-text-secondary: #95a5a6;
+    --sidebar-accent: #3498db;
+    --sidebar-hover: #34495e;
+    --sidebar-border: #1a252f;
 }
 
 * {
