@@ -8,6 +8,6 @@ For built artifacts (Docker, Windows EXE), this file ensures the correct
 build version is displayed.
 """
 
-__version__ = "1.1.9"
+__version__ = "1.1.10"
 __build_date__ = "2026-02-26"
 __github_url__ = "https://github.com/allurjj/radio-monitor"
