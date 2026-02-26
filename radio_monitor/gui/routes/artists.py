@@ -393,23 +393,13 @@ def api_update_artist_mbid():
                 'songs_updated': songs_updated
             })
         else:
-            # Scenario 2: New MBID doesn't exist - need to create it first
+            # Scenario 2: New MBID doesn't exist - update the existing artist in-place
+            # This handles the case where correct_artist_name might already exist
 
-            # Step 1: Insert new artist with the correct MBID
-            try:
-                cursor.execute("""
-                    INSERT INTO artists (mbid, name, first_seen_station, first_seen_at, last_seen_at)
-                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-                """, (new_mbid, correct_artist_name, first_seen_station, first_seen_at))
-            except Exception as insert_err:
-                # Try without first_seen_station if foreign key constraint fails
-                logger.warning(f"Could not insert artist with station reference, trying without: {insert_err}")
-                cursor.execute("""
-                    INSERT INTO artists (mbid, name, first_seen_at, last_seen_at)
-                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-                """, (new_mbid, correct_artist_name, first_seen_at))
+            # Disable foreign key constraints temporarily to allow updating the primary key
+            cursor.execute("PRAGMA foreign_keys = OFF")
 
-            # Step 2: Update all songs to point to the new MBID
+            # Step 1: Update all songs to point to the new MBID
             cursor.execute("""
                 UPDATE songs
                 SET artist_mbid = ?, artist_name = ?
@@ -417,8 +407,19 @@ def api_update_artist_mbid():
             """, (new_mbid, correct_artist_name, old_mbid))
             songs_updated = cursor.rowcount
 
-            # Step 3: Delete the old artist record
-            cursor.execute("DELETE FROM artists WHERE mbid = ?", (old_mbid,))
+            # Step 2: Update the artist's MBID and name in-place
+            # Use UPDATE instead of INSERT to avoid UNIQUE constraint on name
+            cursor.execute("""
+                UPDATE artists
+                SET mbid = ?, name = ?
+                WHERE mbid = ?
+            """, (new_mbid, correct_artist_name, old_mbid))
+
+            if cursor.rowcount == 0:
+                raise Exception(f"Failed to update artist: old MBID {old_mbid} not found")
+
+            # Re-enable foreign key constraints
+            cursor.execute("PRAGMA foreign_keys = ON")
 
             db.conn.commit()
 
