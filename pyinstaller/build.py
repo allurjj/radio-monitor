@@ -180,7 +180,11 @@ options = [
     '--noupx',                          # Don't use UPX compression (avoids antivirus false positives)
 
     # Runtime options
-    '--runtime-tmpdir=.',               # Use local directory for temp files
+    '--runtime-tmpdir=.',               # Use local directory for temp files (not C:\temp)
+    f'--runtime-hook={os.path.join(SCRIPT_DIR, "pyi_rth_radio_monitor.py")}',  # Fix temp path issues
+
+    # Manifest options (fixes DLL loading issues)
+    '--no-embed-manifest',              # Don't embed manifest (avoids Windows defender issues)
 
     # Workpath (where build files go) - absolute path
     f'--workpath={os.path.join(PROJECT_ROOT, "build", "pyinstaller")}',
