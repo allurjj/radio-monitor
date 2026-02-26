@@ -181,8 +181,8 @@ options = [
     '--noupx',                          # Don't use UPX compression (avoids antivirus false positives)
 
     # Runtime options
-    '--runtime-tmpdir=.',               # Use local directory for temp files (not C:\temp)
-    f'--runtime-hook={os.path.join(SCRIPT_DIR, "pyi_rth_radio_monitor.py")}',  # Fix temp path issues
+    # Use runtime hook to fix temp path (NOT --runtime-tmpdir which conflicts)
+    f'--runtime-hook={os.path.join(SCRIPT_DIR, "pyi_rth_radio_monitor.py")}',
 
     # Workpath (where build files go) - absolute path
     f'--workpath={os.path.join(PROJECT_ROOT, "build", "pyinstaller")}',

@@ -10,15 +10,14 @@ The problem: PyInstaller defaults to C:\temp which:
 - Triggers antivirus false positives
 - Causes "Invalid access to memory location" errors
 
-The solution: Redirect temp paths to the exe directory.
+The solution: Override _MEIPASS to use local directory.
 """
 
 import os
 import sys
-import tempfile
 
 # Only run when frozen (in the EXE, not during dev)
-if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+if getattr(sys, 'frozen', False):
 
     # Get the executable directory
     if hasattr(sys, 'executable'):
@@ -26,20 +25,26 @@ if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
     else:
         exe_dir = os.path.dirname(sys.argv[0])
 
-    # Create a temp subdirectory in the exe folder
-    temp_dir = os.path.join(exe_dir, 'temp')
+    # Override _MEIPASS to extract files next to the EXE
+    # This prevents extraction to C:\temp
+    if hasattr(sys, '_MEIPASS'):
+        # Create _internal directory next to exe (PyInstaller's internal extraction dir)
+        internal_dir = os.path.join(exe_dir, '_internal')
 
-    # Create it if it doesn't exist
+        # Create it if it doesn't exist
+        try:
+            os.makedirs(internal_dir, exist_ok=True)
+        except Exception:
+            pass  # If we can't create it, PyInstaller will use default location
+
+        # Set _MEIPASS to our custom location
+        sys._MEIPASS = internal_dir
+
+    # Also override temp environment variables
+    temp_dir = os.path.join(exe_dir, 'temp')
     try:
         os.makedirs(temp_dir, exist_ok=True)
+        os.environ['TEMP'] = temp_dir
+        os.environ['TMP'] = temp_dir
     except Exception:
-        # If we can't create it, fall back to system temp
-        temp_dir = tempfile.gettempdir()
-
-    # Override temp environment variables
-    # This makes Python and PyInstaller use our temp directory
-    os.environ['TEMP'] = temp_dir
-    os.environ['TMP'] = temp_dir
-
-    # Also override Python's tempfile module
-    tempfile.tempdir = temp_dir
+        pass  # Fall back to system temp if we can't create local temp

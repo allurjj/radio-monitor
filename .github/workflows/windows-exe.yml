@@ -60,6 +60,9 @@ jobs:
         run: |
           echo Starting PyInstaller build...
           cd pyinstaller
+          REM Set temp to user profile to avoid C:\temp issues
+          set TEMP=%USERPROFILE%\AppData\Local\Temp
+          set TMP=%USERPROFILE%\AppData\Local\Temp
           python build.py
           if %errorlevel% neq 0 (
             echo ERROR: PyInstaller failed with exit code %errorlevel%
