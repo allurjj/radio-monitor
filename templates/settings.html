@@ -7,9 +7,10 @@
     /* Grid Layout for Condensed Settings */
     .settings-grid {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: 1fr;
         gap: 1.5rem;
         margin-bottom: 1.5rem;
+        padding: 0;
     }
 
     .settings-grid.full-width {
@@ -23,17 +24,27 @@
         flex-direction: column;
     }
 
+    /* Add matching padding like other pages */
+    #settings-form {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+
     .settings-card .card-body {
         flex: 1;
     }
 
-    /* Responsive */
+    /* Responsive - Always single column */
     @media (max-width: 992px) {
-        .settings-grid {
-            grid-template-columns: 1fr;
-        }
         .settings-card {
             min-height: auto;
+        }
+    }
+
+    @media (max-width: 576px) {
+        #settings-form {
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
         }
     }
 
@@ -81,23 +92,25 @@
 
 <form id="settings-form">
     <!-- Row 1: Integrations (Lidarr + Plex) -->
+    <!-- Single Column Layout - All Cards Full Width -->
     <div class="settings-grid">
+
         <!-- Lidarr Section -->
         <div class="card card-standard settings-card">
             <div class="card-body">
                 <h5 class="card-title"><i class="bi bi-cloud-download text-primary"></i> Lidarr</h5>
                 <div class="row g-2 mb-2">
-                    <div class="col-6">
+                    <div class="col-md-6">
                         <label for="lidarr-url" class="form-label form-label-sm">URL</label>
                         <input type="url" class="form-control form-control-sm" id="lidarr-url" required autocomplete="off">
                     </div>
-                    <div class="col-6">
+                    <div class="col-md-6">
                         <label for="lidarr-api-key" class="form-label form-label-sm">API Key</label>
                         <input type="password" class="form-control form-control-sm" id="lidarr-api-key" required autocomplete="off">
                     </div>
                 </div>
                 <div class="row g-2 mb-2">
-                    <div class="col-6">
+                    <div class="col-md-5">
                         <label for="lidarr-root-folder" class="form-label form-label-sm">Root Folder</label>
                         <div class="input-group input-group-sm">
                             <select class="form-select" id="lidarr-root-folder" required>
@@ -108,7 +121,7 @@
                             </button>
                         </div>
                     </div>
-                    <div class="col-6">
+                    <div class="col-md-5">
                         <label for="lidarr-quality-profile" class="form-label form-label-sm">Quality Profile</label>
                         <div class="input-group input-group-sm">
                             <select class="form-select" id="lidarr-quality-profile" required>
@@ -119,9 +132,14 @@
                             </button>
                         </div>
                     </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-outline-primary btn-sm w-100" id="btn-test-lidarr">
+                            <i class="bi bi-wifi"></i> Test
+                        </button>
+                    </div>
                 </div>
                 <div class="row g-2 mb-2">
-                    <div class="col-6">
+                    <div class="col-md-4">
                         <label for="lidarr-metadata-profile" class="form-label form-label-sm">Metadata Profile</label>
                         <div class="input-group input-group-sm">
                             <select class="form-select" id="lidarr-metadata-profile" required>
@@ -132,13 +150,16 @@
                             </button>
                         </div>
                     </div>
-                    <div class="col-3">
+                    <div class="col-md-3">
                         <label for="lidarr-min-plays" class="form-label form-label-sm">Min Plays</label>
                         <input type="number" class="form-control form-control-sm" id="lidarr-min-plays" min="1" max="1000" value="5">
                     </div>
-                    <div class="col-3">
+                    <div class="col-md-3">
                         <label for="lidarr-min-songs" class="form-label form-label-sm">Min Songs</label>
                         <input type="number" class="form-control form-control-sm" id="lidarr-min-songs" min="1" max="50" value="1">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-center">
+                        <div id="lidarr-test-result" class="test-result mb-0"></div>
                     </div>
                 </div>
                 <div class="row g-2 mb-2">
@@ -159,12 +180,6 @@
                         </div>
                     </div>
                 </div>
-                <div class="mt-auto">
-                    <button type="button" class="btn btn-outline-primary btn-sm" id="btn-test-lidarr">
-                        <i class="bi bi-wifi"></i> Test Connection
-                    </button>
-                    <div id="lidarr-test-result" class="test-result"></div>
-                </div>
             </div>
         </div>
 
@@ -172,18 +187,16 @@
         <div class="card card-standard settings-card">
             <div class="card-body">
                 <h5 class="card-title"><i class="bi bi-music-note-list text-warning"></i> Plex</h5>
-                <div class="row g-2 mb-2">
-                    <div class="col-6">
+                <div class="row g-2 mb-0">
+                    <div class="col-md-4">
                         <label for="plex-url" class="form-label form-label-sm">URL</label>
                         <input type="url" class="form-control form-control-sm" id="plex-url" required autocomplete="off">
                     </div>
-                    <div class="col-6">
+                    <div class="col-md-4">
                         <label for="plex-token" class="form-label form-label-sm">Token</label>
                         <input type="password" class="form-control form-control-sm" id="plex-token" required autocomplete="off">
                     </div>
-                </div>
-                <div class="row g-2 mb-2">
-                    <div class="col-12">
+                    <div class="col-md-4">
                         <label for="plex-library" class="form-label form-label-sm">Music Library</label>
                         <div class="input-group input-group-sm">
                             <select class="form-select" id="plex-library" required>
@@ -195,53 +208,38 @@
                         </div>
                     </div>
                 </div>
-                <div class="mt-auto">
-                    <button type="button" class="btn btn-outline-primary btn-sm" id="btn-test-plex">
-                        <i class="bi bi-wifi"></i> Test Connection
-                    </button>
-                    <div id="plex-test-result" class="test-result"></div>
+                <div class="row g-2 mt-2">
+                    <div class="col-md-11 d-flex align-items-center">
+                        <div id="plex-test-result" class="test-result mb-0"></div>
+                    </div>
+                    <div class="col-md-1">
+                        <button type="button" class="btn btn-outline-primary btn-sm w-100" id="btn-test-plex">
+                            <i class="bi bi-wifi"></i> Test
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Row 2: AI + Monitor -->
-    <div class="settings-grid">
-        <!-- OpenRouter AI Section (Experimental) -->
-        <div class="card card-standard settings-card border-warning">
+        <!-- GUI Section -->
+        <div class="card card-standard settings-card">
             <div class="card-body">
-                <h5 class="card-title"><i class="bi bi-cpu text-danger"></i> OpenRouter AI <span class="badge bg-danger ms-2">Experimental</span></h5>
-                <div class="row g-2 mb-2">
-                    <div class="col-6">
-                        <label for="openrouter-api-key" class="form-label form-label-sm">API Key</label>
-                        <input type="password" class="form-control form-control-sm" id="openrouter-api-key" autocomplete="off">
+                <h5 class="card-title"><i class="bi bi-window text-dark"></i> GUI</h5>
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label for="gui-host" class="form-label form-label-sm">Host</label>
+                        <input type="text" class="form-control form-control-sm" id="gui-host" value="0.0.0.0" required autocomplete="off">
                     </div>
-                    <div class="col-6">
-                        <label for="openrouter-model" class="form-label form-label-sm">Model</label>
-                        <input type="text" class="form-control form-control-sm" id="openrouter-model" value="qwen/qwen3-next-80b-a3b-instruct:free" autocomplete="off">
-                        <input type="hidden" id="openrouter-rate-limit" value="1">
+                    <div class="col-md-3">
+                        <label for="gui-port" class="form-label form-label-sm">Port</label>
+                        <input type="number" class="form-control form-control-sm" id="gui-port" min="1" max="65535" value="5000" required autocomplete="off">
                     </div>
-                </div>
-                <div class="row g-2 mb-2">
-                    <div class="col-3">
-                        <label for="openrouter-timeout" class="form-label form-label-sm">Timeout (s)</label>
-                        <input type="number" class="form-control form-control-sm" id="openrouter-timeout" min="5" max="300" value="120">
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check form-check-sm mt-3">
+                            <input class="form-check-input" type="checkbox" id="gui-debug">
+                            <label class="form-check-label" for="gui-debug">Debug mode</label>
+                        </div>
                     </div>
-                    <div class="col-3">
-                        <label for="openrouter-max-retries" class="form-label form-label-sm">Retries</label>
-                        <input type="number" class="form-control form-control-sm" id="openrouter-max-retries" min="0" max="10" value="3">
-                    </div>
-                    <div class="col-3">
-                        <label for="openrouter-max-tokens" class="form-label form-label-sm">Max Tokens</label>
-                        <input type="number" class="form-control form-control-sm" id="openrouter-max-tokens" min="1000" max="200000" step="1000" value="100000">
-                    </div>
-                    <div class="col-3">
-                        <label for="openrouter-max-songs-input" class="form-label form-label-sm">Max Songs</label>
-                        <input type="number" class="form-control form-control-sm" id="openrouter-max-songs-input" min="100" max="10000" step="100" value="5000">
-                    </div>
-                </div>
-                <div class="alert alert-warning alert-sm py-2 mb-0">
-                    <small><i class="bi bi-exclamation-triangle"></i> Experimental feature - results may vary</small>
                 </div>
             </div>
         </div>
@@ -250,59 +248,52 @@
         <div class="card card-standard settings-card">
             <div class="card-body">
                 <h5 class="card-title"><i class="bi bi-broadcast text-info"></i> Monitor</h5>
-                <div class="row g-2 mb-2">
-                    <div class="col-12">
+                <div class="row g-2 mb-0">
+                    <div class="col-md-7">
                         <label for="monitor-database" class="form-label form-label-sm">Database File</label>
                         <input type="text" class="form-control form-control-sm" id="monitor-database" required autocomplete="off">
                     </div>
-                </div>
-                <div class="row g-2 mb-2">
-                    <div class="col-12">
-                        <label for="monitor-interval" class="form-label form-label-sm">Scrape Interval (minutes)</label>
+                    <div class="col-md-3">
+                        <label for="monitor-interval" class="form-label form-label-sm">Scrape Interval (min)</label>
                         <input type="number" class="form-control form-control-sm" id="monitor-interval" min="1" max="60" required autocomplete="off">
                     </div>
-                </div>
-                <div class="alert alert-info alert-sm py-2 mb-0">
-                    <small><i class="bi bi-info-circle"></i> Scraping runs every <strong id="interval-display">12</strong> minutes</small>
+                    <div class="col-md-2 d-flex align-items-center">
+                        <small class="text-muted"><i class="bi bi-info-circle"></i> Runs every <strong id="interval-display">12</strong> min</small>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Row 3: Database + GUI -->
-    <div class="settings-grid">
         <!-- Database Section -->
         <div class="card card-standard settings-card">
             <div class="card-body">
                 <h5 class="card-title"><i class="bi bi-database text-success"></i> Database</h5>
-                <div class="row g-2 mb-2">
-                    <div class="col-12">
-                        <div class="form-check form-check-sm">
+                <div class="row g-2 mb-0">
+                    <div class="col-md-3">
+                        <div class="form-check form-check-sm mt-2">
                             <input class="form-check-input" type="checkbox" id="db-backup-enabled">
-                            <label class="form-check-label" for="db-backup-enabled">Enable automatic backups</label>
+                            <label class="form-check-label" for="db-backup-enabled">Auto backups</label>
                         </div>
                     </div>
-                </div>
-                <div class="row g-2 mb-2">
-                    <div class="col-6">
+                    <div class="col-md-2">
                         <label for="db-retention" class="form-label form-label-sm">Retention (days)</label>
                         <input type="number" class="form-control form-control-sm" id="db-retention" min="1" max="365" value="7">
                     </div>
-                    <div class="col-6">
+                    <div class="col-md-4">
                         <label for="db-backup-path" class="form-label form-label-sm">Backup Path</label>
                         <input type="text" class="form-control form-control-sm" id="db-backup-path" value="backups/">
                     </div>
-                </div>
-                <div class="d-flex gap-2 flex-wrap">
-                    <button type="button" class="btn btn-primary btn-sm" id="btn-backup-create">
-                        <i class="bi bi-save"></i> Backup
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-backup-list">
-                        <i class="bi bi-list-ul"></i> List
-                    </button>
-                    <button type="button" class="btn btn-outline-warning btn-sm" id="btn-vacuum-db">
-                        <i class="bi bi-arrow-clockwise"></i> Vacuum
-                    </button>
+                    <div class="col-md-3 d-flex align-items-end gap-1">
+                        <button type="button" class="btn btn-primary btn-sm flex-fill" id="btn-backup-create">
+                            <i class="bi bi-save"></i> Backup
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" id="btn-backup-list">
+                            <i class="bi bi-list-ul"></i> List
+                        </button>
+                        <button type="button" class="btn btn-outline-warning btn-sm flex-fill" id="btn-vacuum-db">
+                            <i class="bi bi-arrow-clockwise"></i> Vacuum
+                        </button>
+                    </div>
                 </div>
                 <!-- Backup List (hidden by default) -->
                 <div id="backup-list" style="display: none;" class="mt-3">
@@ -333,41 +324,16 @@
             </div>
         </div>
 
-        <!-- GUI Section -->
-        <div class="card card-standard settings-card">
-            <div class="card-body">
-                <h5 class="card-title"><i class="bi bi-window text-dark"></i> GUI</h5>
-                <div class="row g-2">
-                    <div class="col-6">
-                        <label for="gui-host" class="form-label form-label-sm">Host</label>
-                        <input type="text" class="form-control form-control-sm" id="gui-host" value="0.0.0.0" required autocomplete="off">
-                    </div>
-                    <div class="col-3">
-                        <label for="gui-port" class="form-label form-label-sm">Port</label>
-                        <input type="number" class="form-control form-control-sm" id="gui-port" min="1" max="65535" value="5000" required autocomplete="off">
-                    </div>
-                    <div class="col-3 d-flex align-items-end">
-                        <div class="form-check form-check-sm mt-3">
-                            <input class="form-check-input" type="checkbox" id="gui-debug">
-                            <label class="form-check-label" for="gui-debug">Debug mode</label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-
-    <!-- Row 6: Database Sharing + Application Control (Side by Side) -->
-    <div class="settings-grid">
         <!-- Database Sharing Section -->
         <div class="card card-standard settings-card">
             <div class="card-body">
                 <h5 class="card-title"><i class="bi bi-share text-info"></i> Database Sharing</h5>
-                <p class="text-muted small mb-2">Export your database to share with friends, or import a database from a friend.</p>
+                <p class="text-muted small mb-2">
+                    Share your database with friends. <strong>Export strips:</strong> Playlists, Lidarr status. Preserves: All discovery data.
+                </p>
 
-                <div class="row g-2 mb-2">
-                    <div class="col-12">
+                <div class="row g-2 mb-0">
+                    <div class="col-md-5">
                         <label for="export-filename" class="form-label form-label-sm">Export Filename</label>
                         <div class="input-group input-group-sm">
                             <input type="text" class="form-control" id="export-filename" placeholder="radio_monitor_shared.db">
@@ -376,9 +342,10 @@
                             </button>
                         </div>
                     </div>
-                </div>
-                <div class="row g-2">
-                    <div class="col-12">
+                    <div class="col-md-1 d-flex align-items-center">
+                        <div id="export-result" class="test-result mb-0"></div>
+                    </div>
+                    <div class="col-md-5">
                         <label for="import-source-path" class="form-label form-label-sm">Import Source Path ⚠</label>
                         <div class="input-group input-group-sm">
                             <input type="text" class="form-control" id="import-source-path" placeholder="backups/radio_monitor_shared.db">
@@ -388,29 +355,66 @@
                         </div>
                         <small class="text-danger"><strong>WARNING:</strong> This will OVERWRITE your current database!</small>
                     </div>
+                    <div class="col-md-1 d-flex align-items-center">
+                        <div id="import-result" class="test-result mb-0"></div>
+                    </div>
                 </div>
-                <div id="export-result" class="mt-2"></div>
-                <div id="import-result" class="mt-2"></div>
             </div>
         </div>
 
-        <!-- Application Control Section -->
-        <div class="card border-danger bg-danger bg-opacity-10 settings-card">
+        <!-- OpenRouter AI Section (Experimental) -->
+        <div class="card card-standard settings-card border-warning">
             <div class="card-body">
-                <div class="d-flex flex-column h-100">
-                    <div>
-                        <h5 class="card-title mb-1"><i class="bi bi-power text-danger"></i> Application Control</h5>
-                        <p class="text-muted small mb-3">Shutdown the Radio Monitor application</p>
+                <h5 class="card-title"><i class="bi bi-cpu text-danger"></i> OpenRouter AI <span class="badge bg-danger ms-2">Experimental - results may vary</span></h5>
+                <div class="row g-2 mb-2">
+                    <div class="col-md-6">
+                        <label for="openrouter-api-key" class="form-label form-label-sm">API Key</label>
+                        <input type="password" class="form-control form-control-sm" id="openrouter-api-key" autocomplete="off">
                     </div>
-                    <div class="mt-auto">
-                        <button type="button" class="btn btn-danger w-100" id="btn-shutdown-app">
-                            <i class="bi bi-power"></i> Shutdown Application
-                        </button>
-                        <div id="shutdown-result" class="mt-2"></div>
+                    <div class="col-md-6">
+                        <label for="openrouter-model" class="form-label form-label-sm">Model</label>
+                        <input type="text" class="form-control form-control-sm" id="openrouter-model" value="qwen/qwen3-next-80b-a3b-instruct:free" autocomplete="off">
+                        <input type="hidden" id="openrouter-rate-limit" value="1">
+                    </div>
+                </div>
+                <div class="row g-2 mb-0">
+                    <div class="col-md-3">
+                        <label for="openrouter-timeout" class="form-label form-label-sm">Timeout (s)</label>
+                        <input type="number" class="form-control form-control-sm" id="openrouter-timeout" min="5" max="300" value="120">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="openrouter-max-retries" class="form-label form-label-sm">Retries</label>
+                        <input type="number" class="form-control form-control-sm" id="openrouter-max-retries" min="0" max="10" value="3">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="openrouter-max-tokens" class="form-label form-label-sm">Max Tokens</label>
+                        <input type="number" class="form-control form-control-sm" id="openrouter-max-tokens" min="1000" max="200000" step="1000" value="100000">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="openrouter-max-songs-input" class="form-label form-label-sm">Max Songs</label>
+                        <input type="number" class="form-control form-control-sm" id="openrouter-max-songs-input" min="100" max="10000" step="100" value="5000">
                     </div>
                 </div>
             </div>
         </div>
+
+        <!-- Application Control Section (Shutdown) -->
+        <div class="card border-danger bg-danger bg-opacity-10 settings-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-3">
+                    <div>
+                        <h5 class="card-title mb-0"><i class="bi bi-power text-danger"></i> Application Control</h5>
+                    </div>
+                    <div class="ms-auto">
+                        <button type="button" class="btn btn-danger" id="btn-shutdown-app">
+                            <i class="bi bi-power"></i> Shutdown
+                        </button>
+                    </div>
+                </div>
+                <div id="shutdown-result" class="mt-2"></div>
+            </div>
+        </div>
+
     </div>
 </form>
 
