@@ -132,7 +132,7 @@ options = [
     '--hidden-import=apscheduler',
     '--hidden-import=apscheduler.schedulers.background',
     '--hidden-import=apscheduler.triggers.cron',
-    '--hidden-import=beautifulsoup4',
+    '--hidden-import=bs4',
     '--hidden-import=plexapi',
     '--hidden-import=plexapi.server',
     '--hidden-import=plexapi.base',
@@ -152,7 +152,7 @@ options = [
     '--hidden-import=apscheduler.schedulers.background',
     '--hidden-import=apscheduler.triggers.cron',
     # lxml removed in v1.1.0 (BeautifulSoup uses built-in html.parser)
-    '--hidden-import=beautifulsoup4',
+    '--hidden-import=bs4',
     '--hidden-import=plexapi',
     '--hidden-import=plexapi.server',
     '--hidden-import=plexapi.base',
