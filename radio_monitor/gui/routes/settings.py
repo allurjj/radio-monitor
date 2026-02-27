@@ -313,6 +313,103 @@ def api_import_database():
         }), 500
 
 
+@settings_bp.route('/api/settings/import-db-upload', methods=['POST'])
+@requires_auth
+def api_import_database_upload():
+    """Import database from uploaded file
+
+    WARNING: This overwrites the current database!
+
+    Expects multipart/form-data:
+        file: Database file (.db)
+
+    Returns JSON:
+        {
+            "success": true/false,
+            "message": "Database imported successfully"
+        }
+    """
+    try:
+        from radio_monitor.backup import import_database_from_backup
+        import os
+        from werkzeug.utils import secure_filename
+
+        # Check if file is present
+        if 'file' not in request.files:
+            return jsonify({
+                'success': False,
+                'message': 'No file provided'
+            }), 400
+
+        file = request.files['file']
+
+        # Check if filename is empty
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'message': 'No file selected'
+            }), 400
+
+        # Validate file extension
+        if not file.filename.endswith('.db'):
+            return jsonify({
+                'success': False,
+                'message': 'Invalid file type. Please select a .db file'
+            }), 400
+
+        # Get backup directory for temp storage
+        settings = load_settings()
+        backup_dir = settings.get('database', {}).get('backup_path', 'backups/')
+
+        # Create backup directory if it doesn't exist
+        from pathlib import Path
+        Path(backup_dir).mkdir(parents=True, exist_ok=True)
+
+        # Secure filename and create temp path
+        filename = secure_filename(file.filename)
+        temp_path = os.path.join(backup_dir, f"temp_upload_{filename}")
+
+        # Save uploaded file
+        file.save(temp_path)
+        logger.info(f"Uploaded database file saved to: {temp_path}")
+
+        # Get database paths
+        db_file = settings.get('monitor', {}).get('database_file', 'radio_songs.db')
+
+        # Import database (creates pre-import backup automatically)
+        if import_database_from_backup(temp_path, db_file, backup_dir):
+            logger.info(f"Database imported from uploaded file: {filename}")
+
+            # Clean up temp file
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+
+            return jsonify({
+                'success': True,
+                'message': f'Database imported successfully from {filename}. Please refresh the page.'
+            })
+        else:
+            # Clean up temp file on failure
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+
+            return jsonify({
+                'success': False,
+                'message': 'Import failed'
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error importing database from upload: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
 @settings_bp.route('/api/shutdown', methods=['POST'])
 @requires_auth
 def api_shutdown():

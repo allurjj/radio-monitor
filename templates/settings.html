@@ -346,13 +346,19 @@
                         <div id="export-result" class="test-result mb-0"></div>
                     </div>
                     <div class="col-md-5">
-                        <label for="import-source-path" class="form-label form-label-sm">Import Source Path ⚠</label>
-                        <div class="input-group input-group-sm">
+                        <label for="import-source-path" class="form-label form-label-sm">Import Database ⚠</label>
+                        <div class="input-group input-group-sm mb-1">
                             <input type="text" class="form-control" id="import-source-path" placeholder="backups/radio_monitor_shared.db">
+                            <input type="file" class="d-none" id="import-file-input" accept=".db">
+                            <button class="btn btn-secondary" type="button" id="btn-browse-file" title="Browse for file">
+                                <i class="bi bi-folder-open"></i> Browse
+                            </button>
                             <button class="btn btn-warning" type="button" id="btn-import-db">
                                 <i class="bi bi-upload"></i> Import
                             </button>
                         </div>
+                        <small class="text-muted small">Enter server path or click Browse to upload a file</small>
+                        <br>
                         <small class="text-danger"><strong>WARNING:</strong> This will OVERWRITE your current database!</small>
                     </div>
                     <div class="col-md-1 d-flex align-items-center">
@@ -1234,13 +1240,37 @@ document.getElementById('btn-export-db').addEventListener('click', function() {
     });
 });
 
+// Browse file button - triggers file input
+document.getElementById('btn-browse-file').addEventListener('click', function() {
+    document.getElementById('import-file-input').click();
+});
+
+// File input change - update path field with filename
+document.getElementById('import-file-input').addEventListener('change', function() {
+    const fileInput = this;
+    const pathInput = document.getElementById('import-source-path');
+
+    if (fileInput.files && fileInput.files.length > 0) {
+        // Display the selected filename
+        pathInput.value = fileInput.files[0].name;
+        // Store file reference for import
+        pathInput.dataset.fileSelected = 'true';
+    } else {
+        pathInput.dataset.fileSelected = 'false';
+    }
+});
+
 // Import database button
 document.getElementById('btn-import-db').addEventListener('click', async function() {
     const sourcePath = document.getElementById('import-source-path').value.trim();
+    const fileInput = document.getElementById('import-file-input');
     const resultDiv = document.getElementById('import-result');
 
-    if (!sourcePath) {
-        resultDiv.innerHTML = '<div class="alert alert-danger">Please enter a source path</div>';
+    // Check if a file was selected via browse
+    const hasFile = fileInput.files && fileInput.files.length > 0;
+
+    if (!sourcePath && !hasFile) {
+        resultDiv.innerHTML = '<div class="alert alert-danger">Please enter a source path or browse for a file</div>';
         return;
     }
 
@@ -1259,29 +1289,61 @@ document.getElementById('btn-import-db').addEventListener('click', async functio
 
     resultDiv.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Importing...</span></div>';
 
-    fetch('/api/settings/import-db', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ source_path: sourcePath })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            resultDiv.innerHTML = `<div class="alert alert-success">✓ ${data.message}</div>`;
-            Toast.success('Database imported successfully');
-            // Reload page after 2 seconds to show new data
-            setTimeout(() => {
-                window.location.reload();
-            }, 2000);
-        } else {
-            resultDiv.innerHTML = `<div class="alert alert-danger">✗ ${data.message}</div>`;
-        }
-    })
-    .catch(error => {
-        resultDiv.innerHTML = `<div class="alert alert-danger">✗ Error: ${error.message}</div>`;
-    });
+    // Use file upload if a file was selected, otherwise use path
+    if (hasFile) {
+        // File upload method
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        fetch('/api/settings/import-db-upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                resultDiv.innerHTML = `<div class="alert alert-success">✓ ${data.message}</div>`;
+                Toast.success('Database imported successfully');
+                // Clear file input
+                fileInput.value = '';
+                document.getElementById('import-source-path').value = '';
+                // Reload page after 2 seconds to show new data
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                resultDiv.innerHTML = `<div class="alert alert-danger">✗ ${data.message}</div>`;
+            }
+        })
+        .catch(error => {
+            resultDiv.innerHTML = `<div class="alert alert-danger">✗ Error: ${error.message}</div>`;
+        });
+    } else {
+        // Path-based method
+        fetch('/api/settings/import-db', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ source_path: sourcePath })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                resultDiv.innerHTML = `<div class="alert alert-success">✓ ${data.message}</div>`;
+                Toast.success('Database imported successfully');
+                // Reload page after 2 seconds to show new data
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                resultDiv.innerHTML = `<div class="alert alert-danger">✗ ${data.message}</div>`;
+            }
+        })
+        .catch(error => {
+            resultDiv.innerHTML = `<div class="alert alert-danger">✗ Error: ${error.message}</div>`;
+        });
+    }
 });
 </script>
 {% endblock %}
