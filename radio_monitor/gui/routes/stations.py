@@ -135,19 +135,143 @@ def api_update_station(station_id):
 
     cursor = db.get_cursor()
     try:
-        # Update station
-        if 'enabled' in data:
-            cursor.execute("""
-                UPDATE stations
-                SET enabled = ?
-                WHERE id = ?
-            """, (1 if data['enabled'] else 0, station_id))
+        # Build dynamic UPDATE query based on provided fields
+        update_fields = []
+        params = []
 
-        db.conn.commit()
+        # Handle enabled field
+        if 'enabled' in data:
+            update_fields.append("enabled = ?")
+            params.append(1 if data['enabled'] else 0)
+
+        # Handle other fields
+        if 'name' in data:
+            update_fields.append("name = ?")
+            params.append(data['name'])
+
+        if 'url' in data:
+            update_fields.append("url = ?")
+            params.append(data['url'])
+
+        if 'genre' in data:
+            update_fields.append("genre = ?")
+            params.append(data['genre'])
+
+        if 'market' in data:
+            update_fields.append("market = ?")
+            params.append(data['market'])
+
+        if 'wait_time' in data:
+            update_fields.append("wait_time = ?")
+            params.append(data['wait_time'])
+
+        if 'consecutive_failures' in data:
+            update_fields.append("consecutive_failures = ?")
+            params.append(data['consecutive_failures'])
+
+        if update_fields:
+            params.append(station_id)  # For WHERE clause
+            query = f"""
+                UPDATE stations
+                SET {', '.join(update_fields)}
+                WHERE id = ?
+            """
+            cursor.execute(query, params)
+            db.conn.commit()
+
+        return jsonify({'success': True})
     finally:
         cursor.close()
 
-    return jsonify({'success': True})
+
+@stations_bp.route('/api/stations/add', methods=['POST'])
+@requires_auth
+def api_add_station():
+    """API endpoint to add a new station"""
+    db = get_db()
+
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not initialized'}), 500
+
+    data = request.get_json()
+
+    # Validate required fields
+    required_fields = ['id', 'name', 'url', 'genre', 'market']
+    missing_fields = [f for f in required_fields if f not in data or not data[f]]
+
+    if missing_fields:
+        return jsonify({
+            'success': False,
+            'message': f'Missing required fields: {", ".join(missing_fields)}'
+        }), 400
+
+    cursor = db.get_cursor()
+    try:
+        # Check if station ID already exists
+        cursor.execute("SELECT id FROM stations WHERE id = ?", (data['id'],))
+        if cursor.fetchone():
+            return jsonify({
+                'success': False,
+                'message': f'Station ID "{data["id"]}" already exists'
+            }), 400
+
+        # Insert new station
+        cursor.execute("""
+            INSERT INTO stations (id, name, url, genre, market, scraper_type, has_mbid, wait_time, enabled)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+        """, (
+            data['id'],
+            data['name'],
+            data['url'],
+            data['genre'],
+            data['market'],
+            data.get('scraper_type', 'iheart'),
+            data.get('has_mbid', False),
+            data.get('wait_time', 10)
+        ))
+
+        db.conn.commit()
+        logger.info(f"Added new station: {data['id']} - {data['name']}")
+
+        return jsonify({'success': True, 'message': 'Station added successfully'})
+    except Exception as e:
+        logger.error(f"Error adding station: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        cursor.close()
+
+
+@stations_bp.route('/api/stations/<station_id>', methods=['DELETE'])
+@requires_auth
+def api_delete_station(station_id):
+    """API endpoint to delete a station"""
+    db = get_db()
+
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not initialized'}), 500
+
+    cursor = db.get_cursor()
+    try:
+        # Check if station exists
+        cursor.execute("SELECT id FROM stations WHERE id = ?", (station_id,))
+        if not cursor.fetchone():
+            return jsonify({
+                'success': False,
+                'message': f'Station not found: {station_id}'
+            }), 404
+
+        # Delete station (CASCADE will handle related records)
+        cursor.execute("DELETE FROM stations WHERE id = ?", (station_id,))
+        db.conn.commit()
+
+        logger.info(f"Deleted station: {station_id}")
+
+        return jsonify({'success': True, 'message': 'Station deleted successfully'})
+    except Exception as e:
+        logger.error(f"Error deleting station: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        cursor.close()
 
 
 @stations_bp.route('/api/stations/<station_id>/test', methods=['POST'])

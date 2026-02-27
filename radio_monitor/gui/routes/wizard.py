@@ -265,6 +265,40 @@ def api_wizard_save():
         if not lidarr_api_key:
             logger.warning("No Lidarr API key provided in wizard")
 
+        # Update station enable/disable status in database based on wizard selections
+        monitor_settings = data.get('monitor', {})
+        selected_stations = monitor_settings.get('stations', [])
+
+        if selected_stations:
+            try:
+                from flask import current_app
+                db = current_app.config.get('db')
+                if db:
+                    cursor = db.get_cursor()
+                    try:
+                        # Disable all stations first
+                        cursor.execute("UPDATE stations SET enabled = 0")
+                        logger.info(f"Disabled all stations in database")
+
+                        # Enable only the selected stations
+                        for station_id in selected_stations:
+                            cursor.execute(
+                                "UPDATE stations SET enabled = 1 WHERE id = ?",
+                                (station_id,)
+                            )
+                        logger.info(f"Enabled {len(selected_stations)} stations: {selected_stations}")
+
+                        db.conn.commit()
+                        logger.info("Station selections saved to database successfully")
+                    finally:
+                        cursor.close()
+                else:
+                    logger.warning("Database not available during wizard - station selections not saved to database")
+            except Exception as e:
+                logger.error(f"Error updating station selections in database: {e}")
+                # Don't fail the wizard save if station update fails
+                pass
+
         # Save settings to file
         if save_settings_to_file(settings_dict):
             logger.info("Wizard completed successfully - settings saved")

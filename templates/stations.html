@@ -386,34 +386,30 @@ function saveStation() {
     }
 
     if (editId) {
-        // Edit existing station - update via monitor endpoint
+        // Edit existing station - update all fields via API
         fetch(`/api/stations/${stationId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                enabled: stations.find(s => s.id === stationId)?.enabled,
-                consecutive_failures: stations.find(s => s.id === stationId)?.consecutive_failures || 0
+                name: name,
+                url: url,
+                genre: genre,
+                market: market,
+                wait_time: waitTime
             })
         })
         .then(response => response.json())
         .then(data => {
-            // After updating enabled state, also update the other fields directly in database
-            const cursor = window.db ? window.db.get_cursor() : null;
-            if (cursor) {
-                cursor.execute(`
-                    UPDATE stations
-                    SET name = ?, url = ?, genre = ?, market = ?, wait_time = ?
-                    WHERE id = ?
-                `, (name, url, genre, market, waitTime, stationId));
-                cursor.conn.commit();
-                cursor.close();
+            if (data.success) {
+                Toast.success('Station updated successfully');
+                bootstrap.Modal.getInstance(document.getElementById('stationModal')).hide();
+                loadStations();
+            } else {
+                Toast.error('Error: ' + (data.error || data.message));
             }
-
-            Toast.success('Station updated successfully');
-            bootstrap.Modal.getInstance(document.getElementById('stationModal')).hide();
-            loadStations();
         })
         .catch(error => {
+            console.error('Error updating station:', error);
             Toast.error('Error: ' + error.message);
         });
     } else {
@@ -443,6 +439,7 @@ function saveStation() {
             }
         })
         .catch(error => {
+            console.error('Error adding station:', error);
             Toast.error('Error: ' + error.message);
         });
     }
