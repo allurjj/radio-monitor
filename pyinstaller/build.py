@@ -132,7 +132,7 @@ options = [
     '--hidden-import=apscheduler',
     '--hidden-import=apscheduler.schedulers.background',
     '--hidden-import=apscheduler.triggers.cron',
-    '--hidden-import=beautifulsoup4',
+    '--hidden-import=bs4',
     '--hidden-import=plexapi',
     '--hidden-import=plexapi.server',
     '--hidden-import=plexapi.base',
@@ -152,7 +152,7 @@ options = [
     '--hidden-import=apscheduler.schedulers.background',
     '--hidden-import=apscheduler.triggers.cron',
     # lxml removed in v1.1.0 (BeautifulSoup uses built-in html.parser)
-    '--hidden-import=beautifulsoup4',
+    '--hidden-import=bs4',
     '--hidden-import=plexapi',
     '--hidden-import=plexapi.server',
     '--hidden-import=plexapi.base',
@@ -181,8 +181,8 @@ options = [
     '--noupx',                          # Don't use UPX compression (avoids antivirus false positives)
 
     # Runtime options
-    '--runtime-tmpdir=.',               # Use local directory for temp files (not C:\temp)
-    f'--runtime-hook={os.path.join(SCRIPT_DIR, "pyi_rth_radio_monitor.py")}',  # Fix temp path issues
+    # Use runtime hook to fix temp path issues (NOT --runtime-tmpdir which conflicts)
+    f'--runtime-hook={os.path.join(SCRIPT_DIR, "pyi_rth_radio_monitor.py")}',
 
     # Workpath (where build files go) - absolute path
     f'--workpath={os.path.join(PROJECT_ROOT, "build", "pyinstaller")}',
