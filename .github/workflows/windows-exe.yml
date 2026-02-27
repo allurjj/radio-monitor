@@ -25,12 +25,35 @@ jobs:
         run: |
           python --version
           pip --version
+          # Check where Python is installed
+          where python
+          # Check for python312.dll or python313.dll
+          $pythonDir = (python -c "import sys; print(sys.exec_prefix)")
+          Write-Host "Python installation directory: $pythonDir"
+          if (Test-Path "$pythonDir\python312.dll") {
+            Write-Host "Found python312.dll - Python 3.12"
+          }
+          if (Test-Path "$pythonDir\python313.dll") {
+            Write-Host "Found python313.dll - Python 3.13"
+          }
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
+          pip install pyinstaller==6.11.1
+
+      - name: Clear PyInstaller cache
+        run: |
+          # Clear PyInstaller cache to avoid using old builds
+          if (Test-Path "$env:LOCALAPPDATA\pyinstaller") {
+            Remove-Item -Recurse -Force "$env:LOCALAPPDATA\pyinstaller"
+            Write-Host "Cleared PyInstaller cache"
+          }
+          if (Test-Path "build\pyinstaller") {
+            Remove-Item -Recurse -Force "build\pyinstaller"
+            Write-Host "Cleared build directory"
+          }
 
       - name: Verify required files
         run: |
