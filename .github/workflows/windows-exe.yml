@@ -19,96 +19,28 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-
-      - name: Check Python version
-        run: |
-          python --version
-          pip --version
-          # Check where Python is installed
-          where python
-          # Check for python312.dll or python313.dll
-          $pythonDir = (python -c "import sys; print(sys.exec_prefix)")
-          Write-Host "Python installation directory: $pythonDir"
-          if (Test-Path "$pythonDir\python312.dll") {
-            Write-Host "Found python312.dll - Python 3.12"
-          }
-          if (Test-Path "$pythonDir\python313.dll") {
-            Write-Host "Found python313.dll - Python 3.13"
-          }
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller==6.11.1
-
-      - name: Clear PyInstaller cache
-        run: |
-          # Clear PyInstaller cache to avoid using old builds
-          if (Test-Path "$env:LOCALAPPDATA\pyinstaller") {
-            Remove-Item -Recurse -Force "$env:LOCALAPPDATA\pyinstaller"
-            Write-Host "Cleared PyInstaller cache"
-          }
-          if (Test-Path "build\pyinstaller") {
-            Remove-Item -Recurse -Force "build\pyinstaller"
-            Write-Host "Cleared build directory"
-          }
-
-      - name: Verify required files
-        run: |
-          Write-Host "Checking required files..."
-          $files = @(
-            "pyinstaller\build.py",
-            "pyinstaller\radio_monitor_exe.py",
-            "pyinstaller\README.txt",
-            "static\favicon.ico",
-            "templates\base_sidebar.html",
-            "radio_monitor\__init__.py"
-          )
-          foreach ($file in $files) {
-            if (Test-Path $file) {
-              Write-Host "  [OK] $file"
-            } else {
-              Write-Host "  [FAIL] $file not found"
-              Write-Host "  Current directory: $PWD"
-              Write-Host "  Listing root directory:"
-              Get-ChildItem -Force
-              exit 1
-            }
-          }
+          pip install pyinstaller
 
       - name: Build Windows EXE
-        shell: cmd
         run: |
-          echo Starting PyInstaller build...
           cd pyinstaller
-          REM Set temp to user profile to avoid C:\temp issues
-          set TEMP=%USERPROFILE%\AppData\Local\Temp
-          set TMP=%USERPROFILE%\AppData\Local\Temp
           python build.py
-          if %errorlevel% neq 0 (
-            echo ERROR: PyInstaller failed with exit code %errorlevel%
-            exit /b %errorlevel%
-          )
-          echo Build completed successfully
-          echo.
-          echo Verifying output:
-          echo Current directory: %CD%
-          echo.
-          if exist "..\dist\pyinstaller\Radio Monitor\Radio Monitor.exe" (
-            echo [OK] EXE file created
-            dir "..\dist\pyinstaller\Radio Monitor\Radio Monitor.exe"
-          ) else (
-            echo [ERROR] EXE file not found
-            echo.
-            echo Listing parent directory:
-            dir /b ..\dist\pyinstaller 2^>nul || echo No dist directory in parent
-            echo.
-            echo Searching for all EXE files:
-            dir /s /b ..\..\*.exe 2^>nul | findstr Radio Monitor || echo No EXE found
-            exit /b 1
-          )
+
+      - name: Verify EXE was created
+        run: |
+          if (Test-Path "dist/pyinstaller/Radio Monitor/Radio Monitor.exe") {
+            Write-Host "EXE created successfully"
+            Get-Item "dist/pyinstaller/Radio Monitor/Radio Monitor.exe" | Select-Object Name, Length, LastWriteTime
+          } else {
+            Write-Host "ERROR: EXE not found"
+            exit 1
+          }
 
       - name: Create release ZIP
         run: |
