@@ -26,7 +26,7 @@ htmlcov/               # Coverage HTML reports
 # ------------------------------------------
 # Log Files
 # ------------------------------------------
-*.log                  # All application logs (radio_monitor.log, etc.)
+*.log                  # All application logs (radio_monitor.log, gui.log, etc.)
 
 # ------------------------------------------
 # Database Files (CRITICAL - Contains user data!)
@@ -35,6 +35,12 @@ htmlcov/               # Coverage HTML reports
 *.db-shm               # SQLite shared-memory files
 *.db-wal               # SQLite write-ahead logs
 backups/               # Database backup directory
+
+# ------------------------------------------
+# User-Customizable Files (User-specific, should not be committed)
+# ------------------------------------------
+user_mappings.json     # User-defined artist name mappings (customized per installation)
+# Note: user_mappings.json.example is NOT ignored (included in builds)
 
 # ------------------------------------------
 # IDE and Editor Files
@@ -98,6 +104,10 @@ docs/                  # Entire docs directory excluded
 !linux/**/*.md          # Allow .md files in linux/ subdirectory
 !docker/**/*.md         # Allow .md files in docker/ subdirectory
 !pyinstaller/**/*.md    # Allow .md files in pyinstaller/ subdirectory
+
+# User mappings documentation (allow these specific files)
+!USER_MAPPINGS_README.md
+!USER_MAPPINGS_QUICKSTART.md
 
 # ------------------------------------------
 # Development Tools (Playwright - for design/debugging only)

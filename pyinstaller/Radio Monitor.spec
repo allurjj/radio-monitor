@@ -2,15 +2,15 @@
 
 
 a = Analysis(
-    ['C:\\Users\\allurjj\\Documents\\Lidarrimporter\\radio_monitor_exe.py'],
+    ['C:\\Users\\allurjj\\Documents\\Lidarrimporter\\pyinstaller\\radio_monitor_exe.py'],
     pathex=[],
     binaries=[],
-    datas=[('C:\\Users\\allurjj\\Documents\\Lidarrimporter\\templates', 'templates'), ('C:\\Users\\allurjj\\Documents\\Lidarrimporter\\radio_monitor', 'radio_monitor'), ('C:\\Users\\allurjj\\Documents\\Lidarrimporter\\prompts', 'prompts'), ('C:\\Users\\allurjj\\Documents\\Lidarrimporter\\static', 'static'), ('C:\\Users\\allurjj\\Documents\\Lidarrimporter\\radio_monitor_settings.json.template', '.'), ('C:\\Users\\allurjj\\Documents\\Lidarrimporter\\pyinstaller\\README.txt', '.')],
-    hiddenimports=['flask', 'werkzeug', 'jinja2', 'markupsafe', 'itsdangerous', 'click', 'apscheduler', 'apscheduler.schedulers.background', 'apscheduler.triggers.cron', 'beautifulsoup4', 'apprise', 'PIL', 'PIL.Image', 'pkg_resources', 'requests', 'urllib3'],
+    datas=[('C:\\Users\\allurjj\\Documents\\Lidarrimporter\\templates', 'templates'), ('C:\\Users\\allurjj\\Documents\\Lidarrimporter\\radio_monitor', 'radio_monitor'), ('C:\\Users\\allurjj\\Documents\\Lidarrimporter\\prompts', 'prompts'), ('C:\\Users\\allurjj\\Documents\\Lidarrimporter\\static', 'static'), ('C:\\Users\\allurjj\\Documents\\Lidarrimporter\\radio_monitor_settings.json.template', '.'), ('C:\\Users\\allurjj\\Documents\\Lidarrimporter\\pyinstaller\\README.txt', '.'), ('C:\\Users\\allurjj\\Documents\\Lidarrimporter\\VERSION.py', '.'), ('C:\\Users\\allurjj\\Documents\\Lidarrimporter\\user_mappings.json.example', '.'), ('C:\\Users\\allurjj\\Documents\\Lidarrimporter\\USER_MAPPINGS_README.md', '.')],
+    hiddenimports=['sqlite3', 'flask', 'flask_httpauth', 'bcrypt', '_bcrypt', 'werkzeug', 'jinja2', 'markupsafe', 'itsdangerous', 'click', 'apscheduler', 'apscheduler.schedulers.background', 'apscheduler.triggers.cron', 'bs4', 'plexapi', 'plexapi.server', 'plexapi.base', 'pkg_resources', 'requests', 'urllib3', 'musicbrainzngs', 'rapidfuzz', 'rapidfuzz.fuzz', 'rapidfuzz.process', 'rapidfuzz.utils', 'jinja2', 'markupsafe', 'itsdangerous', 'click', 'apscheduler', 'apscheduler.schedulers.background', 'apscheduler.triggers.cron', 'bs4', 'plexapi', 'plexapi.server', 'plexapi.base', 'pkg_resources', 'requests', 'urllib3'],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
-    excludes=['matplotlib', 'numpy', 'pandas', 'scipy', 'pytest', 'unittest', 'tkinter', 'IPython', 'pygments', 'pydoc'],
+    runtime_hooks=['C:\\Users\\allurjj\\Documents\\Lidarrimporter\\pyinstaller\\pyi_rth_radio_monitor.py'],
+    excludes=['matplotlib', 'numpy', 'pandas', 'scipy', 'pytest', 'unittest', 'tkinter', 'IPython', 'pygments', 'PIL', 'PIL.Image', 'lxml', 'lxml._elementpath', 'pydoc'],
     noarchive=False,
     optimize=0,
 )

@@ -58,6 +58,8 @@ COPY radio_monitor/ /app/radio_monitor/
 COPY templates/ /app/templates/
 COPY prompts/ /app/prompts/
 COPY static/ /app/static/
+COPY user_mappings.json.example /app/data/
+COPY USER_MAPPINGS_README.md /app/data/
 
 # Add /app to Python path so imports work
 ENV PYTHONPATH=/app:$PYTHONPATH

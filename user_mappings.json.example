@@ -1,0 +1,38 @@
+{
+  "_comment": "User-defined artist name mappings for Plex matching",
+  "_version": "1.0",
+  "_instructions": [
+    "Add your own artist name variations to the 'mappings' section below.",
+    "Format: 'database_name': 'plex_library_name'",
+    "These mappings OVERRIDE the built-in mappings, so you can correct or add to them.",
+    "File must be valid JSON. Use double quotes for strings.",
+    "Strings are case-insensitive for lookup but stored as written.",
+    "",
+    "Common use cases:",
+    "1. Truncated names: 'Whitney': 'Whitney Houston'",
+    "2. Special characters: 'Pnk': 'P!NK'",
+    "3. Collaborations: 'Brooks Dunn': 'Brooks & Dunn'",
+    "4. Hyphen variations: 'A Ha': 'A-ha'",
+    "",
+    "To use this file:",
+    "1. Rename this file from 'user_mappings.json.example' to 'user_mappings.json'",
+    "2. Add your mappings below",
+    "3. Restart Radio Monitor GUI"
+  ],
+  "mappings": {
+    "_examples": {
+      "REMOVE_THIS_SECTION_AND_ADD_YOUR_OWN_MAPPINGS_BELOW": {
+        "YourArtistName": "Correct Artist Name in Plex",
+        "Another Artist": "Another Artist feat. Someone",
+        "Truncated Artist": "Full Artist Name"
+      }
+    },
+
+    "ADD_YOUR_MAPPINGS_HERE": "",
+
+    "Or_Override_Built_In_Mappings": {
+      "Beyonce": "Beyoncé",
+      "Celine": "Céline Dion"
+    }
+  }
+}
