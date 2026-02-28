@@ -172,44 +172,7 @@ def api_monitor_scrape():
             'error': str(e)
         }), 500
 
-@monitor_bp.route('/api/stations/<station_id>', methods=['PUT'])
-@requires_auth
-def api_stations_update(station_id):
-    """Update station
-
-    Expects JSON:
-        {
-            "enabled": true,
-            "consecutive_failures": 0
-        }
-
-    Returns JSON:
-        {
-            "success": true
-        }
-    """
-    db = get_db()
-    if db:
-        try:
-            data = request.json
-
-            # Update station in database
-            db.cursor.execute("""
-                UPDATE stations
-                SET enabled = ?,
-                    consecutive_failures = ?
-                WHERE id = ?
-            """, (data.get('enabled', False), data.get('consecutive_failures', 0), station_id))
-
-            db.conn.commit()
-
-            return jsonify({'success': True})
-
-        except Exception as e:
-            logger.error(f"Error updating station: {e}")
-            return jsonify({'success': False, 'message': str(e)}), 500
-
-    return jsonify({'error': 'Database not initialized'}), 500
+# NOTE: Station PUT route moved to stations.py to avoid conflicts and handle all fields properly
 
 @monitor_bp.route('/api/stations/<station_id>', methods=['DELETE'])
 @requires_auth

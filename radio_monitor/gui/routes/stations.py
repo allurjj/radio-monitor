@@ -5,6 +5,7 @@ Provides list and detail views for radio stations with health tracking.
 """
 
 import logging
+from datetime import datetime
 from flask import Blueprint, render_template, jsonify, request, current_app
 from radio_monitor.auth import requires_auth
 from radio_monitor.database.queries import get_station_detail, get_station_stats, get_station_top_songs, get_all_stations_with_health
@@ -126,6 +127,8 @@ def api_station_detail(station_id):
 @requires_auth
 def api_update_station(station_id):
     """API endpoint to update station settings"""
+    import sqlite3
+
     db = get_db()
 
     if not db:
@@ -133,8 +136,19 @@ def api_update_station(station_id):
 
     data = request.get_json()
 
-    cursor = db.get_cursor()
+    # Use a fresh connection to avoid transaction conflicts
+    conn = sqlite3.connect(db.db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
+    cursor = conn.cursor()
+
     try:
+        # Get current enabled state to preserve it if not specified
+        cursor.execute("SELECT enabled FROM stations WHERE id = ?", (station_id,))
+        result = cursor.fetchone()
+        if not result:
+            return jsonify({'error': 'Station not found'}), 404
+        current_enabled = result[0]
+
         # Build dynamic UPDATE query based on provided fields
         update_fields = []
         params = []
@@ -143,6 +157,10 @@ def api_update_station(station_id):
         if 'enabled' in data:
             update_fields.append("enabled = ?")
             params.append(1 if data['enabled'] else 0)
+        else:
+            # Preserve current enabled state if not specified
+            update_fields.append("enabled = ?")
+            params.append(current_enabled)
 
         # Handle other fields
         if 'name' in data:
@@ -177,11 +195,16 @@ def api_update_station(station_id):
                 WHERE id = ?
             """
             cursor.execute(query, params)
-            db.conn.commit()
+            conn.commit()
+            logger.info(f"Updated station {station_id}: {update_fields}")
 
         return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error updating station {station_id}: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
     finally:
         cursor.close()
+        conn.close()
 
 
 @stations_bp.route('/api/stations/add', methods=['POST'])
@@ -205,7 +228,12 @@ def api_add_station():
             'message': f'Missing required fields: {", ".join(missing_fields)}'
         }), 400
 
-    cursor = db.get_cursor()
+    # Use a fresh connection for this request
+    import sqlite3
+    conn = sqlite3.connect(db.db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
+    cursor = conn.cursor()
+
     try:
         # Check if station ID already exists
         cursor.execute("SELECT id FROM stations WHERE id = ?", (data['id'],))
@@ -230,7 +258,7 @@ def api_add_station():
             data.get('wait_time', 10)
         ))
 
-        db.conn.commit()
+        conn.commit()
         logger.info(f"Added new station: {data['id']} - {data['name']}")
 
         return jsonify({'success': True, 'message': 'Station added successfully'})
@@ -239,6 +267,7 @@ def api_add_station():
         return jsonify({'success': False, 'message': str(e)}), 500
     finally:
         cursor.close()
+        conn.close()
 
 
 @stations_bp.route('/api/stations/<station_id>', methods=['DELETE'])
@@ -250,7 +279,12 @@ def api_delete_station(station_id):
     if not db:
         return jsonify({'success': False, 'error': 'Database not initialized'}), 500
 
-    cursor = db.get_cursor()
+    # Use a fresh connection for this request
+    import sqlite3
+    conn = sqlite3.connect(db.db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
+    cursor = conn.cursor()
+
     try:
         # Check if station exists
         cursor.execute("SELECT id FROM stations WHERE id = ?", (station_id,))
@@ -262,7 +296,7 @@ def api_delete_station(station_id):
 
         # Delete station (CASCADE will handle related records)
         cursor.execute("DELETE FROM stations WHERE id = ?", (station_id,))
-        db.conn.commit()
+        conn.commit()
 
         logger.info(f"Deleted station: {station_id}")
 
@@ -272,6 +306,7 @@ def api_delete_station(station_id):
         return jsonify({'success': False, 'message': str(e)}), 500
     finally:
         cursor.close()
+        conn.close()
 
 
 @stations_bp.route('/api/stations/<station_id>/test', methods=['POST'])
