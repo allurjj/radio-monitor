@@ -531,8 +531,31 @@ class RadioDatabase:
         finally:
             cursor.close()
 
+    def add_artist_and_song_if_new(self, artist_mbid, artist_name, song_title):
+        """Add artist and song atomically - prevents orphaned artists
+
+        This is the preferred method for adding new songs during scraping.
+        It ensures that if the song creation fails, the artist is also rolled back.
+
+        Args:
+            artist_mbid: Artist's MusicBrainz ID (can be PENDING-xxx or valid MBID)
+            artist_name: Artist name (will be normalized)
+            song_title: Song title (will be normalized)
+
+        Returns:
+            Tuple of (artist_added: bool, song_added: bool, song_id: int or None)
+        """
+        cursor = self.conn.cursor()
+        try:
+            return crud.add_artist_and_song_if_new(cursor, self.conn, artist_mbid, artist_name, song_title)
+        finally:
+            cursor.close()
+
     def add_song_if_new(self, artist_mbid, song_title):
-        """Add song to database if not already present"""
+        """Add song to database if not already present
+
+        NOTE: For new code, prefer add_artist_and_song_if_new() to prevent orphaned artists.
+        """
         cursor = self.conn.cursor()
         try:
             return crud.add_song_if_new(cursor, self.conn, artist_mbid, song_title)

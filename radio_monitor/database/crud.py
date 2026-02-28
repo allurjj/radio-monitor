@@ -1462,7 +1462,102 @@ def add_artist_if_new(cursor, conn, mbid, name):
         conn.rollback()
         raise
 
+def add_artist_and_song_if_new(cursor, conn, artist_mbid, artist_name, song_title):
+    """Add artist and song to database atomically - prevents orphaned artists
+
+    This function ensures that if the song creation fails, the artist is also rolled back.
+    This prevents orphaned artists (artists with 0 songs) from being created.
+
+    Args:
+        cursor: Database cursor object
+        conn: Database connection object
+        artist_mbid: Artist's MusicBrainz ID (can be PENDING-xxx or valid MBID)
+        artist_name: Artist name (will be normalized)
+        song_title: Song title (will be normalized)
+
+    Returns:
+        Tuple of (artist_added: bool, song_added: bool, song_id: int or None)
+        - artist_added: True if new artist was created
+        - song_added: True if new song was created
+        - song_id: Song ID (None if song already exists or artist not found)
+    """
+    try:
+        # Normalize inputs
+        normalized_artist_name = normalize_artist_name(artist_name)
+        normalized_song_title = normalize_song_title(song_title)
+
+        # Step 1: Add artist if new
+        artist_added = False
+        try:
+            now = datetime.now()
+            cursor.execute("""
+                INSERT INTO artists (mbid, name, first_seen_at, last_seen_at, needs_lidarr_import)
+                VALUES (?, ?, ?, ?, 1)
+            """, (artist_mbid, normalized_artist_name, now, now))
+            artist_added = True
+        except sqlite3.IntegrityError:
+            # Artist already exists - check if we need to update MBID
+            cursor.execute("SELECT mbid FROM artists WHERE mbid = ?", (artist_mbid,))
+            existing_by_mbid = cursor.fetchone()
+            if existing_by_mbid:
+                # Artist with this MBID already exists
+                artist_added = False
+            else:
+                # Check for name collision with NULL/PENDING MBID
+                cursor.execute("SELECT mbid FROM artists WHERE name = ?", (normalized_artist_name,))
+                existing_by_name = cursor.fetchone()
+                if existing_by_name and (not existing_by_name[0] or existing_by_name[0].startswith('PENDING-')):
+                    # Update existing artist with better MBID
+                    logger.debug(f"Updating artist '{normalized_artist_name}' with MBID: {artist_mbid}")
+                    cursor.execute("UPDATE artists SET mbid = ? WHERE name = ?", (artist_mbid, normalized_artist_name))
+                    artist_added = False
+
+        # Step 2: Add song if new
+        cursor.execute("""
+            SELECT id FROM songs
+            WHERE artist_mbid = ? AND song_title = ?
+        """, (artist_mbid, normalized_song_title))
+
+        existing_song = cursor.fetchone()
+        if existing_song:
+            # Song already exists - commit any artist changes and return
+            conn.commit()
+            return (artist_added, False, existing_song[0])
+
+        # Add new song
+        cursor.execute("""
+            INSERT INTO songs (artist_mbid, artist_name, song_title, play_count)
+            VALUES (?, ?, ?, 0)
+        """, (artist_mbid, normalized_artist_name, normalized_song_title))
+
+        song_id = cursor.lastrowid
+
+        # Commit both artist and song together
+        conn.commit()
+
+        return (artist_added, True, song_id)
+
+    except Exception as e:
+        # Roll back both artist and song on any error
+        logger.error(f"Error adding artist '{artist_name}' and song '{song_title}': {e}")
+        conn.rollback()
+        raise
+
+
 def add_song_if_new(cursor, conn, artist_mbid, song_title):
+    """Add song to database if not already present
+
+    NOTE: For new code, prefer add_artist_and_song_if_new() to prevent orphaned artists.
+
+    Args:
+        cursor: SQLite cursor object
+        conn: Database connection object
+        artist_mbid: Artist's MusicBrainz ID
+        song_title: Song title
+
+    Returns:
+        Tuple of (added: bool, song_id: int)
+    """
     """Add song to database if not already present
 
     Args:

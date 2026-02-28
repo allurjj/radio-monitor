@@ -841,58 +841,59 @@ def scrape_all_stations(db=None, station_ids=None):
                             primary_artist_mbid = f"PENDING-{artist_hash}"
                             logger.debug(f"Using placeholder MBID for {primary_artist}: {primary_artist_mbid}")
 
-                        # Add artist to database (if new)
-                        artist_added = db.add_artist_if_new(primary_artist_mbid, primary_artist)
-                        if artist_added:
-                            total_artists_added += 1
-                            logger.info(f"New artist: {primary_artist} ({primary_artist_mbid})")
+                    # Add artist and song to database atomically (prevents orphaned artists)
+                    artist_added, song_added, play_id = db.add_artist_and_song_if_new(
+                        primary_artist_mbid, primary_artist, song_title
+                    )
 
-                        # Auto-import to Lidarr if enabled and artist meets threshold
-                        if auto_import_enabled:
-                            # Get artist's current play count and song count
-                            cursor = db.get_cursor()
-                            try:
-                                cursor.execute("""
-                                    SELECT
-                                        COALESCE(SUM(s.play_count), 0) as total_plays,
-                                        COUNT(DISTINCT s.id) as song_count
-                                    FROM artists a
-                                    LEFT JOIN songs s ON a.mbid = s.artist_mbid
-                                    WHERE a.mbid = ?
-                                    GROUP BY a.mbid
-                                """, (primary_artist_mbid,))
+                    if artist_added:
+                        total_artists_added += 1
+                        logger.info(f"New artist: {primary_artist} ({primary_artist_mbid})")
 
-                                result = cursor.fetchone()
-                                if result:
-                                    total_plays = result[0]
-                                    song_count = result[1]
-
-                                    # Check if artist meets threshold
-                                    if total_plays >= min_plays_for_import and song_count >= min_songs_for_import:
-                                        try:
-                                            from radio_monitor.lidarr import import_artist_to_lidarr
-                                            success, message = import_artist_to_lidarr(
-                                                primary_artist_mbid, primary_artist, settings
-                                            )
-                                            if success:
-                                                logger.info(f"Auto-imported {primary_artist} to Lidarr ({total_plays} plays, {song_count} songs)")
-                                                db.mark_artist_imported_to_lidarr(primary_artist_mbid)
-                                            else:
-                                                # Mark for manual import later
-                                                logger.warning(f"Auto-import failed for {primary_artist}: {message}")
-                                        except Exception as e:
-                                            logger.warning(f"Auto-import error for {primary_artist}: {e}")
-                                            # Continue scraping even if auto-import fails
-                                    else:
-                                        logger.debug(f"Artist {primary_artist} doesn't meet threshold yet ({total_plays}/{min_plays_for_import} plays, {song_count}/{min_songs_for_import} songs)")
-                            finally:
-                                cursor.close()
-
-                    # Add song to database (if new)
-                    song_added, play_id = db.add_song_if_new(primary_artist_mbid, song_title)
                     if song_added:
                         total_songs_added += 1
                         logger.info(f"New song: {song_title} by {primary_artist}")
+
+                    # Auto-import to Lidarr if enabled and artist meets threshold (check after song is added)
+                    if auto_import_enabled and song_added:
+                        # Get artist's current play count and song count (including the song we just added)
+                        cursor = db.get_cursor()
+                        try:
+                            cursor.execute("""
+                                SELECT
+                                    COALESCE(SUM(s.play_count), 0) as total_plays,
+                                    COUNT(DISTINCT s.id) as song_count
+                                FROM artists a
+                                LEFT JOIN songs s ON a.mbid = s.artist_mbid
+                                WHERE a.mbid = ?
+                                GROUP BY a.mbid
+                            """, (primary_artist_mbid,))
+
+                            result = cursor.fetchone()
+                            if result:
+                                total_plays = result[0]
+                                song_count = result[1]
+
+                                # Check if artist meets threshold
+                                if total_plays >= min_plays_for_import and song_count >= min_songs_for_import:
+                                    try:
+                                        from radio_monitor.lidarr import import_artist_to_lidarr
+                                        success, message = import_artist_to_lidarr(
+                                            primary_artist_mbid, primary_artist, settings
+                                        )
+                                        if success:
+                                            logger.info(f"Auto-imported {primary_artist} to Lidarr ({total_plays} plays, {song_count} songs)")
+                                            db.mark_artist_imported_to_lidarr(primary_artist_mbid)
+                                        else:
+                                            # Mark for manual import later
+                                            logger.warning(f"Auto-import failed for {primary_artist}: {message}")
+                                    except Exception as e:
+                                        logger.warning(f"Auto-import error for {primary_artist}: {e}")
+                                        # Continue scraping even if auto-import fails
+                                else:
+                                    logger.debug(f"Artist {primary_artist} doesn't meet threshold yet ({total_plays}/{min_plays_for_import} plays, {song_count}/{min_songs_for_import} songs)")
+                        finally:
+                            cursor.close()
 
                     # Record play for this station (may be skipped as duplicate)
                     station = db.get_station_by_id(station_id)
