@@ -183,6 +183,13 @@ def normalize_text(text, preserve_caps=False):
     # Remove double apostrophes
     text = text.replace("''", "'")
 
+    # Rule 3.5: Unify unicode dashes/hyphens to ASCII hyphen
+    # This fixes: All‐4‐One → All-4-One (U+2010 → U+002D)
+    # Converts various unicode dash characters to standard ASCII hyphen
+    # U+2010 (hyphen), U+2011 (non-breaking hyphen), U+2012 (figure dash),
+    # U+2013 (en dash), U+2014 (em dash), U+2015 (horizontal bar)
+    text = re.sub(r"[‐‑‒–—―]", '-', text)
+
     # Rule 4: Normalize whitespace
     # Multiple spaces, tabs, newlines → single space
     text = ' '.join(text.split())

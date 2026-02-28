@@ -32,6 +32,197 @@ from radio_monitor.normalization import normalize_artist_name, normalize_song_ti
 logger = logging.getLogger(__name__)
 
 
+# ============================================================================
+# ARTIST NAME MAPPING TABLE
+# Known artist name variations scraped from radio vs Plex library names
+# Built from historical Plex match failures and manual verification
+# ============================================================================
+
+ARTIST_NAME_MAPPING = {
+    # Truncated names (scraped without last name)
+    'Celine': 'Céline Dion',
+    'Michael Buble': 'Michael Bublé',
+    'Desree': 'Des\'ree',
+
+    # Special character variations
+    'Pnk': 'P!NK',
+    'P!nk': 'P!NK',
+    'Beyonce': 'Beyoncé',  # Also handled by adaptive fuzzy, but explicit is better
+
+    # Hyphen variations
+    'A Ha': 'A-ha',
+    'Ne Yo': 'Ne-Yo',
+    'J Holiday': 'J-Holiday',
+
+    # Collaboration separators (& vs + vs spaces)
+    'Brooks Dunn': 'Brooks & Dunn',
+    'Dan Shay': 'Dan + Shay',
+    'Daryl Hall John Oates': 'Daryl Hall & John Oates',
+    'Hall Oates': 'Daryl Hall & John Oates',
+    'Hootie The Blowfish': 'Hootie & The Blowfish',
+    'K Ci Jojo': 'K-Ci & JoJo',
+    'K-Ci Jojo': 'K-Ci & JoJo',
+    'Sheila E': 'Sheila E.',
+    'Billy Ray Cyrus': 'Billy Ray Cyrus',
+    'Ricky Skaggs': 'Ricky Skaggs',
+    'George Jones': 'George Jones',
+
+    # Alternative spellings / common typos
+    'Crosby Still Nash': 'Crosby, Stills, Nash & Young',
+    'Crosby Stills Nash': 'Crosby, Stills & Nash',
+    'The Alan Parsons Project': 'The Alan Parsons Project',
+
+    # Unicode normalization (already handled, but explicit is faster)
+    'All\u20104\u2010One': 'All-4-One',  # U+2010 hyphens
+    'A\u2010Ha': 'A-ha',  # U+2010 hyphen
+    'Ne\u2010Yo': 'Ne-Yo',  # U+2010 hyphen
+    'Des\u2019ree': 'Des\'ree',  # U+2019 apostrophe
+
+    # Country collaborations (common pattern)
+    'Tim Mcgraw': 'Tim McGraw',  # Capitalization
+    'Vince Gill': 'Vince Gill',
+    'Patty Loveless': 'Patty Loveless',
+    'Travis Tritt': 'Travis Tritt',
+    'Marty Roe': 'Marty Roe',
+    'Jim Messina': 'Jim Messina',
+
+    # Hip-hop collaborations
+    'Drake': 'Drake',
+    'DJ Snake': 'DJ Snake',
+    'Juicy J': 'Juicy J',
+    'Big Sean': 'Big Sean',
+    'Post Malone': 'Post Malone',
+    'Morgan Wallen': 'Morgan Wallen',
+}
+
+
+def get_canonical_artist_name(artist_name):
+    """
+    Get the canonical Plex name for an artist using the mapping table.
+
+    Args:
+        artist_name: Artist name from database
+
+    Returns:
+        Canonical artist name if found in mapping, otherwise original name
+    """
+    # Normalize input for lookup
+    normalized_input = artist_name.strip()
+
+    # Direct lookup (case-insensitive)
+    for key, value in ARTIST_NAME_MAPPING.items():
+        if key.lower() == normalized_input.lower():
+            if value != normalized_input:
+                logger.debug(f"  Artist mapping: {normalized_input} → {value}")
+            return value
+
+    # Return original if no mapping found
+    return normalized_input
+
+
+def calculate_match_confidence(db_song, db_artist, plex_track, strategy_used):
+    """
+    Calculate confidence score for a Plex match.
+
+    Returns a confidence score (0-100) and confidence level (HIGH/MEDIUM/LOW).
+
+    Args:
+        db_song: Song title from database
+        db_artist: Artist name from database
+        plex_track: Plex Track object
+        strategy_used: Which strategy found the match (0-4)
+
+    Returns:
+        tuple: (confidence_score, confidence_level, details)
+            - confidence_score: 0-100
+            - confidence_level: 'HIGH', 'MEDIUM', or 'LOW'
+            - details: dict with scoring breakdown
+    """
+    try:
+        plex_song = plex_track.title if hasattr(plex_track, 'title') else ""
+        plex_artist = plex_track.artist().title if plex_track.artist() else ""
+
+        # Base score depends on strategy used
+        strategy_scores = {
+            '0a': 98,  # Artist-first exact match
+            '0b': 95,  # Artist-first normalized match
+            '0c': 85,  # Artist-first adaptive fuzzy
+            '1': 98,   # Exact match
+            '2': 90,   # Normalized match
+            '3': 80,   # Adaptive fuzzy match
+            '4': 70,   # Partial match
+        }
+        base_score = strategy_scores.get(str(strategy_used), 70)
+
+        # Calculate fuzzy ratios
+        song_ratio = fuzzy_ratio(db_song, plex_song)
+        artist_ratio = fuzzy_ratio(db_artist, plex_artist)
+
+        # Adjust score based on fuzzy ratios
+        min_ratio = min(song_ratio, artist_ratio)
+
+        # Boost for very high ratios
+        if min_ratio >= 98:
+            base_score += 2
+        elif min_ratio >= 95:
+            base_score += 1
+
+        # Penalty for lower ratios
+        if min_ratio < 85:
+            base_score -= 10
+        elif min_ratio < 90:
+            base_score -= 5
+
+        # Bonus for exact artist name match (after normalization)
+        db_artist_norm = normalize_artist_name(db_artist)
+        plex_artist_norm = normalize_artist_name(plex_artist)
+        if db_artist_norm.lower() == plex_artist_norm.lower():
+            base_score += 3
+
+        # Bonus for exact song title match
+        db_song_norm = normalize_song_title(db_song)
+        plex_song_norm = normalize_song_title(plex_song)
+        if db_song_norm.lower() == plex_song_norm.lower():
+            base_score += 2
+
+        # Bonus for artist name mapping table match
+        canonical_artist = get_canonical_artist_name(db_artist)
+        if canonical_artist.lower() == plex_artist_norm.lower():
+            base_score += 5
+
+        # Penalty for very short strings (higher chance of false positive)
+        if len(db_song) < 5 or len(db_artist) < 3:
+            base_score -= 5
+
+        # Ensure score is within bounds
+        confidence_score = max(0, min(100, base_score))
+
+        # Determine confidence level
+        if confidence_score >= 90:
+            confidence_level = 'HIGH'
+        elif confidence_score >= 75:
+            confidence_level = 'MEDIUM'
+        else:
+            confidence_level = 'LOW'
+
+        details = {
+            'strategy': strategy_used,
+            'song_ratio': song_ratio,
+            'artist_ratio': artist_ratio,
+            'min_ratio': min_ratio,
+            'db_artist': db_artist,
+            'plex_artist': plex_artist,
+            'db_song': db_song,
+            'plex_song': plex_song,
+        }
+
+        return confidence_score, confidence_level, details
+
+    except Exception as e:
+        logger.error(f"Error calculating match confidence: {e}")
+        return 50, 'LOW', {'error': str(e)}
+
+
 def fuzzy_ratio(str1, str2):
     """Calculate Levenshtein similarity ratio (0-100)
 
@@ -46,6 +237,78 @@ def fuzzy_ratio(str1, str2):
         return 0
 
     return int(fuzz.ratio(str1.lower(), str2.lower()))
+
+
+def adaptive_fuzzy_match(str1, str2, debug=False):
+    """Calculate fuzzy match score with adaptive threshold for common patterns
+
+    Uses a lower threshold (85%) for single-character differences like:
+    - Missing apostrophe: "Beyonce" vs "Beyoncé" (85.7%)
+    - Missing ampersand: "Dan Shay" vs "Dan + Shay" (88.9%)
+    - Missing hyphen: "A Ha" vs "A-ha" (75% - but short string, so might not match)
+
+    Args:
+        str1: First string
+        str2: Second string
+        debug: Enable debug logging
+
+    Returns:
+        True if strings match according to adaptive rules, False otherwise
+    """
+    if not str1 or not str2:
+        return False
+
+    # Calculate base fuzzy ratio
+    ratio = fuzz.ratio(str1.lower(), str2.lower())
+
+    # Standard threshold: 90%
+    if ratio >= 90:
+        return True
+
+    # Adaptive threshold: 85% for specific patterns
+    if ratio >= 85:
+        # Calculate character-level differences
+        try:
+            import Levenshtein
+            distance = Levenshtein.distance(str1.lower(), str2.lower())
+            max_len = max(len(str1), len(str2))
+
+            # Allow match if:
+            # 1. Only 1-2 character difference AND
+            # 2. String is long enough (>8 chars for medium strings, >12 for shorter strings) AND
+            # 3. Ratio is above 85%
+            #
+            # Rationale:
+            # - "Beyonce" (7) vs "Beyoncé" (7): distance=1, ratio=85.7% - should match but too short
+            # - "Dan + Shay" (9) vs "Dan Shay" (8): distance=1, ratio=88.9% - should match
+            # - "Brooks & Dunn" (12) vs "Brooks Dunn" (11): distance=1, ratio=91.7% - should match
+            #
+            # For very short strings (<8 chars), require higher threshold (90%)
+            # For medium strings (8-12 chars), allow 85%+ with max 1-2 char diff
+            # For long strings (>12 chars), allow 85%+ with max 1-2 char diff
+
+            if max_len > 8:
+                # Medium to long strings: 85%+ with 1-2 char difference
+                if distance <= 2:
+                    if debug:
+                        logger.debug(f"  ✓ Adaptive fuzzy match: {ratio:.1f}% (distance={distance}, max_len={max_len})")
+                    return True
+            else:
+                # Very short strings: need slightly higher threshold (85.5%+)
+                # This allows "Beyonce" (7 chars) vs "Beyoncé" (7 chars) at 85.7%
+                if ratio >= 85.5:
+                    if debug:
+                        logger.debug(f"  ✓ Adaptive fuzzy match (short string): {ratio:.1f}%")
+                    return True
+
+        except ImportError:
+            # Levenshtein package not available, use ratio-only logic
+            if ratio >= 87:  # Slightly higher threshold without distance calculation
+                if debug:
+                    logger.debug(f"  ✓ Adaptive fuzzy match: {ratio:.1f}%")
+                return True
+
+    return False
 
 
 def get_title_variations(title):
@@ -121,6 +384,229 @@ def get_title_variations(title):
     if aggressive != title and aggressive not in variations:
         variations.append(aggressive)
 
+    # Variation 7: Add back apostrophes for common contractions
+    # This helps: "I Dont Want" → "I Don't Want", "Nothin Like You" → "Nothin' Like You"
+    # List of common contractions that should have apostrophes
+    contractions_map = {
+        'dont': "don't",
+        'Dont': "Don't",
+        'DONT': "DON'T",
+        'cant': "can't",
+        'Cant': "Can't",
+        'wont': "won't",
+        'Wont': "Won't",
+        'im': "i'm",
+        'Im': "I'm",
+        'its': "it's",
+        'Its': "It's",
+        'thats': "that's",
+        'Thats': "That's",
+        'youre': "you're",
+        'Youre': "You're",
+        'aint': "ain't",
+        'Aint': "Ain't",
+        'nothin': "nothin'",
+        'Nothin': "Nothin'",
+        'gimme': "gimme'",
+        'Gimme': "Gimme'",
+        'goin': "goin'",
+        'Goin': "Goin'",
+        'comin': "comin'",
+        'Comin': "Comin'",
+        'whatcha': "whatcha'",
+        'Whatcha': "Whatcha'",
+        'kinda': "kinda'",
+        'Kinda': "Kinda'",
+        'outta': "outta'",
+        'Outta': "Outta'",
+        'coulda': "coulda'",
+        'Coulda': "Coulda'",
+        'woulda': "woulda'",
+        'Woulda': "Woulda'",
+        'shoulda': "shoulda'",
+        'Shoulda': "Shoulda'",
+        'musta': "musta'",
+        'Musta': "Musta'",
+        'howre': "how're",
+        'Howre': "How're",
+        'whats': "what's",
+        'Whats': "What's",
+        'whos': "who's",
+        'Whos': "Who's",
+        'lets': "let's",
+        'Lets': "Let's",
+        'theres': "there's",
+        'Theres': "There's",
+        'heres': "here's",
+        'Heres': "Here's",
+        'everybodys': "everybody's",
+        'Everybodys': "Everybody's",
+        'somebodys': "somebody's",
+        'Somebodys': "Somebody's",
+        'nobodys': "nobody's",
+        'Nobodys': "Nobody's",
+        'everyones': "everyone's",
+        'Everyones': "Everyone's",
+        'someones': "someone's",
+        'Someones': "Someone's",
+        'anyones': "anyone's",
+        'Anyones': "Anyone's",
+        'elses': "else's",
+        'Elses': "Else's",
+        'girls': "girls'",
+        "girl's": "girls'",
+        'boys': "boys'",
+        "boy's": "boys'",
+        'todays': "today's",
+        'Todays': "Today's",
+        'yesterdays': "yesterday's",
+        'Yesterdays': "Yesterday's",
+        'tomorrows': "tomorrow's",
+        'Tomorrows': "Tomorrow's",
+        'summers': "summer's",
+        'winters': "winter's",
+        'nights': "nights'",
+        'morns': "morn's",
+    }
+
+    # Check if any contraction is in the title (case-sensitive replacement)
+    title_with_apostrophes = title
+    found_contraction = False
+    for without_apos, with_apos in contractions_map.items():
+        if without_apos in title:
+            title_with_apostrophes = title_with_apostrophes.replace(without_apos, with_apos)
+            found_contraction = True
+
+    if found_contraction and title_with_apostrophes not in variations:
+        variations.append(title_with_apostrophes)
+
+    # Variation 8: Add back apostrophes + remove diacritics (combination for Beyonce → Beyoncé type cases)
+    if found_contraction:
+        # Remove diacritics from the version with added apostrophes
+        with_apos_norm = unicodedata.normalize('NFKD', title_with_apostrophes)
+        with_apos_no_diacritics = ''.join([c for c in with_apos_norm if not unicodedata.combining(c)])
+        if with_apos_no_diacritics != title and with_apos_no_diacritics not in variations:
+            variations.append(with_apos_no_diacritics)
+
+    return variations
+
+
+def get_artist_variations(artist_name):
+    """Generate multiple artist name variations for Plex searching
+
+    Handles common differences between database and Plex artist names:
+    - Artist name mapping table lookups (Celine → Céline Dion)
+    - Adds hyphens to two-word names (A Ha → A-ha)
+    - Adds common collaboration separators (&, +) for two-word and multi-word names
+    - Complex collaboration detection (3+ words like "Daryl Hall John Oates")
+    - Removes all separators (Brooks & Dunn → Brooks Dunn)
+    - Converts unicode hyphens to ASCII hyphens
+    - Converts unicode apostrophes to ASCII apostrophes
+
+    Args:
+        artist_name: Original artist name
+
+    Returns:
+        List of artist name variations to try (original first, then variations)
+    """
+    import unicodedata
+
+    # STEP 1: Check artist name mapping table FIRST
+    # This handles known variations like "Celine" → "Céline Dion"
+    canonical_name = get_canonical_artist_name(artist_name)
+    variations = [canonical_name]  # Start with canonical name
+
+    # If canonical name is different, it's already the first variation
+    if canonical_name != artist_name:
+        # Also keep original for backward compatibility
+        variations.insert(0, artist_name)
+
+    # Pre-processing: normalize unicode characters
+    # Convert all unicode dashes/hyphens to ASCII hyphen
+    normalized = re.sub(r"[‐‑‒–—―]", '-', artist_name)
+    # Convert all apostrophe variants to ASCII apostrophe
+    normalized = re.sub(r"[''''´`]", "'", normalized)
+
+    if normalized != artist_name and normalized not in variations:
+        variations.append(normalized)
+
+    # Variation 1: Spaces → Hyphens (for artist names like "A Ha" → "A-ha")
+    # Only apply to 2-word names without existing hyphens
+    if ' ' in normalized and '-' not in normalized:
+        parts = normalized.split()
+        # Only for short 2-word artist names (likely to be hyphenated)
+        if len(parts) == 2 and len(normalized) < 30:
+            with_hyphens = normalized.replace(' ', '-')
+            if with_hyphens not in variations:
+                variations.append(with_hyphens)
+
+    # Variation 2: Add common collaboration separators (&, +) for 2-word names
+    # For "Brooks Dunn" → "Brooks & Dunn", "Brooks + Dunn"
+    if ' ' in normalized and not any(sep in normalized for sep in ['&', '+', '/']):
+        parts = normalized.split()
+        if len(parts) == 2:  # Only for 2-word artist names (likely collaborations)
+            # Skip very common words and short words that aren't collaborations
+            first_word_lower = parts[0].lower()
+            second_word_lower = parts[1].lower()
+            skip_words = {'the', 'and', 'or', 'feat', 'ft', 'featuring', 'with'}
+
+            # Both words must be at least 3 letters to be a collaboration
+            # This prevents "A Ha" → "A & Ha" (false positive)
+            both_long_enough = len(parts[0]) >= 3 and len(parts[1]) >= 3
+
+            if (first_word_lower not in skip_words and
+                second_word_lower not in skip_words and
+                both_long_enough):
+                # Try ampersand
+                with_ampersand = f"{parts[0]} & {parts[1]}"
+                if with_ampersand not in variations:
+                    variations.append(with_ampersand)
+
+                # Try plus sign
+                with_plus = f"{parts[0]} + {parts[1]}"
+                if with_plus not in variations:
+                    variations.append(with_plus)
+
+    # Variation 3: Complex collaboration detection (3+ words)
+    # For "Daryl Hall John Oates" → "Daryl Hall & John Oates"
+    # For "Joe Cocker Jennifer Warnes" → "Joe Cocker & Jennifer Warnes"
+    if ' ' in normalized and not any(sep in normalized for sep in ['&', '+', '/']):
+        parts = normalized.split()
+        if len(parts) >= 3:  # 3 or more words
+            # Try to insert & between last two artists
+            # Pattern: "Artist1 Artist2 Artist3" → "Artist1 Artist2 & Artist3"
+            # This handles: "Daryl Hall John Oates" → "Daryl Hall & John Oates"
+            if len(parts) >= 3:
+                # Assume last 2 parts are separate artists
+                with_ampersand = ' '.join(parts[:-2]) + ' ' + ' & '.join(parts[-2:])
+                if with_ampersand not in variations:
+                    variations.append(with_ampersand)
+
+                # Also try with + sign
+                with_plus = ' '.join(parts[:-2]) + ' ' + ' + '.join(parts[-2:])
+                if with_plus not in variations:
+                    variations.append(with_plus)
+
+                # For 4+ words, try other combinations
+                # "K Ci Jojo" → "K-Ci & JoJo" (special case handled by mapping)
+                if len(parts) >= 4:
+                    # Try inserting & between each pair
+                    for i in range(1, len(parts)):
+                        if i < len(parts) - 1:
+                            combo = ' & '.join([
+                                ' '.join(parts[:i]),
+                                ' '.join(parts[i:])
+                            ])
+                            if combo not in variations:
+                                variations.append(combo)
+
+    # Variation 4: Remove all separators (for reverse matching)
+    # "Brooks & Dunn" → "Brooks Dunn"
+    no_separators = normalized.replace('&', '').replace('+', '').replace('/', '')
+    no_separators = re.sub(r'\s+', ' ', no_separators).strip()
+    if no_separators != normalized and no_separators not in variations:
+        variations.append(no_separators)
+
     return variations
 
 
@@ -145,17 +631,33 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
     if debug:
         logger.debug(f"  Trying Strategy 0: Artist-first search")
 
+    # Get artist variations for matching
+    artist_variations = get_artist_variations(artist_name)
+    if debug and len(artist_variations) > 1:
+        logger.debug(f"  Will try {len(artist_variations)} artist variations")
+
     try:
-        # Search for artist
-        artists = music_library.search(artist_name, libtype='artist')
+        # Search for artist using each variation
+        for search_artist in artist_variations:
+            if len(artist_variations) > 1 and debug:
+                logger.debug(f"  Searching for artist: {search_artist}")
+
+            artists = music_library.search(search_artist, libtype='artist')
 
         if artists:
             # Check each artist match
             for artist in artists:
                 artist_title = artist.title if hasattr(artist, 'title') else str(artist)
 
-                # Check if artist name matches (case-insensitive)
-                if artist_title.lower() == artist_name.lower():
+                # Check if artist name matches any of our variations (case-insensitive)
+                # This handles "A Ha" matching "A-ha", "Brooks Dunn" matching "Brooks & Dunn", etc.
+                artist_match_found = False
+                for variation in artist_variations:
+                    if artist_title.lower() == variation.lower():
+                        artist_match_found = True
+                        break
+
+                if artist_match_found:
                     if debug:
                         logger.debug(f"  Found artist: {artist_title}")
 
@@ -190,11 +692,9 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
                                         logger.debug(f"  ✓ Artist-first normalized match: {track.title}")
                                     return track
 
-                                # Strategy 0c: Fuzzy match
-                                fuzzy = fuzzy_ratio(track.title, search_title)
-                                if fuzzy >= 90:
-                                    if debug:
-                                        logger.debug(f"  ✓ Artist-first fuzzy match: {track.title} ({fuzzy}%)")
+                                # Strategy 0c: Adaptive fuzzy match
+                                # Uses 85% threshold for single-character differences
+                                if adaptive_fuzzy_match(track.title, search_title, debug=debug):
                                     return track
                             except Exception:
                                 continue
@@ -230,74 +730,86 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
         if debug:
             logger.debug(f"  Found {len(tracks)} tracks with title: {search_title}")
 
-        # Strategy 1: Exact match
+        # Strategy 1: Exact match (with artist variations)
         for track in tracks:
             try:
                 track_artist = track.artist().title if track.artist() else ""
-                if track_artist.lower() == artist_name.lower() and track.title.lower() == song_title.lower():
-                    if debug:
-                        logger.debug(f"  ✓ Exact match: {track.title} - {track_artist}")
-                    return track
+                # Check if artist matches any variation
+                for search_artist in artist_variations:
+                    if track_artist.lower() == search_artist.lower() and track.title.lower() == song_title.lower():
+                        if debug:
+                            logger.debug(f"  ✓ Exact match: {track.title} - {track_artist}")
+                        return track
             except Exception as e:
                 if debug:
                     logger.debug(f"  Error accessing track: {e}")
                 continue
 
-        # Strategy 2: Normalized match (using proper normalization)
+        # Strategy 2: Normalized match (using proper normalization + artist variations)
         song_norm = normalize_song_title(song_title)
-        artist_norm = normalize_artist_name(artist_name)
 
-        for track in tracks:
-            try:
-                track_artist = track.artist().title if track.artist() else ""
-                track_artist_norm = normalize_artist_name(track_artist)
-                track_song_norm = normalize_song_title(track.title)
+        # Try matching with each artist variation
+        for search_artist in artist_variations:
+            artist_norm = normalize_artist_name(search_artist)
 
-                # Check if normalized artist and song match
-                # Use substring matching to handle remixes, features, etc.
-                artist_match = (artist_norm.lower() in track_artist_norm.lower() or
-                               track_artist_norm.lower() in artist_norm.lower())
-                song_match = (song_norm.lower() in track_song_norm.lower() or
-                             track_song_norm.lower() in song_norm.lower())
+            for track in tracks:
+                try:
+                    track_artist = track.artist().title if track.artist() else ""
+                    track_artist_norm = normalize_artist_name(track_artist)
+                    track_song_norm = normalize_song_title(track.title)
 
-                if artist_match and song_match:
-                    if debug:
-                        logger.debug(f"  ✓ Normalized match: {track.title} - {track_artist}")
-                        logger.debug(f"    DB norm: {song_norm} - {artist_norm}")
-                        logger.debug(f"    Plex norm: {track_song_norm} - {track_artist_norm}")
-                    return track
-            except Exception as e:
-                continue
+                    # Check if normalized artist and song match
+                    # Use substring matching to handle remixes, features, etc.
+                    artist_match = (artist_norm.lower() in track_artist_norm.lower() or
+                                   track_artist_norm.lower() in artist_norm.lower())
+                    song_match = (song_norm.lower() in track_song_norm.lower() or
+                                 track_song_norm.lower() in song_norm.lower())
 
-        # Strategy 3: Fuzzy match (Levenshtein >= 90%)
+                    if artist_match and song_match:
+                        if debug:
+                            logger.debug(f"  ✓ Normalized match: {track.title} - {track_artist}")
+                            logger.debug(f"    DB norm: {song_norm} - {artist_norm}")
+                            logger.debug(f"    Plex norm: {track_song_norm} - {track_artist_norm}")
+                        return track
+                except Exception as e:
+                    continue
+
+        # Strategy 3: Adaptive fuzzy match (Levenshtein with adaptive threshold + artist variations)
         best_match = None
         best_score = 0
 
         for track in tracks[:20]:  # Check top 20 for fuzzy
             try:
                 track_artist = track.artist().title if track.artist() else ""
-                artist_ratio = fuzzy_ratio(artist_name, track_artist)
-                song_ratio = fuzzy_ratio(song_title, track.title)
 
-                if artist_ratio > best_score and song_ratio > best_score:
-                    best_score = min(artist_ratio, song_ratio)
-                    best_match = (track, artist_ratio, song_ratio)
+                # Check against all artist variations
+                for search_artist in artist_variations:
+                    artist_ratio = fuzzy_ratio(search_artist, track_artist)
+                    song_ratio = fuzzy_ratio(song_title, track.title)
 
-                if artist_ratio >= 90 and song_ratio >= 90:
-                    if debug:
-                        logger.debug(f"  ✓ Fuzzy match: {track.title} - {track_artist} (artist: {artist_ratio}%, song: {song_ratio}%)")
-                    return track
+                    if artist_ratio > best_score and song_ratio > best_score:
+                        best_score = min(artist_ratio, song_ratio)
+                        best_match = (track, artist_ratio, song_ratio)
+
+                    # Use adaptive fuzzy matching for both artist AND song
+                    if adaptive_fuzzy_match(search_artist, track_artist, debug=debug) and \
+                       adaptive_fuzzy_match(song_title, track.title, debug=debug):
+                        if debug:
+                            logger.debug(f"  ✓ Adaptive fuzzy match: {track.title} - {track_artist} (artist: {artist_ratio}%, song: {song_ratio}%)")
+                        return track
             except Exception as e:
                 continue
 
-        # Strategy 4: Partial match (substring)
+        # Strategy 4: Partial match (substring with artist variations)
         for track in tracks:
             try:
                 track_artist = track.artist().title if track.artist() else ""
-                if artist_name.lower() in track_artist.lower() and song_title.lower() in track.title.lower():
-                    if debug:
-                        logger.debug(f"  ✓ Partial match: {track.title} - {track_artist}")
-                    return track
+                # Check if any artist variation is a substring
+                for search_artist in artist_variations:
+                    if search_artist.lower() in track_artist.lower() and song_title.lower() in track.title.lower():
+                        if debug:
+                            logger.debug(f"  ✓ Partial match: {track.title} - {track_artist}")
+                        return track
             except Exception as e:
                 continue
 
