@@ -36,6 +36,8 @@ logger = logging.getLogger(__name__)
 # ARTIST NAME MAPPING TABLE
 # Known artist name variations scraped from radio vs Plex library names
 # Built from historical Plex match failures and manual verification
+#
+# Users can add their own mappings in user_mappings.json (see get_canonical_artist_name)
 # ============================================================================
 
 ARTIST_NAME_MAPPING = {
@@ -43,16 +45,30 @@ ARTIST_NAME_MAPPING = {
     'Celine': 'Céline Dion',
     'Michael Buble': 'Michael Bublé',
     'Desree': 'Des\'ree',
+    'Whitney': 'Whitney Houston',
+    'Mariah': 'Mariah Carey',
+    'Cher': 'Cher',
+    'Rihanna': 'Rihanna',
+    'Snoop': 'Snoop Dogg',
+    'Puff Daddy': 'P. Diddy',
+    'Diddy': 'P. Diddy',
 
     # Special character variations
     'Pnk': 'P!NK',
     'P!nk': 'P!NK',
+    'Pink': 'P!NK',
     'Beyonce': 'Beyoncé',  # Also handled by adaptive fuzzy, but explicit is better
+    'Andre 3000': 'André 3000',
 
     # Hyphen variations
     'A Ha': 'A-ha',
     'Ne Yo': 'Ne-Yo',
     'J Holiday': 'J-Holiday',
+    'Jay Z': 'Jay-Z',
+    'Snoop Dogg': 'Snoop Dogg',
+    'Dr Dre': 'Dr. Dre',
+    'Ice Cube': 'Ice Cube',
+    'Ice T': 'Ice-T',
 
     # Collaboration separators (& vs + vs spaces)
     'Brooks Dunn': 'Brooks & Dunn',
@@ -66,11 +82,17 @@ ARTIST_NAME_MAPPING = {
     'Billy Ray Cyrus': 'Billy Ray Cyrus',
     'Ricky Skaggs': 'Ricky Skaggs',
     'George Jones': 'George Jones',
+    'Sonny Cher': 'Sonny & Cher',
 
     # Alternative spellings / common typos
     'Crosby Still Nash': 'Crosby, Stills, Nash & Young',
     'Crosby Stills Nash': 'Crosby, Stills & Nash',
     'The Alan Parsons Project': 'The Alan Parsons Project',
+    'Guns N Roses': 'Guns N\' Roses',
+    'Guns and Roses': 'Guns N\' Roses',
+    'Tom Petty': 'Tom Petty & The Heartbreakers',
+    'Heartbreakers': 'Tom Petty & The Heartbreakers',
+    'Steve Miller': 'The Steve Miller Band',
 
     # Unicode normalization (already handled, but explicit is faster)
     'All\u20104\u2010One': 'All-4-One',  # U+2010 hyphens
@@ -85,14 +107,24 @@ ARTIST_NAME_MAPPING = {
     'Travis Tritt': 'Travis Tritt',
     'Marty Roe': 'Marty Roe',
     'Jim Messina': 'Jim Messina',
+    'Carrie Underwood': 'Carrie Underwood',
+    'Miranda Lambert': 'Miranda Lambert',
+    'Blake Shelton': 'Blake Shelton',
+    'Luke Bryan': 'Luke Bryan',
+    'Florida Georgia Line': 'Florida Georgia Line',
+    'Rascal Flatts': 'Rascal Flatts',
 
-    # Hip-hop collaborations
+    # Hip-hop / R&B collaborations
     'Drake': 'Drake',
     'DJ Snake': 'DJ Snake',
     'Juicy J': 'Juicy J',
     'Big Sean': 'Big Sean',
     'Post Malone': 'Post Malone',
     'Morgan Wallen': 'Morgan Wallen',
+    'Kanye West': 'Kanye West',
+    'Jay Z': 'Jay-Z',
+    'Lil Wayne': 'Lil Wayne',
+    'Drake Future': 'Drake & Future',
 }
 
 
@@ -100,20 +132,44 @@ def get_canonical_artist_name(artist_name):
     """
     Get the canonical Plex name for an artist using the mapping table.
 
+    Checks mappings in this order:
+    1. User-defined mappings from user_mappings.json (if exists)
+    2. Built-in mappings from ARTIST_NAME_MAPPING table
+
     Args:
         artist_name: Artist name from database
 
     Returns:
         Canonical artist name if found in mapping, otherwise original name
     """
+    import os
+    import json
+
     # Normalize input for lookup
     normalized_input = artist_name.strip()
 
-    # Direct lookup (case-insensitive)
+    # STEP 1: Check user-defined mappings first (allows override of built-ins)
+    user_mappings_file = 'user_mappings.json'
+    if os.path.exists(user_mappings_file):
+        try:
+            with open(user_mappings_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+                user_mappings = user_data.get('mappings', {})
+
+            # Case-insensitive lookup in user mappings
+            for key, value in user_mappings.items():
+                if key.lower() == normalized_input.lower():
+                    if value != normalized_input:
+                        logger.debug(f"  User artist mapping: {normalized_input} → {value}")
+                    return value
+        except Exception as e:
+            logger.warning(f"Error loading user_mappings.json: {e}")
+
+    # STEP 2: Check built-in mappings
     for key, value in ARTIST_NAME_MAPPING.items():
         if key.lower() == normalized_input.lower():
             if value != normalized_input:
-                logger.debug(f"  Artist mapping: {normalized_input} → {value}")
+                logger.debug(f"  Built-in artist mapping: {normalized_input} → {value}")
             return value
 
     # Return original if no mapping found
