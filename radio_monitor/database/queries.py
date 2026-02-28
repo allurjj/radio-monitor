@@ -166,7 +166,7 @@ def get_all_stations_with_health(cursor):
             FROM song_plays_daily
             GROUP BY station_id
         ) LAST_SCRAPE ON s.id = LAST_SCRAPE.station_id
-        ORDER BY s.enabled DESC, s.name
+        ORDER BY s.name
     """)
 
     columns = ['id', 'name', 'url', 'genre', 'market', 'has_mbid',

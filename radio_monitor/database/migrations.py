@@ -107,6 +107,10 @@ def _initialize_schema(cursor, conn, db_path, SCHEMA_VERSION):
             if current_version < 12:
                 _migrate_to_v12(cursor, conn)
 
+            # Migrate to version 13 (add station grouping and sorting)
+            if current_version < 13:
+                _migrate_to_v13(cursor, conn)
+
 
 def _create_new_schema(cursor, conn, SCHEMA_VERSION):
     """Create new schema (6 tables: stations, artists, songs, song_plays_daily, schema_version, playlists)
@@ -899,3 +903,48 @@ def _migrate_to_v12(cursor, conn):
     conn.commit()
     print("  - Migration to v12 complete")
     print("Migration to version 12 complete!")
+
+
+def _migrate_to_v13(cursor, conn):
+    """Migrate database from v12 to v13 (add station sorting)
+
+    This migration adds a sort_order field to the stations table
+    and populates the stations table with all 28 default stations.
+
+    Args:
+        cursor: Database cursor
+        conn: Database connection
+    """
+    print("Migrating database from v12 to v13 (adding station sorting)...")
+
+    # Step 1: Add sort_order column
+    print("  - Adding sort_order column...")
+    try:
+        cursor.execute("ALTER TABLE stations ADD COLUMN sort_order INTEGER DEFAULT 0")
+    except Exception as e:
+        if "duplicate column name" in str(e).lower():
+            print("    - Column sort_order already exists, skipping...")
+        else:
+            raise
+
+    # Step 2: Populate/Update stations with all 28 default stations
+    print("  - Populating stations with all 28 default stations...")
+    from .schema import populate_stations
+    populate_stations(cursor)
+
+    # Step 3: Log the migration as an activity
+    print("  - Logging migration event...")
+    cursor.execute("""
+        INSERT INTO activity_log (event_type, event_severity, title, description, source)
+        VALUES ('system', 'success', 'Database Migration', 'Migrated from schema v12 to v13: added sort_order field and populated 28 default stations (alphabetically sorted)', 'system')
+    """)
+
+    # Step 4: Record schema version
+    print("  - Recording schema version...")
+    cursor.execute("""
+        INSERT INTO schema_version (version, description)
+        VALUES (?, ?)
+    """, (13, 'Add station sorting: sort_order field + 28 default stations'))
+
+    conn.commit()
+    print("Migration to version 13 complete!")

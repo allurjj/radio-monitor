@@ -21,7 +21,7 @@ Tables:
 - manual_playlist_songs: Manual playlist song associations (v12)
 - playlist_builder_state: In-progress playlist builder state (v12)
 
-Schema Version: 12
+Schema Version: 13
 """
 
 import logging
@@ -49,7 +49,8 @@ def create_tables(cursor):
             enabled BOOLEAN DEFAULT 1,
             consecutive_failures INTEGER DEFAULT 0,
             last_failure_at TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            sort_order INTEGER DEFAULT 0
         )
     """)
 
@@ -312,31 +313,44 @@ def create_tables(cursor):
 
 
 def populate_stations(cursor):
-    """Populate stations table with initial 11 stations
-
-    Includes 7 Chicago stations + 4 additional iHeartRadio stations
+    """Populate stations table with initial 28 stations (alphabetical by name)
 
     Args:
         cursor: SQLite cursor object
     """
     stations = [
-        # Chicago stations (7)
-        ('us99', 'US99 99.5fm Chicago', 'https://www.iheart.com/live/us-99-10819/', 'Country', 'Chicago', 0, 'iheart', 15),
-        ('wls', '94.7 WLS Chicago', 'https://www.iheart.com/live/947-wls-5367/', 'Classic Hits', 'Chicago', 0, 'iheart', 15),
-        ('rock955', 'Rock 95.5 Chicago', 'https://www.iheart.com/live/rock-955-857/', 'Rock', 'Chicago', 0, 'iheart', 15),
-        ('q101', 'Q101 Chicago', 'https://www.iheart.com/live/q101-6468/', 'Alternative', 'Chicago', 0, 'iheart', 15),
-        ('b96', 'B96 Chicago', 'https://www.iheart.com/live/b96-353/', 'Urban/Pop', 'Chicago', 0, 'iheart', 15),
-        ('wlite', '93.9 LITE fm Chicago', 'https://www.iheart.com/live/939-lite-fm-853/', 'Adult Contemporary', 'Chicago', 0, 'iheart', 15),
-        ('wiil', '95 WIIL ROCK Chicago', 'https://www.iheart.com/live/95-wiil-rock-7716/', 'Rock', 'Chicago', 0, 'iheart', 15),
-        # Additional iHeartRadio stations (4)
-        ('big955', 'Big 95.5', 'https://www.iheart.com/live/big-955-8731', 'Country', 'Chicago', 0, 'iheart', 10),
-        ('iheart70s', 'iHeart70s', 'https://www.iheart.com/live/iheart70s-6843', 'Other', 'USA', 0, 'iheart', 10),
-        ('iheart80s', 'iHeart80s', 'https://www.iheart.com/live/iheart80s-5060', 'Other', 'USA', 0, 'iheart', 10),
-        ('iheart90s', 'iHeart90s', 'https://www.iheart.com/live/iheart90s-6834', 'Other', 'USA', 0, 'iheart', 10),
+        # All 28 stations sorted alphabetically by name
+        ('b96', 'B96 Chicago', 'https://www.iheart.com/live/b96-353/', 'Urban/Pop', 'Chicago', 0, 'iheart', 15, 0),
+        ('big955', 'Big 95.5', 'https://www.iheart.com/live/big-955-8731', 'Country', 'Chicago', 0, 'iheart', 10, 0),
+        ('fm1061', 'FM106.1', 'https://www.iheart.com/live/fm1061-2677', 'Country', 'Milwaukee', 0, 'iheart', 10, 0),
+        ('iheart2000s', 'iHeart2000s', 'https://www.iheart.com/live/iheart2000s-6850', '2000s', 'USA', 0, 'iheart', 10, 0),
+        ('iheart2010s', 'iHeart2010s', 'https://www.iheart.com/live/iheart2010s-8478', '2010s', 'USA', 0, 'iheart', 10, 0),
+        ('iheart2020s', 'iHeart2020s', 'https://www.iheart.com/live/iheart2020s-10765', '2020s', 'USA', 0, 'iheart', 10, 0),
+        ('iheart70s', 'iHeart70s', 'https://www.iheart.com/live/iheart70s-6843', '70s', 'USA', 0, 'iheart', 10, 0),
+        ('iheart80s', 'iHeart80s', 'https://www.iheart.com/live/iheart80s-5060', '80s', 'USA', 0, 'iheart', 10, 0),
+        ('iheart90s', 'iHeart90s', 'https://www.iheart.com/live/iheart90s-6834', '90s', 'USA', 0, 'iheart', 10, 0),
+        ('iheartclassicrock', 'iHeart Classic Rock', 'https://www.iheart.com/live/classic-rock-4426', 'Rock', 'USA', 0, 'iheart', 10, 0),
+        ('iheartcountry', 'iHeartCountry', 'https://www.iheart.com/live/iheartcountry-4418', 'Country', 'USA', 0, 'iheart', 10, 0),
+        ('iheartcountry2000s', 'iHeartCountry 2000s', 'https://www.iheart.com/live/iheartcountry-2000s-10027', 'Country', 'USA', 0, 'iheart', 10, 0),
+        ('iheartcountry80s', 'iHeartCountry 80s', 'https://www.iheart.com/live/iheartcountry-80s-6836', 'Country', 'USA', 0, 'iheart', 10, 0),
+        ('iheartcountry90s', 'iHeartCountry 90s', 'https://www.iheart.com/live/iheartcountry-90s-6870', 'Country', 'USA', 0, 'iheart', 10, 0),
+        ('iheartcountryclassics', 'iHeartCountry Classics', 'https://www.iheart.com/live/iheartcountry-classics-4435', 'Country', 'USA', 0, 'iheart', 10, 0),
+        ('iheartcountryfavorites', 'iHeartCountry Favorites', 'https://www.iheart.com/live/iheartcountry-favorites-8625', 'Country', 'USA', 0, 'iheart', 10, 0),
+        ('iheartcountrytop30', 'iHeart  Country Top 30 Bobby Bones', 'https://www.iheart.com/live/country-top-30-6760', 'Country', 'USA', 0, 'iheart', 10, 0),
+        ('iheartliterock', 'iHeart Lite Rock', 'https://www.iheart.com/live/lite-rock-6830', 'Rock', 'USA', 0, 'iheart', 10, 0),
+        ('iheartnewcountry', 'iHeart New Country', 'https://www.iheart.com/live/new-country-4712', 'Country', 'USA', 0, 'iheart', 10, 0),
+        ('iheartsoftrock', 'iHeart Soft Rock', 'https://www.iheart.com/live/soft-rock-4414', 'Rock', 'USA', 0, 'iheart', 10, 0),
+        ('litefm1067', 'WLTW', 'https://www.iheart.com/live/1067-lite-fm-1477', 'Pop', 'New York', 0, 'iheart', 10, 0),
+        ('q101', 'Q101 Chicago', 'https://www.iheart.com/live/q101-6468/', 'Alternative', 'Chicago', 0, 'iheart', 15, 0),
+        ('rock955', 'Rock 95.5 Chicago', 'https://www.iheart.com/live/rock-955-857/', 'Rock', 'Chicago', 0, 'iheart', 15, 0),
+        ('us99', 'US99 99.5fm Chicago', 'https://www.iheart.com/live/us-99-10819/', 'Country', 'Chicago', 0, 'iheart', 15, 0),
+        ('wls', '94.7 WLS Chicago', 'https://www.iheart.com/live/947-wls-5367/', 'Classic Hits', 'Chicago', 0, 'iheart', 15, 0),
+        ('wiil', '95 WIIL ROCK Chicago', 'https://www.iheart.com/live/95-wiil-rock-7716/', 'Rock', 'Chicago', 0, 'iheart', 15, 0),
+        ('wlite', '93.9 LITE fm Chicago', 'https://www.iheart.com/live/939-lite-fm-853/', 'Adult Contemporary', 'Chicago', 0, 'iheart', 15, 0),
     ]
 
     for station in stations:
         cursor.execute("""
-            INSERT OR IGNORE INTO stations (id, name, url, genre, market, has_mbid, scraper_type, wait_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR IGNORE INTO stations (id, name, url, genre, market, has_mbid, scraper_type, wait_time, sort_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, station)

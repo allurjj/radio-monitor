@@ -11,6 +11,7 @@ from flask import render_template, jsonify, request, redirect, url_for
 from radio_monitor.lidarr import test_lidarr_connection, get_lidarr_root_folders, get_lidarr_quality_profiles, get_lidarr_metadata_profiles
 from radio_monitor.plex import test_plex_connection, get_plex_libraries
 from radio_monitor.gui import load_settings, save_settings_to_file, is_first_run, app
+from flask import current_app
 
 logger = logging.getLogger(__name__)
 
@@ -200,6 +201,48 @@ def api_wizard_test_plex():
             'success': False,
             'message': f"Server error: {str(e)}"
         })
+
+
+@app.route('/api/wizard/stations')
+def api_wizard_stations():
+    """Get all available stations for the wizard
+
+    Returns JSON:
+        {
+            "stations": [
+                {"id": "us99", "name": "US99 99.5fm Chicago", "genre": "Country", "market": "Chicago"},
+                ...
+            ]
+        }
+    """
+    try:
+        db = current_app.config.get('db')
+        if not db:
+            return jsonify({'stations': []})
+
+        cursor = db.get_cursor()
+        try:
+            cursor.execute("""
+                SELECT id, name, genre, market
+                FROM stations
+                ORDER BY name
+            """)
+
+            stations = []
+            for row in cursor.fetchall():
+                stations.append({
+                    'id': row[0],
+                    'name': row[1],
+                    'genre': row[2],
+                    'market': row[3]
+                })
+
+            return jsonify({'stations': stations})
+        finally:
+            cursor.close()
+    except Exception as e:
+        logger.error(f"Error fetching stations for wizard: {e}")
+        return jsonify({'stations': []})
 
 
 @app.route('/api/wizard/save', methods=['POST'])

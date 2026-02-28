@@ -12,7 +12,7 @@ This package provides a modular database interface with:
 The main RadioDatabase class (below) provides a unified interface
 to all database operations with backward compatibility.
 
-Schema Version: 12 (Manual Playlist Support)
+Schema Version: 13 (Station Grouping and Sorting)
 """
 
 import sqlite3
@@ -58,7 +58,7 @@ class RadioDatabase:
     """
 
     # Current schema version
-    SCHEMA_VERSION = 12
+    SCHEMA_VERSION = 13
 
     def __init__(self, db_path):
         self.db_path = db_path

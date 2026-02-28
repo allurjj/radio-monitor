@@ -309,60 +309,12 @@
                         <label class="form-label">Stations to Monitor</label>
                         <div class="form-text mb-2">Select all stations you want to monitor:</div>
 
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-check">
-                                    <input class="form-check-input station-checkbox" type="checkbox"
-                                           id="station-us99" value="us99" checked>
-                                    <label class="form-check-label" for="station-us99">
-                                        US99.5 Chicago (Country)
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input station-checkbox" type="checkbox"
-                                           id="station-wls" value="wls" checked>
-                                    <label class="form-check-label" for="station-wls">
-                                        WLS 890am Chicago (Talk)
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input station-checkbox" type="checkbox"
-                                           id="station-rock955" value="rock955" checked>
-                                    <label class="form-check-label" for="station-rock955">
-                                        Rock 95.5 Chicago
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-check">
-                                    <input class="form-check-input station-checkbox" type="checkbox"
-                                           id="station-q101" value="q101" checked>
-                                    <label class="form-check-label" for="station-q101">
-                                        Q101 Chicago (Alternative)
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input station-checkbox" type="checkbox"
-                                           id="station-b96" value="b96" checked>
-                                    <label class="form-check-label" for="station-b96">
-                                        B96 Chicago (Pop/Hip-Hop)
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input station-checkbox" type="checkbox"
-                                           id="station-wlite" value="wlite" checked>
-                                    <label class="form-check-label" for="station-wlite">
-                                        WLIT 93.9fm Chicago (Lite FM)
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input station-checkbox" type="checkbox"
-                                           id="station-wiil" value="wiil" checked>
-                                    <label class="form-check-label" for="station-wiil">
-                                        WIIL 95.1fm Chicago (Rock)
-                                    </label>
-                                </div>
-                            </div>
+                        <div id="stations-loading" class="text-muted">
+                            <i class="bi bi-arrow-clockwise spin"></i> Loading stations...
+                        </div>
+
+                        <div id="stations-list" class="row" style="display: none;">
+                            <!-- Stations will be dynamically loaded here -->
                         </div>
                     </div>
                 </form>
@@ -443,6 +395,12 @@
 let currentStep = 1;
 let lidarrTestPassed = false;
 let plexTestPassed = false;
+let allStations = [];  // Store all stations from database
+
+// Load stations on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadStations();
+});
 
 // Wizard data
 let wizardData = {
@@ -581,6 +539,48 @@ function showLoading(message) {
 function hideLoading() {
     const overlay = document.getElementById('loading-overlay');
     overlay.style.setProperty('display', 'none', 'important');
+}
+
+async function loadStations() {
+    try {
+        const response = await fetch('/api/wizard/stations');
+        const data = await response.json();
+        allStations = data.stations || [];
+
+        const stationsList = document.getElementById('stations-list');
+        const stationsLoading = document.getElementById('stations-loading');
+
+        if (allStations.length === 0) {
+            stationsLoading.textContent = 'No stations available. Please add stations in the Settings page after setup.';
+            return;
+        }
+
+        // Hide loading, show stations
+        stationsLoading.style.display = 'none';
+        stationsList.style.display = 'flex';
+
+        // Create station checkboxes (2 columns)
+        let html = '';
+        allStations.forEach(station => {
+            const isChecked = ['us99', 'wls', 'rock955', 'q101', 'b96', 'wlite', 'wiil'].includes(station.id) ? 'checked' : '';
+            html += `
+                <div class="col-md-6">
+                    <div class="form-check">
+                        <input class="form-check-input station-checkbox" type="checkbox"
+                               id="station-${station.id}" value="${station.id}" ${isChecked}>
+                        <label class="form-check-label" for="station-${station.id}">
+                            ${station.name} <small class="text-muted">(${station.genre || station.market || 'Various'})</small>
+                        </label>
+                    </div>
+                </div>
+            `;
+        });
+
+        stationsList.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading stations:', error);
+        document.getElementById('stations-loading').textContent = 'Error loading stations. Please continue and add stations later.';
+    }
 }
 
 async function testLidarrConnection() {
