@@ -5,6 +5,9 @@ Settings management and configuration.
 """
 
 import logging
+import threading
+import time
+import os
 from flask import Blueprint, render_template, jsonify, request, current_app
 from radio_monitor.auth import requires_auth
 
@@ -13,6 +16,19 @@ from radio_monitor.gui import app, load_settings, save_settings_to_file
 logger = logging.getLogger(__name__)
 
 settings_bp = Blueprint('settings', __name__)
+
+# Thread-safe vacuum state management
+_vacuum_lock = threading.Lock()
+_vacuum_status = {
+    'is_running': False,
+    'progress': 0,
+    'message': '',
+    'error': None,
+    'start_time': None,
+    'end_time': None,
+    'space_before': 0,
+    'space_after': 0
+}
 
 
 def get_db():
@@ -483,3 +499,159 @@ def api_shutdown():
             'status': 'error',
             'message': f'Error during shutdown: {str(e)}'
         }), 500
+
+
+@settings_bp.route('/api/settings/vacuum', methods=['POST'])
+@requires_auth
+def api_vacuum_database():
+    """Vacuum/optimize the database
+
+    This endpoint performs a SQLite VACUUM operation to:
+    - Reclaim disk space from deleted records
+    - Defragment the database file
+    - Optimize query performance
+
+    IMPORTANT: This operation requires an exclusive lock on the database.
+    During the vacuum, all other database operations will be blocked.
+
+    Returns JSON:
+        {
+            "success": true/false,
+            "message": "Database vacuumed successfully",
+            "space_before": 1048576,
+            "space_after": 786432,
+            "space_reclaimed": 262144
+        }
+    """
+    global _vacuum_status
+
+    # Check if vacuum is already running
+    with _vacuum_lock:
+        if _vacuum_status['is_running']:
+            return jsonify({
+                'success': False,
+                'message': 'A vacuum operation is already in progress. Please wait for it to complete.',
+                'is_running': True
+            }), 409  # 409 Conflict
+
+        # Mark vacuum as starting
+        _vacuum_status['is_running'] = True
+        _vacuum_status['progress'] = 0
+        _vacuum_status['message'] = 'Initializing vacuum operation...'
+        _vacuum_status['error'] = None
+        _vacuum_status['start_time'] = time.time()
+        _vacuum_status['end_time'] = None
+
+    # Run vacuum in a separate thread to avoid blocking the response
+    def vacuum_worker():
+        global _vacuum_status
+        import sqlite3
+        from radio_monitor.backup import backup_database
+
+        try:
+            # Get database file path
+            settings = load_settings()
+            db_file = settings.get('monitor', {}).get('database_file', 'radio_songs.db')
+            backup_dir = settings.get('database', {}).get('backup_path', 'backups/')
+
+            # Check if database file exists
+            if not os.path.exists(db_file):
+                raise FileNotFoundError(f"Database file not found: {db_file}")
+
+            # Get file size before vacuum
+            _vacuum_status['space_before'] = os.path.getsize(db_file)
+
+            with _vacuum_lock:
+                _vacuum_status['message'] = 'Creating pre-vacuum backup...'
+                _vacuum_status['progress'] = 5
+
+            logger.info("Creating pre-vacuum backup...")
+
+            # Create backup before vacuum
+            backup_path = backup_database(db_file, backup_dir)
+            if not backup_path:
+                raise Exception("Failed to create pre-vacuum backup")
+
+            logger.info(f"Pre-vacuum backup created: {backup_path}")
+
+            with _vacuum_lock:
+                _vacuum_status['message'] = f'Vacuuming database ({_vacuum_status["space_before"]:,} bytes)...'
+                _vacuum_status['progress'] = 10
+
+            logger.info(f"Starting database vacuum: {db_file}")
+
+            # Perform vacuum
+            conn = sqlite3.connect(db_file)
+            conn.execute('VACUUM')
+            conn.close()
+
+            # Get file size after vacuum
+            _vacuum_status['space_after'] = os.path.getsize(db_file)
+            space_reclaimed = _vacuum_status['space_before'] - _vacuum_status['space_after']
+
+            with _vacuum_lock:
+                _vacuum_status['progress'] = 100
+                _vacuum_status['message'] = 'Vacuum complete!'
+                _vacuum_status['end_time'] = time.time()
+
+            logger.info(f"Database vacuum complete. Reclaimed {space_reclaimed:,} bytes")
+
+        except Exception as e:
+            logger.error(f"Database vacuum failed: {e}")
+            with _vacuum_lock:
+                _vacuum_status['error'] = str(e)
+                _vacuum_status['message'] = f'Vacuum failed: {str(e)}'
+                _vacuum_status['end_time'] = time.time()
+
+        finally:
+            with _vacuum_lock:
+                _vacuum_status['is_running'] = False
+
+    # Start the vacuum worker thread
+    vacuum_thread = threading.Thread(target=vacuum_worker, daemon=True)
+    vacuum_thread.start()
+
+    # Return immediately (vacuum runs in background)
+    return jsonify({
+        'success': True,
+        'message': 'Vacuum operation started. This may take a few moments.',
+        'is_running': True
+    })
+
+
+@settings_bp.route('/api/settings/vacuum-status', methods=['GET'])
+@requires_auth
+def api_vacuum_status():
+    """Get the current status of the vacuum operation
+
+    Returns JSON:
+        {
+            "is_running": true/false,
+            "progress": 50,
+            "message": "Vacuuming database...",
+            "error": null,
+            "space_before": 1048576,
+            "space_after": 0,
+            "elapsed_seconds": 5
+        }
+    """
+    global _vacuum_status
+
+    with _vacuum_lock:
+        response = {
+            'is_running': _vacuum_status['is_running'],
+            'progress': _vacuum_status['progress'],
+            'message': _vacuum_status['message'],
+            'error': _vacuum_status['error'],
+            'space_before': _vacuum_status['space_before'],
+            'space_after': _vacuum_status['space_after'],
+        }
+
+        # Calculate elapsed time
+        if _vacuum_status['start_time']:
+            if _vacuum_status['end_time']:
+                response['elapsed_seconds'] = _vacuum_status['end_time'] - _vacuum_status['start_time']
+            else:
+                response['elapsed_seconds'] = time.time() - _vacuum_status['start_time']
+
+    return jsonify(response)
