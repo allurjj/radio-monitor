@@ -1,0 +1,93 @@
+[
+  {
+    "test": "Get Test Songs",
+    "passed": true,
+    "message": "Found 20 songs",
+    "duration_ms": 0.16641616821289062,
+    "timestamp": "2026-02-23T14:54:46.828047"
+  },
+  {
+    "test": "Select 10 Songs",
+    "passed": true,
+    "message": "Inserted 10 selections",
+    "duration_ms": 5.555391311645508,
+    "timestamp": "2026-02-23T14:54:46.833653"
+  },
+  {
+    "test": "Verify Selections Persist",
+    "passed": true,
+    "message": "All 10 selections found",
+    "duration_ms": 0.2598762512207031,
+    "timestamp": "2026-02-23T14:54:46.833969"
+  },
+  {
+    "test": "Toggle Selection (Remove 5)",
+    "passed": true,
+    "message": "Removed 5 selections",
+    "duration_ms": 4.139184951782227,
+    "timestamp": "2026-02-23T14:54:46.838140"
+  },
+  {
+    "test": "Verify 5 Remain",
+    "passed": true,
+    "message": "Correct count",
+    "duration_ms": 0.23818016052246094,
+    "timestamp": "2026-02-23T14:54:46.838428"
+  },
+  {
+    "test": "Clear All Selections",
+    "passed": true,
+    "message": "All selections removed",
+    "duration_ms": 3.9200782775878906,
+    "timestamp": "2026-02-23T14:54:46.842372"
+  },
+  {
+    "test": "Verify Empty",
+    "passed": true,
+    "message": "All selections cleared",
+    "duration_ms": 0.17714500427246094,
+    "timestamp": "2026-02-23T14:54:46.842597"
+  },
+  {
+    "test": "Get 500 Songs",
+    "passed": true,
+    "message": "Found 500 songs",
+    "duration_ms": 0,
+    "timestamp": "2026-02-23T14:54:46.843239"
+  },
+  {
+    "test": "Large Selection (500 songs)",
+    "passed": true,
+    "message": "10.31ms total (0.02ms per song)",
+    "duration_ms": 10.308504104614258,
+    "timestamp": "2026-02-23T14:54:46.853580"
+  },
+  {
+    "test": "Query Selections Performance",
+    "passed": true,
+    "message": "0.71ms for 500 selections",
+    "duration_ms": 0.7066726684570312,
+    "timestamp": "2026-02-23T14:54:46.854330"
+  },
+  {
+    "test": "Pagination Performance (By Artist)",
+    "passed": true,
+    "message": "13.03ms for page 1",
+    "duration_ms": 13.02790641784668,
+    "timestamp": "2026-02-23T14:54:46.867385"
+  },
+  {
+    "test": "Pagination Performance (By Song)",
+    "passed": true,
+    "message": "9.00ms for page 1",
+    "duration_ms": 8.997201919555664,
+    "timestamp": "2026-02-23T14:54:46.876421"
+  },
+  {
+    "test": "Empty Selection",
+    "passed": true,
+    "message": "Returns empty list",
+    "duration_ms": 0.2028942108154297,
+    "timestamp": "2026-02-23T14:54:46.886666"
+  }
+]

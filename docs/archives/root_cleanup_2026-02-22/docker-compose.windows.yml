@@ -1,0 +1,70 @@
+# Radio Monitor - Windows Docker Compose
+# Configured for Windows with absolute paths
+#
+# Quick Start:
+#   docker-compose -f docker-compose.windows.yml up -d
+#
+# Access: http://localhost:5000
+
+version: '3.8'
+
+services:
+  radio-monitor:
+    # Pull from GitHub Container Registry
+    image: ghcr.io/allurjj/radio-monitor:latest
+    container_name: radio-monitor
+    hostname: radio-monitor
+
+    # Port mapping (host:container)
+    ports:
+      - "5000:5000"
+
+    # Volume mounts for persistent data
+    volumes:
+      # Windows absolute path (using forward slashes for Docker)
+      - C:/Users/allurjj/Documents/DockerData/RadioMonitor/data:/app/data
+
+    # Environment variables
+    environment:
+      # Timezone (change to your timezone)
+      - TZ=America/Chicago
+      # Python options
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Resource limits (adjust based on your system)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Networks
+    networks:
+      - radio-monitor-net
+
+# Networks
+networks:
+  radio-monitor-net:
+    driver: bridge

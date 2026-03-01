@@ -1,0 +1,3 @@
+# This directory stores screenshots captured by Playwright for design/debugging
+# Screenshots are used by Claude to visually analyze web pages during development
+# This directory is gitignored - screenshots are NOT committed to the repository

@@ -577,7 +577,8 @@ def api_execute_playlist(playlist_id):
             'limit': playlist['max_songs'],
             'min_plays': playlist.get('min_plays', 1),
             'max_plays': playlist.get('max_plays'),
-            'music_library_name': plex_config.get('library_name', 'Music')
+            'music_library_name': plex_config.get('library_name', 'Music'),
+            'exclude_blocklist': request.json.get('exclude_blocklist', True) if request.json else True  # Default: True
         }
 
         # Create/update playlist
@@ -710,7 +711,8 @@ def _execute_playlist_immediate(playlist_id, db_path, plex_config):
             'limit': playlist['max_songs'],
             'min_plays': playlist.get('min_plays', 1),
             'max_plays': playlist.get('max_plays'),
-            'music_library_name': plex_config.get('library_name', 'Music')
+            'music_library_name': plex_config.get('library_name', 'Music'),
+            'exclude_blocklist': request.json.get('exclude_blocklist', True) if request.json else True  # Default: True
         }
 
         # Create/update playlist in Plex

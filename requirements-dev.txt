@@ -1,0 +1,6 @@
+# Development Tools Only - NOT for production builds
+# These tools are for local debugging and design assistance
+# Do NOT install these in Docker images or include in production deployments
+
+# Web Automation for Design/Debugging
+playwright==1.48.0

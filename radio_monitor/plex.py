@@ -889,12 +889,14 @@ def create_playlist(db, plex, playlist_name, mode='merge', filters=None):
             - station_ids: Array of station IDs to filter by (optional)
             - min_plays: Minimum play count (default: 1)
             - max_plays: Maximum play count (optional, NULL = no maximum)
+            - exclude_blocklist: Exclude blocked artists/songs (default: True)
 
     Returns:
         dict with:
         - added: Number of songs added to playlist
         - not_found: Number of songs not found in Plex
         - not_found_list: List of dicts with song_title and artist_name
+        - excluded_by_blocklist: Number of songs excluded by blocklist
     """
     if filters is None:
         filters = {'days': 7, 'limit': 50, 'min_plays': 1}
@@ -904,6 +906,7 @@ def create_playlist(db, plex, playlist_name, mode='merge', filters=None):
     station_ids = filters.get('station_ids', None)
     min_plays = filters.get('min_plays', 1)
     max_plays = filters.get('max_plays', None)
+    exclude_blocklist = filters.get('exclude_blocklist', True)
 
     # Calculate over-query limit (35% more to account for Plex matching failures)
     # Cap at 2500 for database queries (Plex playlist itself will be capped at 1500)
@@ -956,6 +959,31 @@ def create_playlist(db, plex, playlist_name, mode='merge', filters=None):
             songs = db.get_top_songs(days=days, limit=over_query_limit)
 
     logger.info(f"Found {len(songs)} songs in database matching criteria")
+
+    # Filter out blocklisted songs if requested
+    excluded_by_blocklist = 0
+    if exclude_blocklist:
+        original_count = len(songs)
+        from radio_monitor.database import crud
+        filtered_songs = []
+        for song in songs:
+            # song format: (song_id, song_title, artist_name, play_count)
+            song_id, song_title, artist_name, play_count = song
+            # Get artist_mbid for blocking check
+            cursor = db.get_cursor()
+            try:
+                cursor.execute("SELECT artist_mbid FROM songs WHERE id = ?", (song_id,))
+                row = cursor.fetchone()
+                artist_mbid = row[0] if row else None
+            finally:
+                cursor.close()
+
+            if not crud.is_song_blocked(db.get_cursor(), song_id, artist_mbid):
+                filtered_songs.append(song)
+
+        songs = filtered_songs
+        excluded_by_blocklist = original_count - len(songs)
+        logger.info(f"Excluded {excluded_by_blocklist} songs by blocklist, {len(songs)} remaining")
 
     # Find songs in Plex library
     songs_to_add = []
@@ -1090,7 +1118,8 @@ def create_playlist(db, plex, playlist_name, mode='merge', filters=None):
                 'added': 0,
                 'not_found': len(not_found),
                 'not_found_list': not_found,
-                'error': f"Unknown mode: {mode}"
+                'error': f"Unknown mode: {mode}",
+                'excluded_by_blocklist': excluded_by_blocklist
             }
 
     except Exception as e:
@@ -1099,7 +1128,8 @@ def create_playlist(db, plex, playlist_name, mode='merge', filters=None):
             'added': 0,
             'not_found': len(not_found),
             'not_found_list': not_found,
-            'error': str(e)
+            'error': str(e),
+            'excluded_by_blocklist': excluded_by_blocklist
         }
 
     # Report not found songs
@@ -1119,7 +1149,8 @@ def create_playlist(db, plex, playlist_name, mode='merge', filters=None):
     result = {
         'added': len(songs_to_add),
         'not_found': len(not_found),
-        'not_found_list': not_found_list
+        'not_found_list': not_found_list,
+        'excluded_by_blocklist': excluded_by_blocklist
     }
 
     # Log activity

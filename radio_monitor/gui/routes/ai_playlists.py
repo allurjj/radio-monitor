@@ -122,6 +122,7 @@ def api_generate_ai_playlist():
         first_seen = data.get('first_seen')
         last_seen = data.get('last_seen')
         max_songs = data.get('max_songs', 50)
+        exclude_blocklist = data.get('exclude_blocklist', True)  # Default: True
 
     except Exception as e:
         logger.error(f"Error parsing request data: {e}")
@@ -222,6 +223,16 @@ def api_generate_ai_playlist():
             first_seen=first_seen,
             last_seen=last_seen
         )
+
+        # Filter out blocklisted songs if requested
+        if exclude_blocklist:
+            from radio_monitor.database.queries import filter_blocklist_songs
+            original_count = len(songs)
+            songs = filter_blocklist_songs(cursor, songs)
+            excluded = original_count - len(songs)
+            logger.info(f"Excluded {excluded} songs by blocklist, {len(songs)} remaining")
+        else:
+            excluded = 0
 
         if not songs:
             return jsonify({

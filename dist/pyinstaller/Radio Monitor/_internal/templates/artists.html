@@ -1,0 +1,1204 @@
+{% extends "base_sidebar.html" %}
+
+{% block title %}Artists - Radio Monitor {{ config.get('VERSION', '1.1.9') }}{% endblock %}
+
+{% block custom_css %}
+<style>
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 25px !important;
+    transition: background-color 0.15s ease;
+}
+
+.sortable:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.sort-indicator {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.3;
+    font-size: 0.8em;
+    transition: opacity 0.2s ease;
+}
+
+.sorted-asc .sort-indicator::after {
+    content: '▲';
+    opacity: 1;
+}
+
+.sorted-desc .sort-indicator::after {
+    content: '▼';
+    opacity: 1;
+}
+
+.sorted-asc .sort-indicator::after,
+.sorted-desc .sort-indicator::after {
+    opacity: 1;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-person"></i> Artists
+            {% if filters.mbid_status == 'pending' %}
+                <span class="badge bg-warning text-dark ms-2">PENDING Only</span>
+            {% elif filters.mbid_status == 'valid' %}
+                <span class="badge bg-success ms-2">Valid MBID Only</span>
+            {% elif filters.mbid_status == 'none' %}
+                <span class="badge bg-secondary ms-2">No MBID Only</span>
+            {% endif %}
+        </h1>
+        <p class="text-muted">Browse and manage artists from monitored radio stations</p>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-body">
+                <div class="d-flex gap-2 mb-3 flex-wrap">
+                    <button class="btn btn-outline-secondary" id="toggle-advanced-search" type="button">
+                        <i class="bi bi-sliders"></i> Advanced Filters
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning" onclick="quickFilter('pending')">
+                        <i class="bi bi-question-circle"></i> Show PENDING Only
+                        <span class="badge bg-warning text-dark ms-1">{{ mbid_stats.pending }}</span>
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="quickFilter('valid')">
+                        <i class="bi bi-check-circle"></i> Show Valid MBID
+                        <span class="badge bg-success ms-1">{{ mbid_stats.valid }}</span>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="quickFilter('none')">
+                        <i class="bi bi-dash-circle"></i> Show No MBID
+                        <span class="badge bg-secondary ms-1">{{ mbid_stats.none }}</span>
+                    </button>
+                </div>
+
+                <div id="advanced-search" style="display: none;">
+                    <div class="card mb-3 bg-light">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-3 text-muted">Date & Play Count Filters</h6>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">First Seen After</label>
+                                    <input type="date" class="form-control" id="filter-first-seen-after">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Last Seen After</label>
+                                    <input type="date" class="form-control" id="filter-last-seen-after">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Min Total Plays</label>
+                                    <input type="number" class="form-control" id="filter-plays-min" min="0" placeholder="Any">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Max Total Plays</label>
+                                    <input type="number" class="form-control" id="filter-plays-max" min="0" placeholder="Any">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Search Artists</label>
+                        <input type="text" class="form-control" id="search-artists" placeholder="Search by name..." value="{{ filters.search or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="filter-needs-import">
+                            <option value="">All Artists</option>
+                            <option value="only" {% if filters.needs_import == 'only' %}selected{% endif %}>Needs Import</option>
+                            <option value="imported" {% if filters.needs_import == 'imported' %}selected{% endif %}>Imported to Lidarr</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">MBID Status</label>
+                        <select class="form-select" id="filter-mbid-status">
+                            <option value="">All Artists</option>
+                            <option value="pending" {% if filters.mbid_status == 'pending' %}selected{% endif %}>PENDING</option>
+                            <option value="valid" {% if filters.mbid_status == 'valid' %}selected{% endif %}>Valid MBID</option>
+                            <option value="none" {% if filters.mbid_status == 'none' %}selected{% endif %}>No MBID</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Station</label>
+                        <select class="form-select" id="filter-station">
+                            <option value="">All Stations</option>
+                            {% for station in stations %}
+                            <option value="{{ station[0] }}" {% if filters.station_id == station[0] %}selected{% endif %}>{{ station[1] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">&nbsp;</label>
+                        <div>
+                            <button class="btn btn-primary me-2" id="btn-apply-filters">
+                                <i class="bi bi-filter"></i> Apply
+                            </button>
+                            <button class="btn btn-outline-secondary" id="btn-clear-filters">
+                                <i class="bi bi-x"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Artists Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-ul"></i>
+                    Artists
+                    <span class="badge bg-secondary ms-2">{{ pagination.total }} total</span>
+                </h5>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-warning btn-sm" id="retry-pending-btn">
+                        <i class="bi bi-arrow-clockwise"></i> Retry PENDING
+                        <span class="badge bg-danger ms-1" id="pending-count-badge">0</span>
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" id="export-csv">
+                        <i class="bi bi-download"></i> Export CSV
+                    </button>
+                    <select class="form-select form-select-sm" id="page-size" style="width: auto;">
+                        <option value="25" {% if pagination.limit == 25 %}selected{% endif %}>25 per page</option>
+                        <option value="50" {% if pagination.limit == 50 %}selected{% endif %}>50 per page</option>
+                        <option value="100" {% if pagination.limit == 100 %}selected{% endif %}>100 per page</option>
+                        <option value="200" {% if pagination.limit == 200 %}selected{% endif %}>200 per page</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-standard mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="sortable {% if sort == 'name' %}sorted-{{ direction }}{% endif %}"
+                                    onclick="sortByColumn('name')">
+                                    Artist Name
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th class="sortable {% if sort == 'song_count' %}sorted-{{ direction }}{% endif %}"
+                                    onclick="sortByColumn('song_count')">
+                                    Songs
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th class="sortable {% if sort == 'total_plays' %}sorted-{{ direction }}{% endif %}"
+                                    onclick="sortByColumn('total_plays')">
+                                    Total Plays
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th>Stations</th>
+                                <th class="sortable {% if sort == 'last_seen' %}sorted-{{ direction }}{% endif %}"
+                                    onclick="sortByColumn('last_seen')">
+                                    Last Seen
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if artists %}
+                                {% for artist in artists %}
+                                <tr data-mbid="{{ artist.mbid }}">
+                                    <td>
+                                        <a href="/artists/{{ artist.mbid }}" class="text-decoration-none">
+                                            <strong>{{ artist.name }}</strong>
+                                        </a>
+                                        {% if artist.mbid and artist.mbid.startswith('PENDING-') %}
+                                        <span class="badge bg-warning text-dark ms-1">PENDING</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ artist.song_count }}</td>
+                                    <td>{{ artist.total_plays }}</td>
+                                    <td class="text-truncate" style="max-width: 150px;" title="{{ artist.station_names or 'Unknown' }}">
+                                        {{ artist.station_names or 'Unknown' }}
+                                    </td>
+                                    <td>
+                                        {% if artist.last_seen_at %}
+                                            {{ artist.last_seen_at[:10] }}
+                                        {% else %}
+                                            <span class="text-muted">Never</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="status-cell">
+                                        {% if artist.lidarr_imported_at %}
+                                            <span class="badge bg-success">Imported</span>
+                                        {% elif artist.needs_lidarr_import %}
+                                            <span class="badge bg-warning text-dark">Needs Import</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">No Import</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="/artists/{{ artist.mbid }}" class="btn btn-outline-primary" title="View Details">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <button class="btn btn-outline-warning btn-edit-mbid" data-artist-name="{{ artist.name }}" data-current-mbid="{{ artist.mbid }}" title="Edit MBID">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-delete-artist"
+                                                    data-mbid="{{ artist.mbid }}"
+                                                    data-name="{{ artist.name }}"
+                                                    data-song-count="{{ artist.song_count }}"
+                                                    title="Delete Artist">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                            {% if artist.mbid and not artist.mbid.startswith('PENDING-') %}
+                                            {% if artist.lidarr_imported_at %}
+                                            <button class="btn btn-success" title="Already Imported" disabled>
+                                                <i class="bi bi-check-circle"></i>
+                                            </button>
+                                            {% else %}
+                                            <button class="btn btn-outline-secondary btn-import-artist" data-mbid="{{ artist.mbid }}" data-name="{{ artist.name }}" title="Import to Lidarr">
+                                                <i class="bi bi-cloud-download"></i>
+                                            </button>
+                                            {% endif %}
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="7">
+                                        <div class="empty-state">
+                                            {% if filters.mbid_status == 'pending' %}
+                                                <i class="bi bi-check-circle text-success empty-state-icon"></i>
+                                                <h3 class="empty-state-title">No PENDING Artists!</h3>
+                                                <p class="empty-state-description">All artists have valid MBIDs. Great job keeping your database clean!</p>
+                                            {% elif filters.mbid_status == 'valid' %}
+                                                <i class="bi bi-exclamation-triangle text-warning empty-state-icon"></i>
+                                                <h3 class="empty-state-title">No Artists with Valid MBIDs</h3>
+                                                <p class="empty-state-description">Try importing some artists from Lidarr or running retry pending to lookup MBIDs.</p>
+                                            {% elif filters.mbid_status == 'none' %}
+                                                <i class="bi bi-info-circle text-info empty-state-icon"></i>
+                                                <h3 class="empty-state-title">All Artists Have MBIDs</h3>
+                                                <p class="empty-state-description">No artists with NULL MBID found in database.</p>
+                                            {% else %}
+                                                <i class="bi bi-person empty-state-icon"></i>
+                                                <h3 class="empty-state-title">No artists found</h3>
+                                                <p class="empty-state-description">Try adjusting your filters or search terms to find what you're looking for.</p>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Pagination -->
+            {% if pagination.pages > 1 %}
+            <div class="card-footer">
+                <nav>
+                    <ul class="pagination pagination-sm mb-0 justify-content-center">
+                        {% if pagination.page > 1 %}
+                        <li class="page-item">
+                            <a class="page-link" href="#" data-page="{{ pagination.page - 1 }}">Previous</a>
+                        </li>
+                        {% endif %}
+
+                        {% for p in range(1, pagination.pages + 1) %}
+                            {% if p == pagination.page %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ p }}</span>
+                            </li>
+                            {% elif p <= 3 or p > pagination.pages - 3 or (p >= pagination.page - 1 and p <= pagination.page + 1) %}
+                            <li class="page-item">
+                                <a class="page-link" href="#" data-page="{{ p }}">{{ p }}</a>
+                            </li>
+                            {% elif p == 4 or p == pagination.pages - 3 %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if pagination.page < pagination.pages %}
+                        <li class="page-item">
+                            <a class="page-link" href="#" data-page="{{ pagination.page + 1 }}">Next</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Edit MBID Modal -->
+<div class="modal fade" id="editMbidModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil-square"></i> Edit Artist MBID</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editMbidForm">
+                    <div class="mb-3">
+                        <label class="form-label">Artist Name</label>
+                        <input type="text" class="form-control" id="edit-artist-name" readonly>
+                        <div class="form-text">This field is read-only</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Current MBID</label>
+                        <input type="text" class="form-control font-monospace" id="edit-current-mbid" readonly>
+                        <div class="form-text">This field is read-only</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">New MusicBrainz ID</label>
+                        <input type="text" class="form-control font-monospace" id="edit-new-mbid"
+                               placeholder="e.g., 5bc41f77-cce4-4e76-a3e9-324c0201824f"
+                               pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}">
+                        <div class="form-text">
+                            <a href="https://musicbrainz.org" target="_blank">
+                                <i class="bi bi-box-arrow-up-right"></i> Find on MusicBrainz
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Notes (Optional)</label>
+                        <textarea class="form-control" id="edit-notes" rows="2"
+                                  placeholder="e.g., Verified manually 2026-02-16"></textarea>
+                    </div>
+
+                    <div id="edit-validation-results"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveMbidOverride()">
+                    <i class="bi bi-check-lg"></i> Save Override
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Artist Confirmation Modal -->
+<div class="modal fade" id="deleteArtistModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    Confirm Delete Artist
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger d-flex align-items-center" role="alert">
+                    <i class="bi bi-exclamation-circle-fill flex-shrink-0 me-2" style="font-size: 1.5rem;"></i>
+                    <div>
+                        <strong>Warning:</strong> This action cannot be undone!
+                    </div>
+                </div>
+
+                <p>You are about to delete the following artist and all related data:</p>
+
+                <div class="card bg-light mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title mb-1">Artist</h6>
+                        <p class="card-text fs-5 mb-0">
+                            <strong id="delete-artist-name"></strong>
+                            <span class="text-muted ms-2">(MBID: <code id="delete-artist-mbid"></code>)</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="card bg-light mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title mb-1">This will also delete:</h6>
+                        <ul class="card-text mb-0">
+                            <li><strong id="delete-song-count"></strong> songs by this artist</li>
+                            <li>All play history for these songs</li>
+                            <li>Any Plex match failures for these songs</li>
+                            <li>Any manual MBID overrides for this artist</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="delete-confirm-checkbox">
+                    <label class="form-check-label" for="delete-confirm-checkbox">
+                        I understand this action cannot be undone
+                    </label>
+                </div>
+
+                <div id="delete-error-message" class="alert alert-danger" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-danger" id="btn-confirm-delete" disabled>
+                    <i class="bi bi-trash"></i> Delete Artist
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Retry PENDING Modal -->
+<div class="modal fade" id="retryPendingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-arrow-clockwise"></i> Retry PENDING Artists
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="retry-pending-status">
+                    <div class="text-center mb-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <p class="text-center text-muted" id="retry-pending-message">
+                        Starting MBID retry...
+                    </p>
+                </div>
+                <div id="retry-pending-results" style="display: none;">
+                    <div class="alert alert-info">
+                        <h6><i class="bi bi-info-circle"></i> Retry Complete</h6>
+                        <p id="retry-pending-results-message"></p>
+                        <div id="retry-pending-details"></div>
+                    </div>
+                </div>
+                <div id="retry-pending-error" class="alert alert-danger" style="display: none;">
+                    <h6><i class="bi bi-exclamation-triangle"></i> Error</h6>
+                    <p id="retry-pending-error-message"></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="retry-pending-close-btn">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block custom_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Export CSV button
+    document.getElementById('export-csv').addEventListener('click', function() {
+        exportTableToCSV('artists');
+    });
+
+    // Toggle advanced search
+    document.getElementById('toggle-advanced-search').addEventListener('click', function() {
+        const search = document.getElementById('advanced-search');
+        const icon = this.querySelector('i');
+        if (search.style.display === 'none') {
+            search.style.display = 'block';
+            icon.classList.remove('bi-sliders');
+            icon.classList.add('bi-sliders-horizontal');
+        } else {
+            search.style.display = 'none';
+            icon.classList.remove('bi-sliders-horizontal');
+            icon.classList.add('bi-sliders');
+        }
+    });
+
+    // Apply filters button
+    document.getElementById('btn-apply-filters').addEventListener('click', function() {
+        applyFilters();
+    });
+
+    // Clear filters button
+    document.getElementById('btn-clear-filters').addEventListener('click', function() {
+        document.getElementById('search-artists').value = '';
+        document.getElementById('filter-needs-import').value = '';
+        document.getElementById('filter-mbid-status').value = '';
+        document.getElementById('filter-station').value = '';
+        document.getElementById('filter-first-seen-after').value = '';
+        document.getElementById('filter-last-seen-after').value = '';
+        document.getElementById('filter-plays-min').value = '';
+        document.getElementById('filter-plays-max').value = '';
+        applyFilters();
+    });
+
+    // Page size selector
+    document.getElementById('page-size').addEventListener('change', function() {
+        applyFilters();
+    });
+
+    // Pagination links
+    document.querySelectorAll('.page-link[data-page]').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const page = this.getAttribute('data-page');
+            const url = new URL(window.location);
+            url.searchParams.set('page', page);
+            window.location.href = url.toString();
+        });
+    });
+
+    // Enter key on search box
+    document.getElementById('search-artists').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            applyFilters();
+        }
+    });
+});
+
+function applyFilters() {
+    const search = document.getElementById('search-artists').value;
+    const needsImport = document.getElementById('filter-needs-import').value;
+    const mbidStatus = document.getElementById('filter-mbid-status').value;
+    const station = document.getElementById('filter-station').value;
+    const limit = document.getElementById('page-size').value;
+
+    const firstSeenAfter = document.getElementById('filter-first-seen-after').value;
+    const lastSeenAfter = document.getElementById('filter-last-seen-after').value;
+    const playsMin = document.getElementById('filter-plays-min').value;
+    const playsMax = document.getElementById('filter-plays-max').value;
+
+    const url = new URL(window.location);
+    url.searchParams.set('page', '1');
+    url.searchParams.set('limit', limit);
+
+    // Get current sort and direction from URL (preserve them)
+    const currentSort = url.searchParams.get('sort') || 'name';
+    const currentDirection = url.searchParams.get('direction') || 'asc';
+    url.searchParams.set('sort', currentSort);
+    url.searchParams.set('direction', currentDirection);
+
+    if (search) {
+        url.searchParams.set('search', search);
+    } else {
+        url.searchParams.delete('search');
+    }
+
+    if (needsImport) {
+        url.searchParams.set('needs_import', needsImport);
+    } else {
+        url.searchParams.delete('needs_import');
+    }
+
+    if (mbidStatus) {
+        url.searchParams.set('mbid_status', mbidStatus);
+    } else {
+        url.searchParams.delete('mbid_status');
+    }
+
+    if (station) {
+        url.searchParams.set('station_id', station);
+    } else {
+        url.searchParams.delete('station_id');
+    }
+
+    if (firstSeenAfter) {
+        url.searchParams.set('first_seen_after', firstSeenAfter);
+    } else {
+        url.searchParams.delete('first_seen_after');
+    }
+
+    if (lastSeenAfter) {
+        url.searchParams.set('last_seen_after', lastSeenAfter);
+    } else {
+        url.searchParams.delete('last_seen_after');
+    }
+
+    if (playsMin) {
+        url.searchParams.set('total_plays_min', playsMin);
+    } else {
+        url.searchParams.delete('total_plays_min');
+    }
+
+    if (playsMax) {
+        url.searchParams.set('total_plays_max', playsMax);
+    } else {
+        url.searchParams.delete('total_plays_max');
+    }
+
+    window.location.href = url.toString();
+}
+
+// Column sorting
+function sortByColumn(column) {
+    // Get current sort params from URL
+    const url = new URL(window.location);
+    const currentSort = url.searchParams.get('sort') || 'name';
+    const currentDirection = url.searchParams.get('direction') || 'asc';
+
+    // Determine new direction
+    let newDirection = 'asc';
+    if (column === currentSort) {
+        // Same column - toggle direction
+        newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+    }
+    // Different column - default to asc
+
+    // Update URL params
+    url.searchParams.set('sort', column);
+    url.searchParams.set('direction', newDirection);
+
+    // Navigate to new URL
+    window.location.href = url.toString();
+}
+
+// Quick filter buttons
+function quickFilter(mbidStatus) {
+    const url = new URL(window.location);
+    url.searchParams.set('mbid_status', mbidStatus);
+    url.searchParams.set('page', '1'); // Reset to first page
+    window.location.href = url.toString();
+}
+
+// Initialize sort indicators on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Get current sort from URL
+    const url = new URL(window.location);
+    const sort = url.searchParams.get('sort') || 'name';
+    const direction = url.searchParams.get('direction') || 'asc';
+
+    // Update old dropdown if it still exists (during transition)
+    const sortBySelect = document.getElementById('sort-by');
+    if (sortBySelect) {
+        sortBySelect.value = sort;
+    }
+});
+
+// Handle import button clicks
+document.querySelectorAll('.btn-import-artist').forEach(button => {
+    button.addEventListener('click', function() {
+        const mbid = this.getAttribute('data-mbid');
+        const name = this.getAttribute('data-name');
+        const icon = this.querySelector('i');
+        const row = this.closest('tr');
+        const statusCell = row.querySelector('.status-cell');
+
+        // Disable button and show loading
+        this.disabled = true;
+        icon.className = 'bi bi-arrow-clockwise spin';
+
+        // Import to Lidarr
+        fetch(`/api/lidarr/import/${mbid}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(async response => {
+            // Check if response is JSON (not HTML)
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Authentication required or session expired. Please refresh the page.');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                // Show success message
+                Toast.success(`${name}: ${data.message}`);
+
+                // Change button to success state
+                const newButton = this.cloneNode(true);
+                newButton.className = 'btn btn-success';
+                newButton.disabled = true;
+                newButton.title = data.message;
+                newButton.innerHTML = '<i class="bi bi-check-circle"></i>';
+                this.parentNode.replaceChild(newButton, this);
+
+                // Update status badge
+                if (statusCell) {
+                    statusCell.innerHTML = '<span class="badge bg-success">Imported</span>';
+                }
+            } else {
+                // Show error message
+                Toast.error(`${name}: ${data.message}`);
+
+                // Re-enable button
+                this.disabled = false;
+                icon.className = 'bi bi-cloud-download';
+            }
+        })
+        .catch(error => {
+            console.error('Error importing artist:', error);
+            Toast.error(`${name}: Failed to import`);
+
+            // Re-enable button
+            this.disabled = false;
+            icon.className = 'bi bi-cloud-download';
+        });
+    });
+});
+
+// Export table to CSV
+function exportTableToCSV(pageName) {
+    const table = document.querySelector('table');
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+
+    // Skip empty state rows
+    const dataRows = rows.filter(row => !row.querySelector('.empty-state'));
+
+    if (dataRows.length === 0) {
+        Toast.warning('No data to export');
+        return;
+    }
+
+    // Build CSV
+    const headers = Array.from(table.querySelectorAll('thead th'))
+        .map(th => th.textContent.trim())
+        .join(',');
+
+    const data = dataRows.map(row => {
+        const cells = Array.from(row.querySelectorAll('td'));
+        return cells.map(cell => {
+            const text = cell.textContent.trim();
+            return `"${text.replace(/"/g, '""')}"`;
+        }).join(',');
+    });
+
+    const csv = [headers, ...data].join('\n');
+
+    // Create download
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const date = new Date().toISOString().slice(0, 10);
+    a.download = `radio-monitor-${pageName}-${date}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    Toast.success(`Exported ${dataRows.length} rows to CSV`);
+}
+
+// ========== MBID Override Editing ==========
+let editMbidModal;
+const artistNameMap = new Map(); // Maps artist name to row element
+
+// Initialize modal
+document.addEventListener('DOMContentLoaded', function() {
+    editMbidModal = new bootstrap.Modal(document.getElementById('editMbidModal'));
+});
+
+// Handle Edit MBID button clicks
+document.querySelectorAll('.btn-edit-mbid').forEach(button => {
+    button.addEventListener('click', function() {
+        const artistName = this.getAttribute('data-artist-name');
+        const currentMbid = this.getAttribute('data-current-mbid');
+
+        // Populate modal
+        document.getElementById('edit-artist-name').value = artistName;
+        document.getElementById('edit-current-mbid').value = currentMbid;
+        document.getElementById('edit-new-mbid').value = '';
+        document.getElementById('edit-notes').value = '';
+        document.getElementById('edit-validation-results').innerHTML = '';
+
+        // Store reference to the button's row for updating later
+        artistNameMap.set(artistName, this.closest('tr'));
+
+        // Show modal
+        editMbidModal.show();
+    });
+});
+
+// Save MBID override
+async function saveMbidOverride() {
+    const artistName = document.getElementById('edit-artist-name').value.trim();
+    const newMbid = document.getElementById('edit-new-mbid').value.trim();
+    const notes = document.getElementById('edit-notes').value.trim();
+
+    if (!newMbid) {
+        Toast.error('Please enter an MBID');
+        return;
+    }
+
+    try {
+        // First validate
+        const validateResponse = await fetch('/api/mbid-overrides/validate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({artist_name: artistName, mbid: newMbid})
+        });
+
+        // Check if response is JSON (not HTML)
+        const validateContentType = validateResponse.headers.get('content-type');
+        if (!validateContentType || !validateContentType.includes('application/json')) {
+            throw new Error('Authentication required or session expired. Please refresh the page.');
+        }
+
+        const validationResult = await validateResponse.json();
+
+        if (!validationResult.valid) {
+            const issues = validationResult.issues.map(i => i.message).join('\n');
+            Toast.error('Cannot save:\n\n' + issues);
+            return;
+        }
+
+        if (validationResult.warnings && validationResult.warnings.length > 0) {
+            const warnings = validationResult.warnings.map(w => w.message).join('\n\n');
+            if (!await Confirm.confirm(
+                'Warnings:\n\n' + warnings + '\n\nContinue anyway?',
+                'Import Warnings',
+                'Continue Anyway',
+                'btn-warning'
+            )) {
+                return;
+            }
+        }
+
+        // Save override
+        const overrideResponse = await fetch('/api/mbid-overrides', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({artist_name: artistName, mbid: newMbid, notes: notes})
+        });
+
+        // Check if response is JSON (not HTML)
+        const overrideContentType = overrideResponse.headers.get('content-type');
+        if (!overrideContentType || !overrideContentType.includes('application/json')) {
+            throw new Error('Authentication required or session expired. Please refresh the page.');
+        }
+
+        const result = await overrideResponse.json();
+
+        if (result.success) {
+            // Update the artist's MBID in the database
+            const updateResult = await updateArtistMbid(artistName, newMbid);
+
+            if (updateResult.success) {
+                // Show success message
+                let message = `MBID override saved! ${updateResult.songs_updated || 0} song(s) updated.`;
+                if (updateResult.note) {
+                    message += '\n\n' + updateResult.note;
+                }
+                Toast.success(message);
+
+                // Close modal
+                editMbidModal.hide();
+
+                // Reload page after short delay to show updated songs
+                setTimeout(() => {
+                    const url = new URL(window.location);
+                    window.location.href = url.toString();
+                }, 2000);
+            } else {
+                Toast.error('Error updating artist: ' + updateResult.error);
+            }
+        } else {
+            Toast.error('Error: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Error saving MBID override:', error);
+        Toast.error('Error: ' + error.message);
+    }
+}
+
+// Update artist's MBID in database
+async function updateArtistMbid(artistName, newMbid) {
+    try {
+        const response = await fetch('/api/artists/update-mbid', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({artist_name: artistName, mbid: newMbid})
+        });
+
+        // Check if response is JSON (not HTML)
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Authentication required or session expired. Please refresh the page.');
+        }
+
+        const data = await response.json();
+        if (!data.success) {
+            console.error('Failed to update artist MBID:', data.message);
+            return { success: false, error: data.message || 'Unknown error' };
+        }
+
+        return data;
+    } catch (error) {
+        console.error('Error updating artist MBID:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// ========== Artist Delete Functionality ==========
+let deleteArtistModal;
+let artistToDelete = null; // Stores artist data while modal is open
+
+// Initialize delete modal
+document.addEventListener('DOMContentLoaded', function() {
+    deleteArtistModal = new bootstrap.Modal(document.getElementById('deleteArtistModal'));
+});
+
+// Handle delete button clicks
+document.querySelectorAll('.btn-delete-artist').forEach(button => {
+    button.addEventListener('click', function() {
+        const mbid = this.getAttribute('data-mbid');
+        const name = this.getAttribute('data-name');
+        const songCount = this.getAttribute('data-song-count');
+
+        // Store artist data for deletion
+        artistToDelete = { mbid, name, songCount };
+
+        // Populate modal
+        document.getElementById('delete-artist-name').textContent = name;
+        document.getElementById('delete-artist-mbid').textContent = mbid;
+        document.getElementById('delete-song-count').textContent = songCount;
+
+        // Reset checkbox and button state
+        document.getElementById('delete-confirm-checkbox').checked = false;
+        document.getElementById('btn-confirm-delete').disabled = true;
+        document.getElementById('delete-error-message').style.display = 'none';
+
+        // Show modal
+        deleteArtistModal.show();
+    });
+});
+
+// Enable/disable delete button based on checkbox
+document.getElementById('delete-confirm-checkbox').addEventListener('change', function() {
+    document.getElementById('btn-confirm-delete').disabled = !this.checked;
+});
+
+// Confirm delete button
+document.getElementById('btn-confirm-delete').addEventListener('click', function() {
+    if (!artistToDelete) {
+        console.error('No artist to delete');
+        return;
+    }
+
+    const mbid = artistToDelete.mbid;
+    const name = artistToDelete.name;
+    const button = this;
+
+    // Disable button and show loading
+    button.disabled = true;
+    const originalText = button.innerHTML;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deleting...';
+
+    // Hide error message
+    document.getElementById('delete-error-message').style.display = 'none';
+
+    // Call delete API
+    fetch(`/api/artists/${mbid}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(async response => {
+        // Check if response is JSON (not HTML)
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            // Response is HTML (likely authentication error)
+            throw new Error('Authentication required or session expired. Please refresh the page.');
+        }
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || 'Delete failed');
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Close modal
+        deleteArtistModal.hide();
+
+        // Show success message
+        Toast.success(data.message || `Deleted "${name}"`);
+
+        // Remove row from table (visual feedback before reload)
+        const row = document.querySelector(`tr[data-mbid="${mbid}"]`);
+        if (row) {
+            row.style.opacity = '0.5';
+            row.style.transition = 'opacity 0.3s ease';
+            setTimeout(() => row.remove(), 300);
+        }
+
+        // Reload page after short delay to show updated counts
+        setTimeout(() => {
+            const url = new URL(window.location);
+            window.location.href = url.toString();
+        }, 1000);
+    })
+    .catch(error => {
+        console.error('Error deleting artist:', error);
+
+        // Show error in modal
+        const errorDiv = document.getElementById('delete-error-message');
+        errorDiv.textContent = error.message || 'Failed to delete artist. Please try again.';
+        errorDiv.style.display = 'block';
+
+        // Re-enable button
+        button.disabled = false;
+        button.innerHTML = originalText;
+    })
+    .finally(() => {
+        artistToDelete = null;
+    });
+});
+
+// ========== PENDING Artist Retry Functionality ==========
+let retryPendingModal;
+
+// Initialize modal
+document.addEventListener('DOMContentLoaded', function() {
+    retryPendingModal = new bootstrap.Modal(document.getElementById('retryPendingModal'));
+
+    // Load PENDING count on page load
+    loadPendingCount();
+});
+
+// Load PENDING artist count
+function loadPendingCount() {
+    fetch('/api/artists/pending-count')
+        .then(async response => {
+            // Check if response is JSON (not HTML)
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Authentication required or session expired. Please refresh the page.');
+            }
+            return response.json();
+        })
+        .then(data => {
+            const badge = document.getElementById('pending-count-badge');
+            const button = document.getElementById('retry-pending-btn');
+
+            if (data.pending_count > 0) {
+                badge.textContent = data.pending_count;
+                button.style.display = 'inline-flex';
+            } else {
+                button.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading PENDING count:', error);
+        });
+}
+
+// Handle Retry PENDING button click
+document.getElementById('retry-pending-btn').addEventListener('click', function() {
+    const button = this;
+    const icon = button.querySelector('i');
+
+    // Disable button and show loading
+    button.disabled = true;
+    icon.classList.add('spin');
+
+    // Reset modal
+    document.getElementById('retry-pending-status').style.display = 'block';
+    document.getElementById('retry-pending-results').style.display = 'none';
+    document.getElementById('retry-pending-error').style.display = 'none';
+    document.getElementById('retry-pending-message').textContent = 'Starting MBID retry...';
+    document.getElementById('retry-pending-close-btn').disabled = true;
+
+    // Show modal
+    retryPendingModal.show();
+
+    // Trigger retry
+    fetch('/api/artists/retry-pending', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(async response => {
+        // Check if response is JSON (not HTML)
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Authentication required or session expired. Please refresh the page.');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            if (data.pending_count === 0) {
+                // No PENDING artists
+                showRetryResults('No PENDING artists to retry', '');
+            } else if (data.resolved !== undefined) {
+                // Synchronous completion (no scheduler)
+                const message = `Resolved ${data.resolved} artist(s), ${data.failed} still failed`;
+                const details = `
+                    <ul class="mb-0">
+                        <li>Total PENDING artists: ${data.pending_count}</li>
+                        <li>Resolved: ${data.resolved}</li>
+                        <li>Still failed: ${data.failed}</li>
+                    </ul>
+                `;
+                showRetryResults(message, details);
+            } else {
+                // Asynchronous (running in background)
+                const message = data.message || `MBID retry started for ${data.pending_count} PENDING artist(s)`;
+                const details = data.estimated_time_seconds ? `
+                    <p class="mb-0"><strong>Estimated time:</strong> ${Math.ceil(data.estimated_time_seconds / 60)} minute(s)</p>
+                    <p class="mb-0"><small class="text-muted">The retry is running in the background. You can close this window and check the Artists page later.</small></p>
+                ` : '';
+                showRetryResults(message, details);
+            }
+
+            // Reload page after delay to show updated counts
+            setTimeout(() => {
+                const url = new URL(window.location);
+                window.location.href = url.toString();
+            }, 3000);
+        } else {
+            showRetryError(data.error || 'Failed to start MBID retry');
+        }
+    })
+    .catch(error => {
+        console.error('Error triggering MBID retry:', error);
+        showRetryError(error.message || 'Failed to start MBID retry');
+    })
+    .finally(() => {
+        // Re-enable button
+        button.disabled = false;
+        icon.classList.remove('spin');
+    });
+});
+
+function showRetryResults(message, details) {
+    document.getElementById('retry-pending-status').style.display = 'none';
+    document.getElementById('retry-pending-results').style.display = 'block';
+    document.getElementById('retry-pending-results-message').textContent = message;
+    document.getElementById('retry-pending-details').innerHTML = details;
+    document.getElementById('retry-pending-close-btn').disabled = false;
+}
+
+function showRetryError(errorMessage) {
+    document.getElementById('retry-pending-status').style.display = 'none';
+    document.getElementById('retry-pending-error').style.display = 'block';
+    document.getElementById('retry-pending-error-message').textContent = errorMessage;
+    document.getElementById('retry-pending-close-btn').disabled = false;
+}
+</script>
+{% endblock %}

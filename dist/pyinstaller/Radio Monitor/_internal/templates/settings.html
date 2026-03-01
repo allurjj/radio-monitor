@@ -1,0 +1,1554 @@
+{% extends "base_sidebar.html" %}
+
+{# TEMPLATE UPDATED: 2026-02-09 15:30 - Phase 1 #}
+{% block title %}Settings - Radio Monitor {{ config.get('VERSION', '1.1.9') }}{% endblock %}
+
+{% block custom_css %}
+    /* Grid Layout for Condensed Settings */
+    .settings-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+        padding: 0;
+    }
+
+    .settings-grid.full-width {
+        grid-template-columns: 1fr;
+    }
+
+    /* Compact Cards */
+    .settings-card {
+        min-height: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Add matching padding like other pages */
+    #settings-form {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+
+    .settings-card .card-body {
+        flex: 1;
+    }
+
+    /* Responsive - Always single column */
+    @media (max-width: 992px) {
+        .settings-card {
+            min-height: auto;
+        }
+    }
+
+    @media (max-width: 576px) {
+        #settings-form {
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+    }
+
+    .test-result {
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        border-radius: 0.375rem;
+        display: none;
+        font-size: 0.875rem;
+    }
+
+    .test-result.success {
+        background-color: #d1e7dd;
+        color: #0f5132;
+        border: 1px solid #badbcc;
+    }
+
+    .test-result.error {
+        background-color: #f8d7da;
+        color: #842029;
+        border: 1px solid #f5c2c7;
+    }
+
+    .station-table tr.disabled-station {
+        background-color: #e9ecef;
+        opacity: 0.7;
+    }
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h1><i class="bi bi-gear"></i> Settings</h1>
+        <p class="text-muted mb-0">Configure Radio Monitor settings</p>
+    </div>
+    <div>
+        <button type="button" class="btn btn-outline-secondary me-2" id="btn-reset">
+            <i class="bi bi-arrow-counterclockwise"></i> Reset
+        </button>
+        <button type="button" class="btn btn-primary btn-lg" id="btn-save-all">
+            <i class="bi bi-save"></i> Save All Settings
+        </button>
+    </div>
+</div>
+
+<form id="settings-form">
+    <!-- Row 1: Integrations (Lidarr + Plex) -->
+    <!-- Single Column Layout - All Cards Full Width -->
+    <div class="settings-grid">
+
+        <!-- Lidarr Section -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-cloud-download text-primary"></i> Lidarr</h5>
+                <div class="row g-2 mb-2">
+                    <div class="col-md-6">
+                        <label for="lidarr-url" class="form-label form-label-sm">URL</label>
+                        <input type="url" class="form-control form-control-sm" id="lidarr-url" required autocomplete="off">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="lidarr-api-key" class="form-label form-label-sm">API Key</label>
+                        <input type="password" class="form-control form-control-sm" id="lidarr-api-key" required autocomplete="off">
+                    </div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-md-5">
+                        <label for="lidarr-root-folder" class="form-label form-label-sm">Root Folder</label>
+                        <div class="input-group input-group-sm">
+                            <select class="form-select" id="lidarr-root-folder" required>
+                                <option value="">Loading...</option>
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" id="btn-refresh-root-folders" title="Refresh">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <label for="lidarr-quality-profile" class="form-label form-label-sm">Quality Profile</label>
+                        <div class="input-group input-group-sm">
+                            <select class="form-select" id="lidarr-quality-profile" required>
+                                <option value="">Loading...</option>
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" id="btn-refresh-quality-profiles" title="Refresh">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-outline-primary btn-sm w-100" id="btn-test-lidarr">
+                            <i class="bi bi-wifi"></i> Test
+                        </button>
+                    </div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-md-4">
+                        <label for="lidarr-metadata-profile" class="form-label form-label-sm">Metadata Profile</label>
+                        <div class="input-group input-group-sm">
+                            <select class="form-select" id="lidarr-metadata-profile" required>
+                                <option value="">Loading...</option>
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" id="btn-refresh-metadata-profiles" title="Refresh">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="lidarr-min-plays" class="form-label form-label-sm">Min Plays</label>
+                        <input type="number" class="form-control form-control-sm" id="lidarr-min-plays" min="1" max="1000" value="5">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="lidarr-min-songs" class="form-label form-label-sm">Min Songs</label>
+                        <input type="number" class="form-control form-control-sm" id="lidarr-min-songs" min="1" max="50" value="1">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-center">
+                        <div id="lidarr-test-result" class="test-result mb-0"></div>
+                    </div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-12">
+                        <div class="d-flex gap-3">
+                            <div class="form-check form-check-sm">
+                                <input class="form-check-input" type="checkbox" id="lidarr-monitor-new">
+                                <label class="form-check-label" for="lidarr-monitor-new">Monitor new</label>
+                            </div>
+                            <div class="form-check form-check-sm">
+                                <input class="form-check-input" type="checkbox" id="lidarr-search-missing">
+                                <label class="form-check-label" for="lidarr-search-missing">Search missing</label>
+                            </div>
+                            <div class="form-check form-check-sm">
+                                <input class="form-check-input" type="checkbox" id="lidarr-auto-import">
+                                <label class="form-check-label text-warning" for="lidarr-auto-import">Auto-import ⚠</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Plex Section -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-music-note-list text-warning"></i> Plex</h5>
+                <div class="row g-2 mb-0">
+                    <div class="col-md-4">
+                        <label for="plex-url" class="form-label form-label-sm">URL</label>
+                        <input type="url" class="form-control form-control-sm" id="plex-url" required autocomplete="off">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="plex-token" class="form-label form-label-sm">Token</label>
+                        <input type="password" class="form-control form-control-sm" id="plex-token" required autocomplete="off">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="plex-library" class="form-label form-label-sm">Music Library</label>
+                        <div class="input-group input-group-sm">
+                            <select class="form-select" id="plex-library" required>
+                                <option value="">Loading...</option>
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" id="btn-refresh-plex-libraries" title="Refresh">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="row g-2 mt-2">
+                    <div class="col-md-11 d-flex align-items-center">
+                        <div id="plex-test-result" class="test-result mb-0"></div>
+                    </div>
+                    <div class="col-md-1">
+                        <button type="button" class="btn btn-outline-primary btn-sm w-100" id="btn-test-plex">
+                            <i class="bi bi-wifi"></i> Test
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- GUI Section -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-window text-dark"></i> GUI</h5>
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label for="gui-host" class="form-label form-label-sm">Host</label>
+                        <input type="text" class="form-control form-control-sm" id="gui-host" value="0.0.0.0" required autocomplete="off">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="gui-port" class="form-label form-label-sm">Port</label>
+                        <input type="number" class="form-control form-control-sm" id="gui-port" min="1" max="65535" value="5000" required autocomplete="off">
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check form-check-sm mt-3">
+                            <input class="form-check-input" type="checkbox" id="gui-debug">
+                            <label class="form-check-label" for="gui-debug">Debug mode</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Monitor Section -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-broadcast text-info"></i> Monitor</h5>
+                <div class="row g-2 mb-0">
+                    <div class="col-md-7">
+                        <label for="monitor-database" class="form-label form-label-sm">Database File</label>
+                        <input type="text" class="form-control form-control-sm" id="monitor-database" required autocomplete="off">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="monitor-interval" class="form-label form-label-sm">Scrape Interval (min)</label>
+                        <input type="number" class="form-control form-control-sm" id="monitor-interval" min="1" max="60" required autocomplete="off">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-center">
+                        <small class="text-muted"><i class="bi bi-info-circle"></i> Runs every <strong id="interval-display">12</strong> min</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Database Section -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-database text-success"></i> Database</h5>
+                <div class="row g-2 mb-0">
+                    <div class="col-md-3">
+                        <div class="form-check form-check-sm mt-2">
+                            <input class="form-check-input" type="checkbox" id="db-backup-enabled">
+                            <label class="form-check-label" for="db-backup-enabled">Auto backups</label>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="db-retention" class="form-label form-label-sm">Retention (days)</label>
+                        <input type="number" class="form-control form-control-sm" id="db-retention" min="1" max="365" value="7">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="db-backup-path" class="form-label form-label-sm">Backup Path</label>
+                        <input type="text" class="form-control form-control-sm" id="db-backup-path" value="backups/">
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end gap-1">
+                        <button type="button" class="btn btn-primary btn-sm flex-fill" id="btn-backup-create">
+                            <i class="bi bi-save"></i> Backup
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" id="btn-backup-list">
+                            <i class="bi bi-list-ul"></i> List
+                        </button>
+                        <button type="button" class="btn btn-outline-warning btn-sm flex-fill" id="btn-vacuum-db">
+                            <i class="bi bi-arrow-clockwise"></i> Vacuum
+                        </button>
+                    </div>
+                </div>
+                <!-- Backup List (hidden by default) -->
+                <div id="backup-list" style="display: none;" class="mt-3">
+                    <h6>Available Backups:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Size (MB)</th>
+                                    <th>Created</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="backups-table-body">
+                                <tr>
+                                    <td colspan="6" class="text-center">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Database Sharing Section -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-share text-info"></i> Database Sharing</h5>
+                <p class="text-muted small mb-2">
+                    Share your database with friends. <strong>Export strips:</strong> Playlists, Lidarr status. Preserves: All discovery data.
+                </p>
+
+                <div class="row g-2 mb-0">
+                    <div class="col-md-5">
+                        <label for="export-filename" class="form-label form-label-sm">Export Filename</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" id="export-filename" placeholder="radio_monitor_shared.db">
+                            <button class="btn btn-primary" type="button" id="btn-export-db">
+                                <i class="bi bi-download"></i> Export
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-1 d-flex align-items-center">
+                        <div id="export-result" class="test-result mb-0"></div>
+                    </div>
+                    <div class="col-md-5">
+                        <label for="import-source-path" class="form-label form-label-sm">Import Database ⚠</label>
+                        <div class="input-group input-group-sm mb-1">
+                            <input type="text" class="form-control" id="import-source-path" placeholder="backups/radio_monitor_shared.db">
+                            <input type="file" class="d-none" id="import-file-input" accept=".db">
+                            <button class="btn btn-secondary" type="button" id="btn-browse-file" title="Browse for file">
+                                <i class="bi bi-folder-open"></i> Browse
+                            </button>
+                            <button class="btn btn-warning" type="button" id="btn-import-db">
+                                <i class="bi bi-upload"></i> Import
+                            </button>
+                        </div>
+                        <small class="text-muted small">Enter server path or click Browse to upload a file</small>
+                        <br>
+                        <small class="text-danger"><strong>WARNING:</strong> This will OVERWRITE your current database!</small>
+                    </div>
+                    <div class="col-md-1 d-flex align-items-center">
+                        <div id="import-result" class="test-result mb-0"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- OpenRouter AI Section (Experimental) -->
+        <div class="card card-standard settings-card border-warning">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-cpu text-danger"></i> OpenRouter AI <span class="badge bg-danger ms-2">Experimental - results may vary</span></h5>
+                <div class="row g-2 mb-2">
+                    <div class="col-md-6">
+                        <label for="openrouter-api-key" class="form-label form-label-sm">API Key</label>
+                        <input type="password" class="form-control form-control-sm" id="openrouter-api-key" autocomplete="off">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="openrouter-model" class="form-label form-label-sm">Model</label>
+                        <input type="text" class="form-control form-control-sm" id="openrouter-model" value="qwen/qwen3-next-80b-a3b-instruct:free" autocomplete="off">
+                        <input type="hidden" id="openrouter-rate-limit" value="1">
+                    </div>
+                </div>
+                <div class="row g-2 mb-0">
+                    <div class="col-md-3">
+                        <label for="openrouter-timeout" class="form-label form-label-sm">Timeout (s)</label>
+                        <input type="number" class="form-control form-control-sm" id="openrouter-timeout" min="5" max="300" value="120">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="openrouter-max-retries" class="form-label form-label-sm">Retries</label>
+                        <input type="number" class="form-control form-control-sm" id="openrouter-max-retries" min="0" max="10" value="3">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="openrouter-max-tokens" class="form-label form-label-sm">Max Tokens</label>
+                        <input type="number" class="form-control form-control-sm" id="openrouter-max-tokens" min="1000" max="200000" step="1000" value="100000">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="openrouter-max-songs-input" class="form-label form-label-sm">Max Songs</label>
+                        <input type="number" class="form-control form-control-sm" id="openrouter-max-songs-input" min="100" max="10000" step="100" value="5000">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Theme Selection -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-palette text-info"></i> Theme</h5>
+                <p class="text-muted mb-3">Choose your preferred color scheme. Changes take effect instantly.</p>
+
+                <div class="theme-selector">
+                    <!-- Light Theme -->
+                    <div class="theme-option" data-theme="light">
+                        <div class="theme-preview light">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Light</span>
+                    </div>
+
+                    <!-- Dark Theme -->
+                    <div class="theme-option" data-theme="dark">
+                        <div class="theme-preview dark">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Dark</span>
+                    </div>
+
+                    <!-- Ocean Theme -->
+                    <div class="theme-option" data-theme="ocean">
+                        <div class="theme-preview ocean">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Ocean</span>
+                    </div>
+
+                    <!-- Forest Theme -->
+                    <div class="theme-option" data-theme="forest">
+                        <div class="theme-preview forest">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Forest</span>
+                    </div>
+
+                    <!-- Sunset Theme -->
+                    <div class="theme-option" data-theme="sunset">
+                        <div class="theme-preview sunset">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Sunset</span>
+                    </div>
+
+                    <!-- Midnight Theme -->
+                    <div class="theme-option" data-theme="midnight">
+                        <div class="theme-preview midnight">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Midnight</span>
+                    </div>
+
+                    <!-- Rose Theme -->
+                    <div class="theme-option" data-theme="rose">
+                        <div class="theme-preview rose">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Rose</span>
+                    </div>
+
+                    <!-- Arctic Theme -->
+                    <div class="theme-option" data-theme="arctic">
+                        <div class="theme-preview arctic">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Arctic</span>
+                    </div>
+
+                    <!-- Grape Theme -->
+                    <div class="theme-option" data-theme="grape">
+                        <div class="theme-preview grape">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Grape</span>
+                    </div>
+
+                    <!-- Caramel Theme -->
+                    <div class="theme-option" data-theme="caramel">
+                        <div class="theme-preview caramel">
+                            <div class="theme-preview-header"></div>
+                            <div class="theme-preview-body">Aa</div>
+                        </div>
+                        <span class="theme-name">Caramel</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Application Control Section (Shutdown) -->
+        <div class="card border-danger bg-danger bg-opacity-10 settings-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-3">
+                    <div>
+                        <h5 class="card-title mb-0"><i class="bi bi-power text-danger"></i> Application Control</h5>
+                    </div>
+                    <div class="ms-auto">
+                        <button type="button" class="btn btn-danger" id="btn-shutdown-app">
+                            <i class="bi bi-power"></i> Shutdown
+                        </button>
+                    </div>
+                </div>
+                <div id="shutdown-result" class="mt-2"></div>
+            </div>
+        </div>
+
+    </div>
+</form>
+
+
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-check-circle text-success"></i> Settings Saved</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="success-modal-message">Your settings have been saved successfully.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block custom_js %}
+<script>
+let currentSettings = {};
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Set default export filename with today's date
+    const today = new Date();
+    const dateStr = today.getFullYear() +
+        String(today.getMonth() + 1).padStart(2, '0') +
+        String(today.getDate()).padStart(2, '0');
+    const exportInput = document.getElementById('export-filename');
+    if (exportInput && !exportInput.value) {
+        exportInput.value = `radio_monitor_shared_${dateStr}.db`;
+    }
+
+    loadSettings();
+
+    // Update interval display
+    const intervalInput = document.getElementById('monitor-interval');
+    const intervalDisplay = document.getElementById('interval-display');
+    if (intervalInput && intervalDisplay) {
+        intervalInput.addEventListener('input', function() {
+            intervalDisplay.textContent = this.value;
+        });
+    }
+
+    // Add event listeners for refresh buttons
+    document.getElementById('btn-refresh-root-folders').addEventListener('click', loadLidarrRootFolders);
+    document.getElementById('btn-refresh-quality-profiles').addEventListener('click', loadLidarrQualityProfiles);
+    document.getElementById('btn-refresh-metadata-profiles').addEventListener('click', loadLidarrMetadataProfiles);
+    document.getElementById('btn-refresh-plex-libraries').addEventListener('click', loadPlexLibraries);
+});
+
+function loadSettings() {
+    fetch('/api/settings')
+        .then(response => response.json())
+        .then(settings => {
+            currentSettings = settings;
+            populateForm(settings);
+            // Load dropdowns AFTER form is populated (so dataset values are set)
+            loadLidarrOptions();
+            loadPlexOptions();
+        })
+        .catch(error => {
+            console.error('Error loading settings:', error);
+            Toast.error('Error loading settings: ' + error.message);
+        });
+}
+
+function populateForm(settings) {
+    console.log('=== populateForm called ===');
+    console.log('Settings received:', settings);
+
+    // Lidarr
+    if (settings.lidarr) {
+        document.getElementById('lidarr-url').value = settings.lidarr.url || '';
+        document.getElementById('lidarr-api-key').value = settings.lidarr.api_key || '';
+
+        // For root folder, store the path (already a string)
+        const rootFolderPath = settings.lidarr.root_folder_path || '';
+        document.getElementById('lidarr-root-folder').dataset.value = rootFolderPath;
+        console.log('Root folder set to:', rootFolderPath);
+
+        // For quality/metadata profiles, prioritize name matching over ID matching
+        const qualityId = settings.lidarr.quality_profile_id || '';
+        const qualityName = settings.lidarr.quality_profile_name || '';
+        document.getElementById('lidarr-quality-profile').dataset.id = qualityId;
+        document.getElementById('lidarr-quality-profile').dataset.name = qualityName;
+        console.log('Quality profile dataset - ID:', qualityId, 'Name:', qualityName);
+
+        const metadataId = settings.lidarr.metadata_profile_id || '';
+        const metadataName = settings.lidarr.metadata_profile_name || '';
+        document.getElementById('lidarr-metadata-profile').dataset.id = metadataId;
+        document.getElementById('lidarr-metadata-profile').dataset.name = metadataName;
+        console.log('Metadata profile dataset - ID:', metadataId, 'Name:', metadataName);
+
+        document.getElementById('lidarr-monitor-new').checked = settings.lidarr.monitor_new_artists || false;
+        document.getElementById('lidarr-search-missing').checked = settings.lidarr.search_for_missing_albums || false;
+        document.getElementById('lidarr-auto-import').checked = settings.lidarr.auto_import || false;
+        document.getElementById('lidarr-min-plays').value = settings.lidarr.min_plays_for_import || 5;
+        document.getElementById('lidarr-min-songs').value = settings.lidarr.min_songs_for_import || 1;
+    }
+
+    // Plex
+    if (settings.plex) {
+        document.getElementById('plex-url').value = settings.plex.url || '';
+        document.getElementById('plex-token').value = settings.plex.token || '';
+        // Store library name for later use after options are loaded
+        const plexLibrary = settings.plex.music_library_name || '';
+        document.getElementById('plex-library').dataset.value = plexLibrary;
+        console.log('Plex library set to:', plexLibrary);
+    }
+
+    // Monitor
+    if (settings.monitor) {
+        document.getElementById('monitor-database').value = settings.monitor.database_file || 'radio_songs.db';
+        const interval = settings.monitor.scrape_interval_minutes || 10;
+        document.getElementById('monitor-interval').value = interval;
+        // Update interval display
+        const intervalDisplay = document.getElementById('interval-display');
+        if (intervalDisplay) {
+            intervalDisplay.textContent = interval;
+        }
+    }
+
+    // Database
+    if (settings.database) {
+        document.getElementById('db-backup-enabled').checked = settings.database.backup_enabled || false;
+        document.getElementById('db-retention').value = settings.database.backup_retention_days || 7;
+        document.getElementById('db-backup-path').value = settings.database.backup_path || 'backups/';
+    }
+
+    // GUI
+    if (settings.gui) {
+        document.getElementById('gui-host').value = settings.gui.host || '0.0.0.0';
+        document.getElementById('gui-port').value = settings.gui.port || 5000;
+        document.getElementById('gui-debug').checked = settings.gui.debug || false;
+    }
+
+    // Logging (section may not exist in all versions)
+    if (settings.logging) {
+        const logFile = document.getElementById('log-file');
+        const logConsoleLevel = document.getElementById('log-console-level');
+        const logFileLevel = document.getElementById('log-file-level');
+
+        if (logFile) logFile.value = settings.logging.file || 'radio_monitor.log';
+        if (logConsoleLevel) logConsoleLevel.value = settings.logging.console_level || 'INFO';
+        if (logFileLevel) logFileLevel.value = settings.logging.file_level || 'ERROR';
+    }
+
+    // OpenRouter
+    if (settings.openrouter) {
+        document.getElementById('openrouter-api-key').value = settings.openrouter.api_key || '';
+        document.getElementById('openrouter-model').value = settings.openrouter.model || 'qwen/qwen3-next-80b-a3b-instruct:free';
+        document.getElementById('openrouter-timeout').value = settings.openrouter.timeout_seconds || 120;
+        document.getElementById('openrouter-max-retries').value = settings.openrouter.max_retries || 3;
+        document.getElementById('openrouter-rate-limit').value = settings.openrouter.rate_limit_per_minute || 1;
+        document.getElementById('openrouter-max-tokens').value = settings.openrouter.max_tokens || 100000;
+        document.getElementById('openrouter-max-songs-input').value = settings.openrouter.max_songs_input || 5000;
+    }
+}
+
+// Test Lidarr connection
+document.getElementById('btn-test-lidarr').addEventListener('click', function() {
+    const url = document.getElementById('lidarr-url').value;
+    const apiKey = document.getElementById('lidarr-api-key').value;
+
+    fetch('/api/test/lidarr', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url, api_key: apiKey })
+    })
+        .then(response => response.json())
+        .then(data => {
+            const resultDiv = document.getElementById('lidarr-test-result');
+            if (data.success) {
+                resultDiv.textContent = data.message;
+                resultDiv.className = 'test-result success';
+            } else {
+                resultDiv.textContent = data.message;
+                resultDiv.className = 'test-result error';
+            }
+            resultDiv.style.display = 'block';
+        })
+        .catch(error => {
+            const resultDiv = document.getElementById('lidarr-test-result');
+            resultDiv.textContent = 'Error: ' + error.message;
+            resultDiv.className = 'test-result error';
+            resultDiv.style.display = 'block';
+        });
+});
+
+// Test Plex connection
+document.getElementById('btn-test-plex').addEventListener('click', function() {
+    const url = document.getElementById('plex-url').value;
+    const token = document.getElementById('plex-token').value;
+
+    fetch('/api/test/plex', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url, token })
+    })
+        .then(response => response.json())
+        .then(data => {
+            const resultDiv = document.getElementById('plex-test-result');
+            if (data.success) {
+                resultDiv.textContent = data.message;
+                resultDiv.className = 'test-result success';
+            } else {
+                resultDiv.textContent = data.message;
+                resultDiv.className = 'test-result error';
+            }
+            resultDiv.style.display = 'block';
+        })
+        .catch(error => {
+            const resultDiv = document.getElementById('plex-test-result');
+            resultDiv.textContent = 'Error: ' + error.message;
+            resultDiv.className = 'test-result error';
+            resultDiv.style.display = 'block';
+        });
+});
+
+// Save all settings
+document.getElementById('btn-save-all').addEventListener('click', function() {
+    const settings = getFormSettings();
+
+    fetch('/api/settings/update', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(settings)
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Check if restart required
+                if (data.restart_required) {
+                    // Save restart flag to localStorage
+                    localStorage.setItem('restart_required', 'true');
+                    localStorage.setItem('restart_reasons', JSON.stringify(data.restart_reasons));
+
+                    // Show success modal with restart message
+                    const successMessage = data.restart_reasons.length > 0
+                        ? 'Settings saved successfully.<br><br><strong>Restart required for changes to take effect.</strong>'
+                        : 'Settings saved successfully.';
+
+                    document.getElementById('successModal').querySelector('.modal-body p').innerHTML = successMessage;
+                    const modal = new bootstrap.Modal(document.getElementById('successModal'));
+                    modal.show();
+                } else {
+                    // Show success modal (no restart needed)
+                    const modal = new bootstrap.Modal(document.getElementById('successModal'));
+                    modal.show();
+                }
+            } else {
+                Toast.error('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            Toast.error('Error: ' + error.message);
+        });
+});
+
+// Load all Lidarr dropdown options
+function loadLidarrOptions() {
+    loadLidarrRootFolders();
+    loadLidarrQualityProfiles();
+    loadLidarrMetadataProfiles();
+}
+
+// Load all Plex dropdown options
+function loadPlexOptions() {
+    loadPlexLibraries();
+}
+
+// Load Lidarr root folders
+function loadLidarrRootFolders() {
+    const select = document.getElementById('lidarr-root-folder');
+    const currentValue = select.dataset.value || '';
+
+    fetch('/api/lidarr/root-folders')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.folders) {
+                select.innerHTML = '';
+                data.folders.forEach(folder => {
+                    const option = document.createElement('option');
+                    option.value = folder.path;
+                    option.textContent = folder.path;
+                    if (folder.path === currentValue) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            } else {
+                select.innerHTML = '<option value="">Error loading options</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading root folders:', error);
+            select.innerHTML = '<option value="">Error loading options</option>';
+        });
+}
+
+// Load Lidarr quality profiles
+function loadLidarrQualityProfiles() {
+    const select = document.getElementById('lidarr-quality-profile');
+    const currentId = select.dataset.id || '';
+    const currentName = select.dataset.name || '';
+
+    console.log('=== loadLidarrQualityProfiles ===');
+    console.log('Looking for - ID:', currentId, 'Name:', currentName);
+
+    fetch('/api/lidarr/quality-profiles')
+        .then(response => response.json())
+        .then(data => {
+            console.log('Quality profiles response:', data.profiles?.map(p => ({id: p.id, name: p.name})));
+            if (data.success && data.profiles) {
+                select.innerHTML = '';
+                let matched = false;
+
+                data.profiles.forEach(profile => {
+                    const option = document.createElement('option');
+                    option.value = profile.id;
+                    option.textContent = profile.name;
+
+                    // Match by name first (preferred), then by ID
+                    if (!matched && currentName && profile.name === currentName) {
+                        option.selected = true;
+                        console.log('✅ Matched by NAME:', profile.name);
+                        matched = true;
+                    } else if (!matched && currentId && String(profile.id) === String(currentId)) {
+                        option.selected = true;
+                        console.log('✅ Matched by ID:', profile.id);
+                        matched = true;
+                    }
+
+                    select.appendChild(option);
+                });
+
+                if (!matched) {
+                    console.log('❌ NO MATCH FOUND - Current ID:', currentId, 'Name:', currentName);
+                }
+            } else {
+                select.innerHTML = '<option value="">Error loading options</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading quality profiles:', error);
+            select.innerHTML = '<option value="">Error loading options</option>';
+        });
+}
+
+// Load Lidarr metadata profiles
+function loadLidarrMetadataProfiles() {
+    const select = document.getElementById('lidarr-metadata-profile');
+    const currentId = select.dataset.id || '';
+    const currentName = select.dataset.name || '';
+
+    fetch('/api/lidarr/metadata-profiles')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.profiles) {
+                select.innerHTML = '';
+                let matched = false;
+
+                data.profiles.forEach(profile => {
+                    const option = document.createElement('option');
+                    option.value = profile.id;
+                    option.textContent = profile.name;
+
+                    // Match by name first (preferred), then by ID
+                    if (!matched && currentName && profile.name === currentName) {
+                        option.selected = true;
+                        matched = true;
+                    } else if (!matched && currentId && String(profile.id) === String(currentId)) {
+                        option.selected = true;
+                        matched = true;
+                    }
+
+                    select.appendChild(option);
+                });
+            } else {
+                select.innerHTML = '<option value="">Error loading options</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading metadata profiles:', error);
+            select.innerHTML = '<option value="">Error loading options</option>';
+        });
+}
+
+// Load Plex libraries
+function loadPlexLibraries() {
+    const select = document.getElementById('plex-library');
+    const currentValue = select.dataset.value || '';
+
+    fetch('/api/plex/libraries')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.libraries) {
+                select.innerHTML = '';
+                data.libraries.forEach(lib => {
+                    const option = document.createElement('option');
+                    option.value = lib.name;
+                    option.textContent = lib.name;
+                    if (lib.name === currentValue) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            } else {
+                select.innerHTML = '<option value="">Error loading options</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading Plex libraries:', error);
+            select.innerHTML = '<option value="">Error loading options</option>';
+        });
+}
+
+function getFormSettings() {
+    // Get selected text for quality and metadata profiles (save names instead of IDs)
+    const qualityProfileSelect = document.getElementById('lidarr-quality-profile');
+    const qualityProfileName = qualityProfileSelect.options[qualityProfileSelect.selectedIndex]?.text || '';
+
+    const metadataProfileSelect = document.getElementById('lidarr-metadata-profile');
+    const metadataProfileName = metadataProfileSelect.options[metadataProfileSelect.selectedIndex]?.text || '';
+
+    return {
+        lidarr: {
+            url: document.getElementById('lidarr-url').value,
+            api_key: document.getElementById('lidarr-api-key').value,
+            root_folder_path: document.getElementById('lidarr-root-folder').value,
+            quality_profile_id: parseInt(qualityProfileSelect.value),
+            quality_profile_name: qualityProfileName,  // Store name for display
+            metadata_profile_id: parseInt(metadataProfileSelect.value),
+            metadata_profile_name: metadataProfileName,  // Store name for display
+            monitor_new_artists: document.getElementById('lidarr-monitor-new').checked,
+            search_for_missing_albums: document.getElementById('lidarr-search-missing').checked,
+            auto_import: document.getElementById('lidarr-auto-import').checked,
+            min_plays_for_import: parseInt(document.getElementById('lidarr-min-plays').value) || 5,
+            min_songs_for_import: parseInt(document.getElementById('lidarr-min-songs').value) || 1
+        },
+        plex: {
+            url: document.getElementById('plex-url').value,
+            token: document.getElementById('plex-token').value,
+            music_library_name: document.getElementById('plex-library').value
+        },
+        monitor: {
+            database_file: document.getElementById('monitor-database').value,
+            scrape_interval_minutes: parseInt(document.getElementById('monitor-interval').value)
+        },
+        database: {
+            backup_enabled: document.getElementById('db-backup-enabled').checked,
+            backup_retention_days: parseInt(document.getElementById('db-retention').value),
+            backup_path: document.getElementById('db-backup-path').value
+        },
+        gui: {
+            host: document.getElementById('gui-host').value,
+            port: parseInt(document.getElementById('gui-port').value),
+            debug: document.getElementById('gui-debug').checked
+        },
+        logging: {
+            file: document.getElementById('log-file')?.value || 'radio_monitor.log',
+            console_level: document.getElementById('log-console-level')?.value || 'INFO',
+            file_level: document.getElementById('log-file-level')?.value || 'ERROR'
+        },
+        openrouter: {
+            api_key: document.getElementById('openrouter-api-key').value,
+            model: document.getElementById('openrouter-model').value,
+            timeout_seconds: parseInt(document.getElementById('openrouter-timeout').value) || 120,
+            max_retries: parseInt(document.getElementById('openrouter-max-retries').value) || 3,
+            rate_limit_per_minute: parseInt(document.getElementById('openrouter-rate-limit').value) || 1,
+            max_tokens: parseInt(document.getElementById('openrouter-max-tokens').value) || 100000,
+            max_songs_input: parseInt(document.getElementById('openrouter-max-songs-input').value) || 5000
+        }
+    };
+}
+
+// Reset button
+document.getElementById('btn-reset').addEventListener('click', async function() {
+    if (!await Confirm.confirm('Reset all settings to their saved values?', 'Reset Settings', 'Reset', 'btn-warning')) {
+        return;
+    }
+    loadSettings();
+    Toast.success('Settings reset to saved values');
+});
+
+// Shutdown application button
+document.getElementById('btn-shutdown-app').addEventListener('click', async function() {
+    const resultDiv = document.getElementById('shutdown-result');
+
+    if (!await Confirm.confirm(
+        '⚠️ Are you sure you want to shutdown Radio Monitor?\n\n' +
+        'The web interface will become unavailable.\n\n' +
+        'You can restart the application from:\n' +
+        '• Windows: Double-click "Radio Monitor.exe"\n' +
+        '• Linux: sudo systemctl start radio-monitor\n' +
+        '• Docker: docker-compose up -d\n\n' +
+        'Continue with shutdown?',
+        'Shutdown Application',
+        'Shutdown',
+        'btn-danger'
+    )) {
+        return;
+    }
+
+    resultDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Shutting down... Please wait.</div>';
+
+    fetch('/api/shutdown', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'shutting_down') {
+            resultDiv.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> ' + data.message + '</div>';
+            // After 2 seconds, show that the page is no longer accessible
+            setTimeout(() => {
+                document.body.innerHTML = `
+                    <div class="d-flex justify-content-center align-items-center vh-100 bg-light">
+                        <div class="text-center p-5 bg-white rounded shadow">
+                            <h3 class="text-success mb-3"><i class="bi bi-power"></i> Radio Monitor Shutdown</h3>
+                            <p class="mb-0">The application has been shut down successfully.</p>
+                            <p class="text-muted mb-0">You can close this tab.</p>
+                            <hr class="my-3">
+                            <p class="small text-muted mb-0">To restart: Double-click "Radio Monitor.exe" or run your start command</p>
+                        </div>
+                    </div>
+                `;
+            }, 2000);
+        } else {
+            resultDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> ' + (data.message || 'Shutdown failed') + '</div>';
+        }
+    })
+    .catch(error => {
+        resultDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Error: ' + error.message + '</div>';
+    });
+});
+
+// Backup button
+document.getElementById('btn-backup-create').addEventListener('click', async function() {
+    fetch('/api/backup/create', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Toast.success(`Backup created: ${data.backup_path}`);
+            } else {
+                Toast.error('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            Toast.error('Error: ' + error.message);
+        });
+});
+
+// List backups button
+document.getElementById('btn-backup-list').addEventListener('click', function() {
+    const backupListDiv = document.getElementById('backup-list');
+    const tableBody = document.getElementById('backups-table-body');
+
+    if (backupListDiv.style.display === 'none' || !backupListDiv.style.display) {
+        // Show backups
+        backupListDiv.style.display = 'block';
+        loadBackups();
+    } else {
+        // Hide backups
+        backupListDiv.style.display = 'none';
+    }
+});
+
+function loadBackups() {
+    fetch('/api/backups')
+        .then(response => response.json())
+        .then(backups => {
+            displayBackups(backups);
+        })
+        .catch(error => {
+            console.error('Error loading backups:', error);
+        });
+}
+
+function displayBackups(backups) {
+    const tbody = document.getElementById('backups-table-body');
+    tbody.innerHTML = '';
+
+    if (!backups || backups.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center text-muted">
+                    No backups found
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    backups.forEach(backup => {
+        const tr = document.createElement('tr');
+        const date = new Date(backup.created_at);
+
+        tr.innerHTML = `
+            <td><code>${backup.name}</code></td>
+            <td>${backup.size_mb} MB</td>
+            <td>${date.toLocaleString()}</td>
+            <td>
+                <span class="badge bg-${backup.is_valid ? 'success' : 'danger'}">
+                    ${backup.is_valid ? 'Valid' : 'Invalid'}
+                </span>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary btn-restore-backup"
+                        data-backup="${backup.path}" ${!backup.is_valid ? 'disabled' : ''}>
+                    <i class="bi bi-arrow-counterclockwise"></i> Restore
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+    });
+
+    // Add event listeners for restore buttons
+    document.querySelectorAll('.btn-restore-backup').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const backupPath = this.getAttribute('data-backup');
+            await restoreBackup(backupPath);
+        });
+    });
+}
+
+async function restoreBackup(backupPath) {
+    if (!await Confirm.confirm(
+        `Restore database from:\n${backupPath}\n\nCurrent database will be backed up first.`,
+        'Restore Database',
+        'Restore',
+        'btn-warning'
+    )) {
+        return;
+    }
+
+    fetch('/api/backup/restore', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ backup_path: backupPath })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Toast.success('Database restored successfully!');
+                loadBackups();  // Refresh list
+            } else {
+                Toast.error('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            Toast.error('Error: ' + error.message);
+        });
+}
+
+// Vacuum database button
+document.getElementById('btn-vacuum-db').addEventListener('click', async function() {
+    // Helper function to clean up modal properly
+    const cleanupModal = () => {
+        const modalEl = document.getElementById('vacuumProgressModal');
+        if (modalEl) {
+            // Get the Bootstrap modal instance
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) {
+                // Hide the modal
+                modalInstance.hide();
+                // Dispose of the Bootstrap instance
+                modalInstance.dispose();
+            }
+            // Remove the modal from DOM after hide animation
+            setTimeout(() => {
+                if (modalEl.parentNode) {
+                    modalEl.parentNode.remove();
+                }
+                // Remove any leftover backdrops
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                // Re-enable body scrolling
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+            }, 300);
+        }
+        button.disabled = false;
+        button.innerHTML = originalContent;
+    };
+
+    if (!await Confirm.confirm(
+        '⚠️ VACUUM DATABASE\n\n' +
+        'This will optimize the database file by:\n' +
+        '• Reclaiming disk space from deleted records\n' +
+        '• Defragmenting the database\n' +
+        '• Optimizing query performance\n\n' +
+        '⚠️ IMPORTANT: During vacuum (typically 10-60 seconds):\n' +
+        '• The application will be unresponsive\n' +
+        '• Do NOT close this browser tab\n' +
+        '• Do NOT navigate away from this page\n\n' +
+        '✓ A backup will be created automatically before vacuuming\n\n' +
+        'Continue?',
+        'Vacuum Database',
+        'Vacuum',
+        'btn-warning'
+    )) {
+        return;
+    }
+
+    const button = this;
+    const originalContent = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Starting...';
+
+    try {
+        // Start vacuum operation
+        const startResponse = await fetch('/api/settings/vacuum', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const startData = await startResponse.json();
+
+        if (!startResponse.ok || !startData.success) {
+            if (startData.is_running) {
+                Toast.warning('A vacuum operation is already in progress. Please wait for it to complete.');
+            } else {
+                Toast.error('Failed to start vacuum: ' + startData.message);
+            }
+            button.disabled = false;
+            button.innerHTML = originalContent;
+            return;
+        }
+
+        // Show progress modal
+        const modalHtml = `
+            <div class="modal fade" id="vacuumProgressModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-warning bg-opacity-10">
+                            <h5 class="modal-title">
+                                <i class="bi bi-arrow-clockwise me-2"></i>Vacuuming Database
+                            </h5>
+                        </div>
+                        <div class="modal-body">
+                            <div class="text-center mb-3">
+                                <div class="spinner-border text-warning" role="status" style="width: 3rem; height: 3rem;">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                            <div class="alert alert-warning mb-3">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                <strong>Please wait...</strong><br>
+                                <small>Do NOT close this tab or navigate away</small>
+                            </div>
+                            <div id="vacuum-status-message" class="text-center mb-3">
+                                Initializing vacuum operation...
+                            </div>
+                            <div class="progress mb-3" style="height: 25px;">
+                                <div id="vacuum-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
+                                     role="progressbar" style="width: 0%">0%</div>
+                            </div>
+                            <div id="vacuum-details" class="text-muted small text-center">
+                                Starting...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add modal to body
+        const modalContainer = document.createElement('div');
+        modalContainer.innerHTML = modalHtml;
+        document.body.appendChild(modalContainer);
+
+        const modal = new bootstrap.Modal(document.getElementById('vacuumProgressModal'));
+        modal.show();
+
+        // Poll for status updates
+        const pollInterval = setInterval(async () => {
+            try {
+                const statusResponse = await fetch('/api/settings/vacuum-status');
+                const statusData = await statusResponse.json();
+
+                // Update progress
+                const progressBar = document.getElementById('vacuum-progress-bar');
+                const statusMessage = document.getElementById('vacuum-status-message');
+                const details = document.getElementById('vacuum-details');
+
+                progressBar.style.width = statusData.progress + '%';
+                progressBar.textContent = statusData.progress + '%';
+                statusMessage.textContent = statusData.message;
+
+                if (statusData.space_before > 0) {
+                    const beforeMB = (statusData.space_before / 1024 / 1024).toFixed(2);
+                    details.innerHTML = `Database size: ${beforeMB} MB`;
+                }
+
+                if (statusData.error) {
+                    // Error occurred
+                    clearInterval(pollInterval);
+                    progressBar.classList.remove('bg-warning');
+                    progressBar.classList.add('bg-danger');
+                    progressBar.classList.remove('progress-bar-animated');
+                    statusMessage.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-2"></i>${statusData.message}</span>`;
+                    details.innerHTML = `<span class="text-danger">Error: ${statusData.error}</span>`;
+
+                    setTimeout(() => {
+                        cleanupModal();
+                    }, 3000);
+
+                    Toast.error('Vacuum failed: ' + statusData.error);
+                    return;
+                }
+
+                if (!statusData.is_running && statusData.progress === 100) {
+                    // Vacuum complete
+                    clearInterval(pollInterval);
+
+                    const spaceReclaimed = statusData.space_before - statusData.space_after;
+                    const reclaimedMB = (spaceReclaimed / 1024 / 1024).toFixed(2);
+                    const afterMB = (statusData.space_after / 1024 / 1024).toFixed(2);
+
+                    progressBar.classList.remove('bg-warning');
+                    progressBar.classList.add('bg-success');
+                    progressBar.classList.remove('progress-bar-animated');
+                    statusMessage.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-2"></i>Vacuum Complete!</span>';
+
+                    if (spaceReclaimed > 0) {
+                        details.innerHTML = `
+                            <div class="text-success">
+                                <strong>Reclaimed: ${reclaimedMB} MB</strong><br>
+                                Before: ${beforeMB} MB → After: ${afterMB} MB
+                            </div>
+                        `;
+                    } else {
+                        details.innerHTML = `
+                            <div class="text-info">
+                                Database was already optimized.<br>
+                                Size: ${afterMB} MB
+                            </div>
+                        `;
+                    }
+
+                    setTimeout(() => {
+                        cleanupModal();
+                    }, 3000);
+
+                    if (spaceReclaimed > 0) {
+                        Toast.success(`Vacuum complete! Reclaimed ${reclaimedMB} MB`);
+                    } else {
+                        Toast.info('Vacuum complete! Database was already optimized.');
+                    }
+                }
+
+            } catch (error) {
+                console.error('Error polling vacuum status:', error);
+                // Don't clear interval on network errors, keep trying
+            }
+        }, 500); // Poll every 500ms
+
+        // Set timeout to prevent infinite polling (5 minutes max)
+        setTimeout(() => {
+            clearInterval(pollInterval);
+            cleanupModal();
+            Toast.warning('Vacuum operation timed out. Please check the logs.');
+        }, 5 * 60 * 1000);
+
+    } catch (error) {
+        console.error('Error starting vacuum:', error);
+        Toast.error('Error: ' + error.message);
+        button.disabled = false;
+        button.innerHTML = originalContent;
+    }
+});
+
+// Export database button
+document.getElementById('btn-export-db').addEventListener('click', function() {
+    const filename = document.getElementById('export-filename').value.trim();
+    const resultDiv = document.getElementById('export-result');
+
+    if (!filename) {
+        resultDiv.innerHTML = '<div class="alert alert-danger">Please enter a filename</div>';
+        return;
+    }
+
+    resultDiv.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Exporting...</span></div>';
+
+    fetch('/api/settings/export-db', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ filename: filename })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.innerHTML = `<div class="alert alert-success">✓ ${data.message}</div>`;
+        } else {
+            resultDiv.innerHTML = `<div class="alert alert-danger">✗ ${data.message}</div>`;
+        }
+    })
+    .catch(error => {
+        resultDiv.innerHTML = `<div class="alert alert-danger">✗ Error: ${error.message}</div>`;
+    });
+});
+
+// Browse file button - triggers file input
+document.getElementById('btn-browse-file').addEventListener('click', function() {
+    document.getElementById('import-file-input').click();
+});
+
+// File input change - update path field with filename
+document.getElementById('import-file-input').addEventListener('change', function() {
+    const fileInput = this;
+    const pathInput = document.getElementById('import-source-path');
+
+    if (fileInput.files && fileInput.files.length > 0) {
+        // Display the selected filename
+        pathInput.value = fileInput.files[0].name;
+        // Store file reference for import
+        pathInput.dataset.fileSelected = 'true';
+    } else {
+        pathInput.dataset.fileSelected = 'false';
+    }
+});
+
+// Import database button
+document.getElementById('btn-import-db').addEventListener('click', async function() {
+    const sourcePath = document.getElementById('import-source-path').value.trim();
+    const fileInput = document.getElementById('import-file-input');
+    const resultDiv = document.getElementById('import-result');
+
+    // Check if a file was selected via browse
+    const hasFile = fileInput.files && fileInput.files.length > 0;
+
+    if (!sourcePath && !hasFile) {
+        resultDiv.innerHTML = '<div class="alert alert-danger">Please enter a source path or browse for a file</div>';
+        return;
+    }
+
+    // Show warning confirmation
+    if (!await Confirm.confirm(
+        '⚠️ WARNING: This will OVERWRITE your current database!\n\n' +
+        'All your data will be replaced with the imported database.\n' +
+        'This cannot be undone.\n\n' +
+        'Are you sure you want to continue?',
+        'Import Database',
+        'Import',
+        'btn-danger'
+    )) {
+        return;
+    }
+
+    resultDiv.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Importing...</span></div>';
+
+    // Use file upload if a file was selected, otherwise use path
+    if (hasFile) {
+        // File upload method
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        fetch('/api/settings/import-db-upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                resultDiv.innerHTML = `<div class="alert alert-success">✓ ${data.message}</div>`;
+                Toast.success('Database imported successfully');
+                // Clear file input
+                fileInput.value = '';
+                document.getElementById('import-source-path').value = '';
+                // Reload page after 2 seconds to show new data
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                resultDiv.innerHTML = `<div class="alert alert-danger">✗ ${data.message}</div>`;
+            }
+        })
+        .catch(error => {
+            resultDiv.innerHTML = `<div class="alert alert-danger">✗ Error: ${error.message}</div>`;
+        });
+    } else {
+        // Path-based method
+        fetch('/api/settings/import-db', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ source_path: sourcePath })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                resultDiv.innerHTML = `<div class="alert alert-success">✓ ${data.message}</div>`;
+                Toast.success('Database imported successfully');
+                // Reload page after 2 seconds to show new data
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                resultDiv.innerHTML = `<div class="alert alert-danger">✗ ${data.message}</div>`;
+            }
+        })
+        .catch(error => {
+            resultDiv.innerHTML = `<div class="alert alert-danger">✗ Error: ${error.message}</div>`;
+        });
+    }
+});
+</script>
+{% endblock %}

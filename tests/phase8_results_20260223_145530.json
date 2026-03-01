@@ -1,0 +1,107 @@
+[
+  {
+    "test": "Get Test Songs",
+    "passed": true,
+    "message": "Found 20 songs",
+    "duration_ms": 0.1735687255859375,
+    "timestamp": "2026-02-23T14:55:30.728877"
+  },
+  {
+    "test": "Select 10 Songs",
+    "passed": true,
+    "message": "Inserted 10 selections",
+    "duration_ms": 8.237123489379883,
+    "timestamp": "2026-02-23T14:55:30.737155"
+  },
+  {
+    "test": "Verify Selections Persist",
+    "passed": true,
+    "message": "All 10 selections found",
+    "duration_ms": 0.20265579223632812,
+    "timestamp": "2026-02-23T14:55:30.737393"
+  },
+  {
+    "test": "Toggle Selection (Remove 5)",
+    "passed": true,
+    "message": "Removed 5 selections",
+    "duration_ms": 4.319906234741211,
+    "timestamp": "2026-02-23T14:55:30.741735"
+  },
+  {
+    "test": "Verify 5 Remain",
+    "passed": true,
+    "message": "Correct count",
+    "duration_ms": 0.1773834228515625,
+    "timestamp": "2026-02-23T14:55:30.741950"
+  },
+  {
+    "test": "Clear All Selections",
+    "passed": true,
+    "message": "All selections removed",
+    "duration_ms": 3.809690475463867,
+    "timestamp": "2026-02-23T14:55:30.745788"
+  },
+  {
+    "test": "Verify Empty",
+    "passed": true,
+    "message": "All selections cleared",
+    "duration_ms": 0.13327598571777344,
+    "timestamp": "2026-02-23T14:55:30.745957"
+  },
+  {
+    "test": "Get 500 Songs",
+    "passed": true,
+    "message": "Found 500 songs",
+    "duration_ms": 0,
+    "timestamp": "2026-02-23T14:55:30.746389"
+  },
+  {
+    "test": "Large Selection (500 songs)",
+    "passed": true,
+    "message": "8.86ms total (0.02ms per song)",
+    "duration_ms": 8.862733840942383,
+    "timestamp": "2026-02-23T14:55:30.755274"
+  },
+  {
+    "test": "Query Selections Performance",
+    "passed": true,
+    "message": "0.58ms for 500 selections",
+    "duration_ms": 0.5846023559570312,
+    "timestamp": "2026-02-23T14:55:30.755887"
+  },
+  {
+    "test": "Pagination Performance (By Artist)",
+    "passed": true,
+    "message": "11.38ms for page 1",
+    "duration_ms": 11.377811431884766,
+    "timestamp": "2026-02-23T14:55:30.767291"
+  },
+  {
+    "test": "Pagination Performance (By Song)",
+    "passed": true,
+    "message": "9.54ms for page 1",
+    "duration_ms": 9.537458419799805,
+    "timestamp": "2026-02-23T14:55:30.776869"
+  },
+  {
+    "test": "Empty Selection",
+    "passed": true,
+    "message": "Returns empty list",
+    "duration_ms": 0.1418590545654297,
+    "timestamp": "2026-02-23T14:55:30.787913"
+  },
+  {
+    "test": "Special Characters in Name",
+    "passed": true,
+    "message": "Saved correctly",
+    "duration_ms": 3.9420127868652344,
+    "timestamp": "2026-02-23T14:55:30.792110"
+  },
+  {
+    "test": "Very Long Name (200 chars)",
+    "passed": true,
+    "message": "Saved full length: 200 chars",
+    "duration_ms": 3.6420822143554688,
+    "timestamp": "2026-02-23T14:55:30.795786"
+  }
+]

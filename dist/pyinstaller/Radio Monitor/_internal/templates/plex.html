@@ -1,0 +1,964 @@
+{% extends "base_sidebar.html" %}
+
+{% block title %}Plex Playlists - Radio Monitor {{ config.get('VERSION', '1.1.9') }}{% endblock %}
+
+{% block custom_css %}
+<style>
+    .mode-description {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+    }
+
+    .playlist-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: #f8f9fa;
+        transition: all 0.2s;
+    }
+
+    .playlist-card:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .playlist-card.manual {
+        border-left: 4px solid #6c757d;
+    }
+
+    .playlist-card.auto {
+        border-left: 4px solid #0d6efd;
+    }
+
+    .playlist-card.disabled {
+        opacity: 0.6;
+    }
+
+    .countdown-timer {
+        font-family: monospace;
+        font-size: 0.9rem;
+        color: #0d6efd;
+    }
+
+    .status-badge {
+        font-size: 0.75rem;
+    }
+
+    /* Spinning icon animation */
+    .spin {
+        animation: spin 1s linear infinite;
+        display: inline-block;
+    }
+
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    /* Toggle switch */
+    .form-switch .form-check-input {
+        width: 3em;
+        margin-left: 0;
+    }
+
+    .results-alert {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 300px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    /* Modal card sections */
+    .modal-body .card {
+        border: 1px solid #dee2e6;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .modal-body .card-header {
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        border-bottom: 1px solid rgba(0,0,0,0.125);
+    }
+
+    .modal-body .card-body {
+        padding: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1><i class="bi bi-music-note-list"></i> Plex Playlists</h1>
+        <p class="text-muted">Create playlists from radio play data</p>
+    </div>
+</div>
+
+<!-- Results Alert (fixed position, auto-dismissing) -->
+<div class="results-alert" id="results-alert" style="display: none;">
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        <strong id="results-message"></strong>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+</div>
+
+<!-- Playlists Section (Unified - Manual + Auto) -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-music-note-list"></i> Playlists</h5>
+                <div>
+                    <button class="btn btn-outline-secondary btn-sm me-2" id="btn-refresh-playlists">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                    <button class="btn btn-primary btn-sm" id="btn-add-playlist">
+                        <i class="bi bi-plus-circle"></i> Add Playlist
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="playlists-container">
+                    <!-- Playlists will be loaded here -->
+                    <p class="text-muted">Loading playlists...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Playlist Modal (Unified) -->
+<div class="modal fade" id="playlistModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="playlistModalTitle">Add Playlist</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="playlist-form">
+                    <input type="hidden" id="playlist-id">
+
+                    <!-- Basic Info Section -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-primary text-white">
+                            <i class="bi bi-info-circle"></i> Basic Info
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="playlist-name" class="form-label fw-bold">Playlist Name <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" id="playlist-name" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="playlist-mode" class="form-label fw-bold">Mode <span class="text-danger">*</span></label>
+                                        <select class="form-select" id="playlist-mode" required>
+                                            <option value="merge">Merge (smart update)</option>
+                                            <option value="replace">Replace (clear & add)</option>
+                                            <option value="append">Append (add to end)</option>
+                                            <option value="create">Create (error if exists)</option>
+                                            <option value="snapshot">Snapshot (timestamped)</option>
+                                            <option value="recent">Recent (most recently played)</option>
+                                            <option value="random">Random (different each time)</option>
+                                        </select>
+                                        <div class="form-text mode-description" id="mode-description"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="playlist-is-auto">
+                                <label class="form-check-label" for="playlist-is-auto">
+                                    <strong>Auto Update</strong> - Automatically update this playlist on a schedule
+                                </label>
+                            </div>
+
+                            <div id="interval-row" style="display: none;" class="mt-3">
+                                <label for="playlist-interval" class="form-label fw-bold">Update Interval (minutes)</label>
+                                <input type="number" class="form-control" id="playlist-interval" value="360" min="10">
+                                <div class="form-text" id="interval-warning" style="display: none; color: #dc3545;">
+                                    <strong>Warning:</strong> Fast refresh intervals may cause Plex issues
+                                </div>
+                                <div class="form-text" id="interval-help">Minimum 10 minutes (default: 360 = 6 hours)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Song Limits Section -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-info text-white">
+                            <i class="bi bi-sliders"></i> Song Limits
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="playlist-max-songs" class="form-label fw-bold">Max Songs <span class="text-danger">*</span></label>
+                                        <input type="number" class="form-control" id="playlist-max-songs"
+                                               value="50" min="1" max="1500" required>
+                                        <div class="form-text" id="max-songs-warning" style="display: none; color: #dc3545;">
+                                            <strong>Warning:</strong> Large playlists may cause Plex issues
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="playlist-min-plays" class="form-label fw-bold">Min Plays</label>
+                                        <input type="number" class="form-control" id="playlist-min-plays"
+                                               value="1" min="1">
+                                        <div class="form-text">Per song</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="playlist-max-plays-input" class="form-label fw-bold">Max Plays</label>
+                                        <input type="number" class="form-control" id="playlist-max-plays-input"
+                                               placeholder="No limit" min="1">
+                                        <div class="form-text">Optional</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="playlist-days" class="form-label fw-bold">Time Period</label>
+                                        <input type="number" class="form-control" id="playlist-days"
+                                               placeholder="All time" min="1">
+                                        <div class="form-text">Days</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stations Section -->
+                    <div class="card mb-0">
+                        <div class="card-header bg-success text-white">
+                            <i class="bi bi-broadcast"></i> Stations
+                        </div>
+                        <div class="card-body">
+                            <label class="form-label">
+                                <button type="button" class="btn btn-sm btn-link p-0 ms-0" id="btn-select-all-stations">Select All</button>
+                                <span class="text-muted">|</span>
+                                <button type="button" class="btn btn-sm btn-link p-0" id="btn-deselect-all-stations">Deselect All</button>
+                                <span class="text-muted">(<span id="stations-selected-count">0</span> selected)</span>
+                            </label>
+                            <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto; background-color: #f8f9fa;" id="stations-container-outer">
+                                <div class="row" id="stations-container">
+                                    <!-- Stations checkboxes will be loaded dynamically -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-save-playlist">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block custom_js %}
+<script>
+const modeDescriptions = {
+    merge: 'Removes stale items, adds new ones (smart update - keeps fresh)',
+    replace: 'Deletes all existing items, adds new list (fresh slate)',
+    append: 'Adds new songs to end, skips duplicates (keeps growing)',
+    create: 'Creates new playlist (error if already exists)',
+    snapshot: 'Creates new playlist with timestamp in name',
+    recent: 'Most recently played songs (by last play time)',
+    random: 'Random selection from filtered songs (different each time)'
+};
+
+const playlistModal = new bootstrap.Modal(document.getElementById('playlistModal'));
+
+let playlists = [];
+let playlistUpdateInterval = null;
+
+// Load playlists on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadStations();
+    loadPlaylists();
+    setupPlaylistModal();
+    updateModeDescription();
+
+    // Update countdown timers every 10 seconds
+    playlistUpdateInterval = setInterval(updateCountdownTimers, 10000);
+});
+
+function loadStations() {
+    const container = document.getElementById('stations-container');
+
+    fetch('/api/stations')
+        .then(response => response.json())
+        .then(data => {
+            // Handle response format from stations.py: {'items': [...], 'count': ...}
+            const stations = data.items || data;
+
+            // Clear existing stations
+            container.innerHTML = '';
+
+            if (stations.length === 0) {
+                container.innerHTML = '<p class="text-muted mb-0">No stations available</p>';
+                return;
+            }
+
+            // Create two columns
+            const midPoint = Math.ceil(stations.length / 2);
+            const leftColumn = stations.slice(0, midPoint);
+            const rightColumn = stations.slice(midPoint);
+
+            // Left column
+            const leftCol = document.createElement('div');
+            leftCol.className = 'col-md-6';
+            leftColumn.forEach(station => {
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.className = 'form-check';
+
+                const checkbox = document.createElement('input');
+                checkbox.className = 'form-check-input station-checkbox';
+                checkbox.type = 'checkbox';
+                checkbox.value = station.id;
+                checkbox.id = `station-${station.id}`;
+
+                const label = document.createElement('label');
+                label.className = 'form-check-label';
+                label.htmlFor = `station-${station.id}`;
+                label.textContent = station.name;
+
+                checkboxDiv.appendChild(checkbox);
+                checkboxDiv.appendChild(label);
+                leftCol.appendChild(checkboxDiv);
+            });
+            container.appendChild(leftCol);
+
+            // Right column
+            const rightCol = document.createElement('div');
+            rightCol.className = 'col-md-6';
+            rightColumn.forEach(station => {
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.className = 'form-check';
+
+                const checkbox = document.createElement('input');
+                checkbox.className = 'form-check-input station-checkbox';
+                checkbox.type = 'checkbox';
+                checkbox.value = station.id;
+                checkbox.id = `station-${station.id}`;
+
+                const label = document.createElement('label');
+                label.className = 'form-check-label';
+                label.htmlFor = `station-${station.id}`;
+                label.textContent = station.name;
+
+                checkboxDiv.appendChild(checkbox);
+                checkboxDiv.appendChild(label);
+                rightCol.appendChild(checkboxDiv);
+            });
+            container.appendChild(rightCol);
+
+            // Re-attach event listeners for select/deselect all buttons
+            document.getElementById('btn-select-all-stations').onclick = () => {
+                document.querySelectorAll('.station-checkbox').forEach(cb => cb.checked = true);
+                updateStationsSelectedCount();
+            };
+
+            document.getElementById('btn-deselect-all-stations').onclick = () => {
+                document.querySelectorAll('.station-checkbox').forEach(cb => cb.checked = false);
+                updateStationsSelectedCount();
+            };
+
+            // Re-attach change listener
+            container.querySelectorAll('.station-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', updateStationsSelectedCount);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading stations:', error);
+            container.innerHTML = '<p class="text-danger">Error loading stations</p>';
+        });
+}
+
+function updateStationsSelectedCount() {
+    const count = document.querySelectorAll('.station-checkbox:checked').length;
+    document.getElementById('stations-selected-count').textContent = count;
+}
+
+function loadPlaylists() {
+    const container = document.getElementById('playlists-container');
+    container.innerHTML = '<p class="text-muted"><i class="bi bi-arrow-clockwise spin"></i> Loading playlists...</p>';
+
+    fetch('/api/plex/playlists')
+        .then(response => response.json())
+        .then(data => {
+            playlists = data.playlists || [];
+            displayPlaylists();
+        })
+        .catch(error => {
+            console.error('Error loading playlists:', error);
+            container.innerHTML = '<p class="text-danger">Error loading playlists</p>';
+        });
+}
+
+function displayPlaylists() {
+    const container = document.getElementById('playlists-container');
+
+    if (playlists.length === 0) {
+        container.innerHTML = '<p class="text-muted">No playlists configured. Click "Add Playlist" to create one.</p>';
+        return;
+    }
+
+    container.innerHTML = playlists.map(playlist => {
+        const isAuto = playlist.is_auto;
+        const enabled = playlist.enabled;
+        const statusClass = enabled ? 'bg-success' : 'bg-secondary';
+        const statusText = enabled ? 'Active' : 'Paused';
+        const cardClass = enabled ? '' : 'disabled';
+        const typeClass = isAuto ? 'auto' : 'manual';
+        const lastUpdated = playlist.last_updated ? formatDate(playlist.last_updated) : 'Never';
+
+        // Auto-specific fields
+        const autoInfo = isAuto ? `
+            <p class="mb-1">
+                <small>
+                    Last update: <strong>${lastUpdated}</strong>
+                    <span class="ms-3">
+                        Next: <strong class="countdown-timer" data-next-update="${playlist.next_update}">${formatDate(playlist.next_update)}</strong>
+                    </span>
+                </small>
+            </p>
+        ` : '';
+
+        const interval = isAuto ? formatInterval(playlist.interval_minutes) : 'Manual';
+
+        return `
+            <div class="playlist-card ${typeClass} ${cardClass}" id="playlist-${playlist.id}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="mb-1">
+                            ${playlist.name}
+                            <span class="badge ${isAuto ? 'bg-primary' : 'bg-secondary'} status-badge ms-2">${isAuto ? 'Auto' : 'Manual'}</span>
+                            <span class="badge ${statusClass} status-badge ms-2">${statusText}</span>
+                        </h6>
+                        <p class="mb-1 text-muted">
+                            <small>
+                                <i class="bi bi-gear"></i> ${playlist.mode}
+                                <span class="ms-3">
+                                    <i class="bi bi-clock"></i> ${interval}
+                                </span>
+                                <span class="ms-3">
+                                    <i class="bi bi-broadcast"></i> ${playlist.station_ids.length} station(s)
+                                </span>
+                                <span class="ms-3">
+                                    <i class="bi bi-music-note"></i> ${playlist.max_songs} songs max
+                                </span>
+                            </small>
+                        </p>
+                        ${autoInfo}
+                    </div>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-outline-primary" onclick="editPlaylist(${playlist.id})" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        ${isAuto ? `
+                            <button class="btn btn-sm btn-outline-success" onclick="executePlaylist(${playlist.id})" title="Update Now">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="togglePlaylist(${playlist.id})" title="${enabled ? 'Disable' : 'Enable'}">
+                                <i class="bi ${enabled ? 'bi-pause' : 'bi-play'}"></i>
+                            </button>
+                        ` : `
+                            <button class="btn btn-sm btn-outline-success" onclick="executePlaylist(${playlist.id})" title="Create Now">
+                                <i class="bi bi-play-fill"></i>
+                            </button>
+                        `}
+                        <button class="btn btn-sm btn-outline-danger" onclick="deletePlaylist(${playlist.id})" title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function formatInterval(minutes) {
+    if (minutes < 60) {
+        return `Every ${minutes} min`;
+    } else if (minutes < 1440) {
+        const hours = Math.round(minutes / 60);
+        return `Every ${hours} hour${hours > 1 ? 's' : ''}`;
+    } else {
+        const days = Math.round(minutes / 1440);
+        return `Every ${days} day${days > 1 ? 's' : ''}`;
+    }
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'Unknown';
+    const date = new Date(dateString);
+    return date.toLocaleString();
+}
+
+function updateCountdownTimers() {
+    document.querySelectorAll('.countdown-timer[data-next-update]').forEach(element => {
+        const nextUpdate = new Date(element.dataset.nextUpdate);
+        const now = new Date();
+
+        if (nextUpdate > now) {
+            const diff = nextUpdate - now;
+            const minutes = Math.floor(diff / 60000);
+
+            if (minutes < 60) {
+                element.textContent = `in ${minutes} min`;
+            } else if (minutes < 1440) {
+                const hours = Math.floor(minutes / 60);
+                element.textContent = `in ${hours} hour${hours > 1 ? 's' : ''}`;
+            } else {
+                const days = Math.floor(minutes / 1440);
+                element.textContent = `in ${days} day${days > 1 ? 's' : ''}`;
+            }
+        } else {
+            element.textContent = 'Due now';
+        }
+    });
+}
+
+function updateModeDescription() {
+    const mode = document.getElementById('playlist-mode').value;
+    document.getElementById('mode-description').textContent = modeDescriptions[mode];
+}
+
+document.getElementById('playlist-mode').addEventListener('change', updateModeDescription);
+
+function setupPlaylistModal() {
+    // Warning displays
+    const maxSongsInput = document.getElementById('playlist-max-songs');
+    const intervalInput = document.getElementById('playlist-interval');
+    const maxSongsWarning = document.getElementById('max-songs-warning');
+    const intervalWarning = document.getElementById('interval-warning');
+    const intervalHelp = document.getElementById('interval-help');
+
+    // Show warning for large playlists
+    maxSongsInput.addEventListener('input', function() {
+        const value = parseInt(this.value) || 0;
+        if (value > 500) {
+            maxSongsWarning.style.display = 'block';
+        } else {
+            maxSongsWarning.style.display = 'none';
+        }
+    });
+
+    // Show warning for fast refresh intervals
+    intervalInput.addEventListener('input', function() {
+        const value = parseInt(this.value) || 0;
+        if (value > 0 && value < 30) {
+            intervalWarning.style.display = 'block';
+            intervalHelp.style.display = 'none';
+        } else {
+            intervalWarning.style.display = 'none';
+            intervalHelp.style.display = 'block';
+        }
+    });
+
+    // Auto Update toggle
+    document.getElementById('playlist-is-auto').addEventListener('change', function() {
+        const isAuto = this.checked;
+        const intervalRow = document.getElementById('interval-row');
+
+        if (isAuto) {
+            intervalRow.style.display = 'block';
+            document.getElementById('playlist-interval').required = true;
+        } else {
+            intervalRow.style.display = 'none';
+            document.getElementById('playlist-interval').required = false;
+        }
+    });
+
+    // Station checkbox handlers
+    const checkboxes = document.querySelectorAll('.station-checkbox');
+
+    document.getElementById('btn-select-all-stations').addEventListener('click', function() {
+        checkboxes.forEach(cb => cb.checked = true);
+        updateStationsSelectedCount();
+    });
+
+    document.getElementById('btn-deselect-all-stations').addEventListener('click', function() {
+        checkboxes.forEach(cb => cb.checked = false);
+        updateStationsSelectedCount();
+    });
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateStationsSelectedCount);
+    });
+
+    // Save button
+    document.getElementById('btn-save-playlist').addEventListener('click', savePlaylist);
+}
+
+function updateStationsSelectedCount() {
+    const count = document.querySelectorAll('.station-checkbox:checked').length;
+    document.getElementById('stations-selected-count').textContent = count;
+}
+
+function getSelectedStations() {
+    const checkboxes = document.querySelectorAll('.station-checkbox:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+document.getElementById('btn-add-playlist').addEventListener('click', function() {
+    document.getElementById('playlist-form').reset();
+    document.getElementById('playlist-id').value = '';
+    document.getElementById('playlistModalTitle').textContent = 'Add Playlist';
+    document.getElementById('playlist-max-songs').value = '50';
+    document.getElementById('playlist-min-plays').value = '1';
+    document.getElementById('playlist-interval').value = '360';
+    document.getElementById('interval-row').style.display = 'none';
+
+    // Hide warnings for new playlist
+    document.getElementById('max-songs-warning').style.display = 'none';
+    document.getElementById('interval-warning').style.display = 'none';
+    document.getElementById('interval-help').style.display = 'block';
+
+    updateModeDescription();
+    playlistModal.show();
+});
+
+document.getElementById('btn-refresh-playlists').addEventListener('click', function() {
+    loadPlaylists();
+});
+
+function editPlaylist(id) {
+    const playlist = playlists.find(p => p.id === id);
+    if (!playlist) return;
+
+    document.getElementById('playlist-id').value = playlist.id;
+    document.getElementById('playlist-name').value = playlist.name;
+    document.getElementById('playlist-mode').value = playlist.mode;
+    document.getElementById('playlist-max-songs').value = playlist.max_songs;
+    document.getElementById('playlist-min-plays').value = playlist.min_plays || 1;
+    document.getElementById('playlist-max-plays-input').value = playlist.max_plays || '';
+    document.getElementById('playlist-days').value = playlist.days || '';
+    document.getElementById('playlist-is-auto').checked = playlist.is_auto;
+
+    // Show/hide interval row based on is_auto
+    const intervalRow = document.getElementById('interval-row');
+    if (playlist.is_auto) {
+        intervalRow.style.display = 'block';
+        document.getElementById('playlist-interval').value = playlist.interval_minutes;
+        document.getElementById('playlist-interval').required = true;
+    } else {
+        intervalRow.style.display = 'none';
+        document.getElementById('playlist-interval').required = false;
+    }
+
+    // Set stations
+    document.querySelectorAll('.station-checkbox').forEach(cb => {
+        cb.checked = playlist.station_ids.includes(cb.value);
+    });
+    updateStationsSelectedCount();
+    updateModeDescription();
+
+    // Trigger warning checks
+    document.getElementById('playlist-max-songs').dispatchEvent(new Event('input'));
+    if (playlist.is_auto) {
+        document.getElementById('playlist-interval').dispatchEvent(new Event('input'));
+    }
+
+    document.getElementById('playlistModalTitle').textContent = 'Edit Playlist';
+    playlistModal.show();
+}
+
+function savePlaylist() {
+    const id = document.getElementById('playlist-id').value;
+    const name = document.getElementById('playlist-name').value.trim();
+    const mode = document.getElementById('playlist-mode').value;
+    const maxSongs = parseInt(document.getElementById('playlist-max-songs').value);
+    const minPlays = parseInt(document.getElementById('playlist-min-plays').value) || 1;
+    const maxPlaysStr = document.getElementById('playlist-max-plays-input').value;
+    const maxPlays = maxPlaysStr ? parseInt(maxPlaysStr) : null;
+    const daysStr = document.getElementById('playlist-days').value;
+    const days = daysStr ? parseInt(daysStr) : null;
+    const isAuto = document.getElementById('playlist-is-auto').checked;
+
+    let intervalMinutes = null;
+    if (isAuto) {
+        intervalMinutes = parseInt(document.getElementById('playlist-interval').value);
+    }
+
+    const stationIds = Array.from(document.querySelectorAll('.station-checkbox:checked'))
+        .map(cb => cb.value);
+
+    // Validate
+    if (!name) {
+        Toast.warning('Please enter a playlist name');
+        return;
+    }
+    if (stationIds.length === 0) {
+        Toast.warning('Please select at least one station');
+        return;
+    }
+    if (isAuto && intervalMinutes < 10) {
+        Toast.warning('Update interval must be at least 10 minutes');
+        return;
+    }
+
+    const data = {
+        name: name,
+        mode: mode,
+        station_ids: stationIds,
+        max_songs: maxSongs,
+        min_plays: minPlays,
+        max_plays: maxPlays,
+        days: days,
+        is_auto: isAuto,
+        interval_minutes: intervalMinutes,
+        enabled: true
+    };
+
+    const url = id ? `/api/plex/playlists/${id}` : '/api/plex/playlists';
+    const method = id ? 'PUT' : 'POST';
+
+    fetch(url, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                playlistModal.hide();
+                loadPlaylists();
+
+                // Show message if provided (e.g., background execution)
+                if (data.message) {
+                    showResultsAlert(data.message, 'info');
+                    // Auto-dismiss after 5 seconds
+                    setTimeout(() => {
+                        hideResultsAlert();
+                    }, 5000);
+                }
+            } else {
+                Toast.error('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            Toast.error('Error: ' + error.message);
+        });
+}
+
+async function togglePlaylist(id) {
+    const playlist = playlists.find(p => p.id === id);
+    if (!playlist) return;
+
+    const currentState = playlist.is_auto;
+    const newState = !currentState;
+
+    if (newState && !currentState) {
+        // Enabling auto: ask for interval
+        let intervalMinutes = 360; // Default
+        let validInterval = false;
+
+        while (!validInterval) {
+            const interval = prompt('Enter update interval in minutes (minimum 10):', '360');
+            if (!interval) return; // User cancelled
+
+            intervalMinutes = parseInt(interval);
+            if (isNaN(intervalMinutes) || intervalMinutes < 10) {
+                Toast.error('Interval must be at least 10 minutes');
+                // Loop again to ask for input
+            } else {
+                validInterval = true;
+            }
+        }
+
+        // Confirm
+        if (!await Confirm.confirm(
+            `Enable automatic updates for "${playlist.name}" every ${formatInterval(intervalMinutes)}?`,
+            'Enable Automatic Updates',
+            'Enable',
+            'btn-success'
+        )) {
+            return;
+        }
+
+        // Update via API
+        fetch(`/api/plex/playlists/${id}/toggle-auto`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                is_auto: true,
+                interval_minutes: intervalMinutes
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Toast.success('Automatic updates enabled');
+                loadPlaylists();
+            } else {
+                Toast.error('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            Toast.error('Error: ' + error.message);
+        });
+
+    } else if (!newState && currentState) {
+        // Disabling auto: warn
+        if (!await Confirm.confirm(
+            `Disable automatic updates for "${playlist.name}"?\n\nYou can still update it manually using the "Update Now" button.`,
+            'Disable Automatic Updates',
+            'Disable',
+            'btn-warning'
+        )) {
+            return;
+        }
+
+        // Update via API
+        fetch(`/api/plex/playlists/${id}/toggle-auto`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                is_auto: false,
+                interval_minutes: null
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Toast.success('Automatic updates disabled');
+                loadPlaylists();
+            } else {
+                Toast.error('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            Toast.error('Error: ' + error.message);
+        });
+    }
+}
+
+async function executePlaylist(id) {
+    const playlist = playlists.find(p => p.id === id);
+    if (!playlist) return;
+
+    const action = playlist.is_auto ? 'update' : 'create';
+    const playlistName = playlist.name;
+    const actionText = action === 'create' ? 'Create' : 'Update';
+
+    if (!await Confirm.confirm(
+        `${actionText} Plex playlist "${playlistName}"?`,
+        `${actionText} Playlist`,
+        actionText,
+        'btn-success'
+    )) {
+        return;
+    }
+
+    // Find the execute button and add loading state
+    const button = document.querySelector(`button[onclick="executePlaylist(${id})"]`);
+    const originalHTML = button.innerHTML;
+    button.disabled = true;
+    button.classList.add('loading');
+    button.innerHTML = '<span class="inline-spinner"></span>';
+
+    // Execute via API
+    fetch(`/api/plex/playlists/${id}/execute`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                // Error case
+                const added = data.added || 0;
+                const notFound = data.not_found || 0;
+                showResults(added, notFound, data.error, true);
+            } else {
+                // Success case
+                const added = data.added || 0;
+                const notFound = data.not_found || 0;
+                showResults(added, notFound, null, false);
+                loadPlaylists(); // Refresh to show updated last_updated
+            }
+        })
+        .catch(error => {
+            showResults(0, 0, error.message, true);
+        })
+        .finally(() => {
+            // Reset button state
+            button.disabled = false;
+            button.classList.remove('loading');
+            button.innerHTML = originalHTML;
+        });
+}
+
+async function deletePlaylist(id) {
+    const playlist = playlists.find(p => p.id === id);
+    if (!playlist) return;
+
+    if (!await Confirm.confirmDelete(playlist.name, 'playlist')) return;
+
+    fetch(`/api/plex/playlists/${id}`, {
+        method: 'DELETE'
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadPlaylists();
+            } else {
+                Toast.error('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            Toast.error('Error: ' + error.message);
+        });
+}
+
+function showResults(added, notFound, error, isError) {
+    const alertDiv = document.getElementById('results-alert');
+    const messageDiv = document.getElementById('results-message');
+
+    let message;
+    if (isError) {
+        message = `Error: ${error}`;
+    } else {
+        message = `Tried to add ${added} songs, added ${added}${notFound > 0 ? `, ${notFound} not found in Plex` : ''}`;
+    }
+
+    messageDiv.textContent = message;
+    alertDiv.style.display = 'block';
+
+    // Auto-dismiss after 60 seconds
+    setTimeout(() => {
+        alertDiv.style.display = 'none';
+    }, 60000);
+}
+
+function showResultsAlert(message, type = 'info') {
+    const alertDiv = document.getElementById('results-alert');
+    const messageDiv = document.getElementById('results-message');
+    const innerAlert = alertDiv.querySelector('.alert');
+
+    // Update alert class based on type
+    innerAlert.className = `alert alert-${type} alert-dismissible fade show`;
+
+    messageDiv.textContent = message;
+    alertDiv.style.display = 'block';
+}
+
+function hideResultsAlert() {
+    const alertDiv = document.getElementById('results-alert');
+    alertDiv.style.display = 'none';
+}
+</script>
+{% endblock %}

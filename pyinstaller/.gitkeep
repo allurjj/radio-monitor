@@ -1,0 +1,21 @@
+# PyInstaller Build Directory
+
+This directory contains PyInstaller build configuration and resources.
+
+## Files
+
+- `build.py` - Main build script
+- `icon.ico` - Application icon (optional)
+- `README.md` - Build instructions
+
+## Usage
+
+See README.md for complete build instructions.
+
+Quick start:
+```bash
+cd pyinstaller
+python build.py
+```
+
+Output: `dist/pyinstaller/Radio Monitor/Radio Monitor.exe`

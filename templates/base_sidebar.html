@@ -137,6 +137,10 @@
                         <i class="bi bi-collection"></i>
                         <span>Playlist Builder</span>
                     </a>
+                    <a href="/blocklist" class="nav-link {% if request.endpoint and 'blocklist' in request.endpoint %}active{% endif %}">
+                        <i class="bi bi-ban"></i>
+                        <span>Blocklist</span>
+                    </a>
                 </div>
 
                 <div class="nav-section">
@@ -824,5 +828,7 @@
         });
     }
     </script>
+
+    {% block scripts %}{% endblock %}
 </body>
 </html>

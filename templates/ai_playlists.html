@@ -339,6 +339,24 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Blocklist Settings Section -->
+                    <div class="card mb-0">
+                        <div class="card-header bg-warning text-dark">
+                            <i class="bi bi-shield-check"></i> Blocklist Settings
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="ai-exclude-blocklist" checked>
+                                <label class="form-check-label" for="ai-exclude-blocklist">
+                                    Exclude blocklisted artists and songs from this playlist
+                                </label>
+                                <div class="form-text">
+                                    Songs or artists on your <a href="/blocklist" target="_blank">blocklist</a> will be excluded from this playlist.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -502,7 +520,8 @@ document.getElementById('ai-playlist-form').addEventListener('submit', async fun
         first_seen: document.getElementById('first-seen').value || null,
         last_seen: document.getElementById('last-seen').value || null,
         max_songs: parseInt(document.getElementById('max-songs').value) || 50,
-        days: document.getElementById('time-period').value ? parseInt(document.getElementById('time-period').value) : null
+        days: document.getElementById('time-period').value ? parseInt(document.getElementById('time-period').value) : null,
+        exclude_blocklist: document.getElementById('ai-exclude-blocklist')?.checked ?? true
     };
 
     // Validate max_songs

@@ -1,0 +1,648 @@
+{% extends "base_sidebar.html" %}
+
+{% block title %}Plex Failures - Radio Monitor{% endblock %}
+
+{% block custom_css %}
+<style>
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 25px !important;
+    transition: background-color 0.15s ease;
+}
+
+.sortable:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.sort-indicator {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6c757d;
+    font-size: 0.8em;
+    transition: color 0.2s ease;
+}
+
+.sort-indicator::after {
+    content: '▲';
+}
+
+.sorted-asc .sort-indicator,
+.sorted-desc .sort-indicator {
+    color: #212529;
+}
+
+.sorted-asc .sort-indicator::after {
+    content: '▲';
+}
+
+.sorted-desc .sort-indicator::after {
+    content: '▼';
+}
+
+.failure-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.failure-badge.no_match {
+    background: #dc3545;
+    color: white;
+}
+
+.failure-badge.multiple_matches {
+    background: #fd7e14;
+    color: white;
+}
+
+.failure-badge.plex_error {
+    background: #6f42c1;
+    color: white;
+}
+
+.resolved-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.resolved-badge.true {
+    background: #198754;
+    color: white;
+}
+
+.resolved-badge.false {
+    background: #dc3545;
+    color: white;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #6c757d;
+}
+
+.empty-state svg {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 20px;
+    opacity: 0.3;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-exclamation-triangle"></i> Plex Match Failures</h1>
+        <p class="text-muted">Recent Plex matching failures. Records are automatically deleted after 7 days.</p>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card card-standard">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Total Failures</h6>
+                <h3 class="mb-0" id="totalFailures">-</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-standard">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Unresolved</h6>
+                <h3 class="mb-0 text-danger" id="unresolvedFailures">-</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-standard">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Resolved</h6>
+                <h3 class="mb-0 text-success" id="resolvedFailures">-</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="resolvedFilter">
+                            <option value="all">All</option>
+                            <option value="false">Unresolved</option>
+                            <option value="true">Resolved</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Reason</label>
+                        <select class="form-select" id="reasonFilter">
+                            <option value="">All Reasons</option>
+                            <option value="no_match">No Match</option>
+                            <option value="multiple_matches">Multiple Matches</option>
+                            <option value="plex_error">Plex Error</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Per Page</label>
+                        <select class="form-select" id="pageSize">
+                            <option value="25">25</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                            <option value="200">200</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-primary" id="exportBtn">
+                                <i class="bi bi-download"></i> Export
+                            </button>
+                            <button class="btn btn-outline-secondary" id="refreshBtn">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                            <button class="btn btn-outline-danger" id="clearAllBtn">
+                                <i class="bi bi-trash"></i> Clear All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Failures Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-standard mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="sortable" onclick="plexFailures.sortFailures('song_title')">
+                                    Song
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th class="sortable" onclick="plexFailures.sortFailures('artist_name')">
+                                    Artist
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th class="sortable" onclick="plexFailures.sortFailures('failure_reason')">
+                                    Failure Reason
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th class="sortable" onclick="plexFailures.sortFailures('failure_date')">
+                                    Date
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th class="sortable" onclick="plexFailures.sortFailures('search_attempts')">
+                                    Attempts
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th>Resolved</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="failuresTableBody">
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">Loading failures...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Pagination -->
+            <div class="card-footer">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="text-muted" id="pageInfo">Showing 0-0 of 0</div>
+                    <div>
+                        <button class="btn btn-outline-secondary btn-sm" id="prevPageBtn" disabled>Previous</button>
+                        <button class="btn btn-outline-secondary btn-sm" id="nextPageBtn" disabled>Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Clear All Confirmation Modal -->
+<div class="modal fade" id="clearConfirmDialog" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Clear All Failures?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>This will delete all Plex failure records. This cannot be undone.</p>
+                <p><strong>Total failures: <span id="clearCount">0</span></strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmClearBtn">Delete All Failures</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportDialog" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Export Failures to CSV</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="exportResolved" class="form-label">Status Filter</label>
+                    <select class="form-select" id="exportResolved">
+                        <option value="all">All</option>
+                        <option value="false">Unresolved</option>
+                        <option value="true">Resolved</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="exportDays" class="form-label">Time Period</label>
+                    <select class="form-select" id="exportDays">
+                        <option value="7">Last 7 days</option>
+                        <option value="30" selected>Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                        <option value="365">Last 365 days</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmExportBtn">Export</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block custom_js %}
+<script>
+class PlexFailuresView {
+    constructor() {
+        this.failures = [];
+        this.currentOffset = 0;
+        this.pageSize = 50;
+        this.total = 0;
+        this.sortColumn = 'failure_date';
+        this.sortDirection = 'desc';
+
+        this.initElements();
+        this.bindEvents();
+        this.updateSortIndicators(); // Apply initial sort indicators
+        this.loadFailures();
+        this.loadStats();
+    }
+
+    initElements() {
+        this.tableBody = document.getElementById('failuresTableBody');
+        this.resolvedFilter = document.getElementById('resolvedFilter');
+        this.reasonFilter = document.getElementById('reasonFilter');
+        this.pageSizeSelect = document.getElementById('pageSize');
+        this.refreshBtn = document.getElementById('refreshBtn');
+        this.clearAllBtn = document.getElementById('clearAllBtn');
+        this.exportBtn = document.getElementById('exportBtn');
+        this.exportModal = new bootstrap.Modal(document.getElementById('exportDialog'));
+        this.clearModal = new bootstrap.Modal(document.getElementById('clearConfirmDialog'));
+        this.pageInfo = document.getElementById('pageInfo');
+        this.prevPageBtn = document.getElementById('prevPageBtn');
+        this.nextPageBtn = document.getElementById('nextPageBtn');
+    }
+
+    bindEvents() {
+        this.resolvedFilter.addEventListener('change', () => this.onFilterChange());
+        this.reasonFilter.addEventListener('change', () => this.onFilterChange());
+        this.pageSizeSelect.addEventListener('change', () => this.onPageSizeChange());
+        this.refreshBtn.addEventListener('click', () => this.loadFailures());
+        this.clearAllBtn.addEventListener('click', () => this.clearAll());
+        this.exportBtn.addEventListener('click', () => this.showExportDialog());
+        this.prevPageBtn.addEventListener('click', () => this.previousPage());
+        this.nextPageBtn.addEventListener('click', () => this.nextPage());
+
+        // Export modal
+        document.getElementById('confirmExportBtn').addEventListener('click', () => this.exportFailures());
+    }
+
+    async loadFailures() {
+        try {
+            const params = new URLSearchParams({
+                resolved: this.resolvedFilter.value,
+                limit: this.pageSize,
+                offset: this.currentOffset,
+                sort: this.sortColumn,
+                direction: this.sortDirection
+            });
+
+            if (this.reasonFilter.value) {
+                params.append('reason', this.reasonFilter.value);
+            }
+
+            const response = await fetch(`/plex-failures/api/failures?${params}`);
+            const data = await response.json();
+
+            this.failures = data.failures;
+            this.total = data.total;
+            this.renderTable();
+            this.updatePagination();
+            this.updateSortIndicators();
+        } catch (error) {
+            console.error('Failed to load failures:', error);
+            Toast.error('Error loading failures');
+            this.tableBody.innerHTML = '<tr><td colspan="8" class="loading">Error loading failures</td></tr>';
+        }
+    }
+
+    async loadStats() {
+        try {
+            const response = await fetch('/plex-failures/api/failures/stats?days=30');
+            const stats = await response.json();
+
+            document.getElementById('totalFailures').textContent = stats.total_failures;
+            document.getElementById('unresolvedFailures').textContent = stats.unresolved_failures;
+            document.getElementById('resolvedFailures').textContent = stats.resolved_failures;
+        } catch (error) {
+            console.error('Failed to load stats:', error);
+        }
+    }
+
+    renderTable() {
+        if (this.failures.length === 0) {
+            this.tableBody.innerHTML = `
+                <tr>
+                    <td colspan="7">
+                        <div class="empty-state">
+                            <i class="bi bi-check-circle empty-state-icon"></i>
+                            <h5 class="empty-state-title">No Plex failures found</h5>
+                            <p class="empty-state-description text-muted">Try adjusting your filters to see more results.</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        this.tableBody.innerHTML = this.failures.map(failure => {
+            const song = failure.song || { song_title: 'Unknown', artist_name: 'Unknown' };
+
+            return `
+                <tr>
+                    <td>${this.escapeHtml(song.song_title)}</td>
+                    <td>${this.escapeHtml(song.artist_name)}</td>
+                    <td><span class="failure-badge ${failure.failure_reason}">${this.formatReason(failure.failure_reason)}</span></td>
+                    <td>${this.formatDate(failure.failure_date)}</td>
+                    <td>${failure.search_attempts}</td>
+                    <td><span class="resolved-badge ${failure.resolved}">${failure.resolved ? 'Yes' : 'No'}</span></td>
+                    <td>
+                        ${!failure.resolved ? `
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="plexFailures.retryOne(${failure.id})" title="Retry Match">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="plexFailures.dismissOne(${failure.id})" title="Dismiss">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        ` : '<span class="text-muted">-</span>'}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    updatePagination() {
+        const start = this.currentOffset + 1;
+        const end = Math.min(this.currentOffset + this.pageSize, this.total);
+        this.pageInfo.textContent = `Showing ${start}-${end} of ${this.total}`;
+
+        this.prevPageBtn.disabled = this.currentOffset === 0;
+        this.nextPageBtn.disabled = end >= this.total;
+    }
+
+    onFilterChange() {
+        this.currentOffset = 0;
+        this.loadFailures();
+    }
+
+    onPageSizeChange() {
+        this.pageSize = parseInt(this.pageSizeSelect.value);
+        this.currentOffset = 0;
+        this.loadFailures();
+    }
+
+    sortFailures(column) {
+        // Toggle direction if same column
+        if (this.sortColumn === column) {
+            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.sortColumn = column;
+            this.sortDirection = 'asc';
+        }
+
+        // Update UI indicators
+        this.updateSortIndicators();
+
+        // Reload data
+        this.loadFailures();
+    }
+
+    updateSortIndicators() {
+        // Remove all sort classes
+        document.querySelectorAll('th.sortable').forEach(th => {
+            th.classList.remove('sorted-asc', 'sorted-desc');
+        });
+
+        // Add sort class to current column
+        const currentHeader = document.querySelector(`th[onclick="plexFailures.sortFailures('${this.sortColumn}')"]`);
+        if (currentHeader) {
+            currentHeader.classList.add(`sorted-${this.sortDirection}`);
+        }
+    }
+
+    async dismissOne(failureId) {
+        const confirmed = await Confirm.confirm(
+            'Dismiss this failure? It will be removed from the list.',
+            'Dismiss Failure',
+            'Dismiss',
+            'btn-warning'
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/plex-failures/api/failures/${failureId}/dismiss`, {
+                method: 'POST'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                Toast.success('Failure dismissed');
+                this.loadFailures();
+                this.loadStats();
+            } else {
+                Toast.error('Failed to dismiss: ' + (data.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Failed to dismiss:', error);
+            Toast.error('Failed to dismiss failure');
+        }
+    }
+
+    async retryOne(failureId) {
+        try {
+            const response = await fetch(`/plex-failures/api/failures/${failureId}/retry`, {
+                method: 'POST'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                if (data.found) {
+                    Toast.success(data.message);
+                    // Reload to remove from list
+                    this.loadFailures();
+                    this.loadStats();
+                } else {
+                    Toast.warning(data.message);
+                    // Still in list, update timestamp shown
+                    this.loadFailures();
+                }
+            } else {
+                Toast.error('Failed to retry: ' + (data.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Failed to retry:', error);
+            Toast.error('Failed to retry failure');
+        }
+    }
+
+    async clearAll() {
+        // Show confirmation dialog with count
+        const total = this.total;
+
+        document.getElementById('clearCount').textContent = total;
+
+        // Handle confirmation
+        document.getElementById('confirmClearBtn').onclick = async () => {
+            try {
+                const response = await fetch('/plex-failures/api/failures/clear-all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confirmed: true })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    Toast.success(`Deleted ${data.deleted} failures`);
+                    this.clearModal.hide();
+                    this.loadFailures();
+                    this.loadStats();
+                } else {
+                    Toast.error('Failed to clear: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Failed to clear:', error);
+                Toast.error('Failed to clear failures');
+            }
+        };
+
+        this.clearModal.show();
+    }
+
+    showExportDialog() {
+        this.exportModal.show();
+    }
+
+    async exportFailures() {
+        const resolved = document.getElementById('exportResolved').value;
+        const days = document.getElementById('exportDays').value;
+
+        try {
+            const response = await fetch('/plex-failures/api/failures/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ resolved, days })
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = response.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || 'plex_failures.csv';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                this.exportModal.hide();
+                Toast.success('Export completed successfully');
+            } else {
+                Toast.error('Failed to export failures');
+            }
+        } catch (error) {
+            console.error('Failed to export:', error);
+            Toast.error('Failed to export failures');
+        }
+    }
+
+    previousPage() {
+        if (this.currentOffset > 0) {
+            this.currentOffset = Math.max(0, this.currentOffset - this.pageSize);
+            this.loadFailures();
+        }
+    }
+
+    nextPage() {
+        if (this.currentOffset + this.pageSize < this.total) {
+            this.currentOffset += this.pageSize;
+            this.loadFailures();
+        }
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleString();
+    }
+
+    formatReason(reason) {
+        const reasons = {
+            'no_match': 'No Match',
+            'multiple_matches': 'Multiple Matches',
+            'plex_error': 'Plex Error'
+        };
+        return reasons[reason] || reason;
+    }
+}
+
+// Initialize
+const plexFailures = new PlexFailuresView();
+</script>
+{% endblock %}

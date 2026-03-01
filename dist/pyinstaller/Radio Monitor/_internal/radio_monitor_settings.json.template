@@ -1,0 +1,56 @@
+{
+  "lidarr": {
+    "url": "http://localhost:8686",
+    "api_key": "your_lidarr_api_key_here",
+    "root_folder_path": "/data/music",
+    "quality_profile_id": 3,
+    "metadata_profile_id": 3,
+    "quality_profile_name": "Standard",
+    "metadata_profile_name": "Standard n Singles",
+    "monitor_new_artists": true,
+    "search_for_missing_albums": true,
+    "auto_import": true,
+    "min_plays_for_import": 10,
+    "min_songs_for_import": 1
+  },
+  "plex": {
+    "url": "http://localhost:32400",
+    "token": "your_plex_token_here",
+    "music_library_name": "Music"
+  },
+  "monitor": {
+    "database_file": "radio_songs.db",
+    "scrape_interval_minutes": 12
+  },
+  "musicbrainz": {
+    "rate_limit_delay": 1.0,
+    "user_agent": "RadioMonitor/2.0 (https://github.com/allurjj/radio-monitor)"
+  },
+  "gui": {
+    "host": "0.0.0.0",
+    "port": 5000,
+    "debug": false
+  },
+  "database": {
+    "backup_enabled": true,
+    "backup_retention_days": 7,
+    "backup_path": "backups/"
+  },
+  "logging": {
+    "file": "radio_monitor.log",
+    "max_bytes": 10485760,
+    "backup_count": 5,
+    "console_level": "INFO",
+    "file_level": "ERROR"
+  },
+  "duplicate_detection_window_minutes": 75,
+  "openrouter": {
+    "api_key": "your_openrouter_api_key_here",
+    "model": "x-ai/grok-4-fast",
+    "timeout_seconds": 90,
+    "max_retries": 3,
+    "rate_limit_per_minute": 1,
+    "max_tokens": 200000,
+    "max_songs_input": 5000
+  }
+}

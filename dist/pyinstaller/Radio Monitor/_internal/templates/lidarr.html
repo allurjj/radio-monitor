@@ -1,0 +1,600 @@
+{% extends "base_sidebar.html" %}
+
+{% block title %}Lidarr Import - Radio Monitor {{ config.get('VERSION', '1.1.9') }}{% endblock %}
+
+{% block custom_css %}
+<style>
+    .artist-table tr.selected {
+        background-color: #e7f3ff;
+    }
+
+    .min-plays-filter {
+        max-width: 300px;
+    }
+
+    .import-results {
+        display: none;
+    }
+
+    .import-results.show {
+        display: block;
+    }
+
+    .progress-bar-import {
+        height: 25px;
+    }
+
+    /* Sortable table styles */
+    .sortable {
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+        padding-right: 25px !important;
+        transition: background-color 0.15s ease;
+    }
+
+    .sortable:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+
+    .sort-indicator {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        opacity: 0.3;
+        font-size: 0.8em;
+        transition: opacity 0.2s ease;
+    }
+
+    .sorted-asc .sort-indicator::after {
+        content: '▲';
+        opacity: 1;
+    }
+
+    .sorted-desc .sort-indicator::after {
+        content: '▼';
+        opacity: 1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1><i class="bi bi-cloud-download"></i> Lidarr Import</h1>
+        <p class="text-muted">Import tracked artists to Lidarr</p>
+    </div>
+</div>
+
+<!-- Filters & Controls -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-body">
+                <div class="row align-items-end">
+                    <div class="col-md-3">
+                        <label for="min-plays" class="form-label">Minimum Plays</label>
+                        <select class="form-select" id="min-plays">
+                            <option value="1">1+ plays</option>
+                            <option value="5" selected>5+ plays</option>
+                            <option value="10">10+ plays</option>
+                            <option value="20">20+ plays</option>
+                            <option value="50">50+ plays</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="station-filter" class="form-label">Filter by Station</label>
+                        <select class="form-select" id="station-filter">
+                            <option value="all" selected>All Stations</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <div class="d-flex gap-2 justify-content-end">
+                            <button class="btn btn-primary" id="btn-select-all">
+                                <i class="bi bi-check-all"></i> Select All
+                            </button>
+                            <button class="btn btn-secondary" id="btn-select-none">
+                                <i class="bi bi-x-square"></i> Select None
+                            </button>
+                            <button class="btn btn-success" id="btn-import" disabled>
+                                <i class="bi bi-cloud-arrow-down"></i> Import Selected
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Progress -->
+<div class="row mb-4" id="import-progress" style="display: none;">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-hourglass-split"></i> Importing Artists...</h5>
+                <div class="progress mb-2" style="height: 25px;">
+                    <div class="progress-bar progress-bar-import" role="progressbar"
+                         style="width: 0%" id="import-progress-bar">
+                        0%
+                    </div>
+                </div>
+                <p class="mb-0" id="import-status-text">Starting import...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Results -->
+<div class="row mb-4" id="import-results" class="import-results">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clipboard-check"></i> Import Results</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="alert alert-success mb-0">
+                            <h3><span id="result-imported">0</span></h3>
+                            <p class="mb-0">Imported</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="alert alert-info mb-0">
+                            <h3><span id="result-already-exists">0</span></h3>
+                            <p class="mb-0">Already in Lidarr</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="alert alert-warning mb-0">
+                            <h3><span id="result-failed">0</span></h3>
+                            <p class="mb-0">Failed</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="alert alert-secondary mb-0">
+                            <h3><span id="result-total">0</span></h3>
+                            <p class="mb-0">Total</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="failed-artists-list" style="display: none;" class="mt-3">
+                    <h6>Failed Artists:</h6>
+                    <ul class="list-unstyled" id="failed-artists"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Artists Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-people"></i> Artists Needing Import
+                    <span class="badge bg-primary" id="artist-count">0</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover table-standard artist-table">
+                        <thead>
+                            <tr>
+                                <th width="50">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="select-all-page">
+                                    </div>
+                                </th>
+                                <th>MBID</th>
+                                <th class="sortable" onclick="sortLidarr('name')">
+                                    Artist Name
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th class="sortable" onclick="sortLidarr('total_plays')">
+                                    Total Plays
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th>First Seen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="artists-table-body">
+                            <tr>
+                                <td colspan="5" class="text-center">
+                                    <div class="spinner-border" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Danger Zone -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <i class="bi bi-exclamation-triangle"></i> Danger Zone
+            </div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <p class="mb-0">
+                            <strong>Reset Import Status:</strong> Mark ALL artists as "Needs Import".
+                            Useful when sharing databases with friends or re-importing to a fresh Lidarr instance.
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button class="btn btn-outline-danger" id="btn-reset-import">
+                            <i class="bi bi-arrow-counterclockwise"></i> Reset All Import Status
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block custom_js %}
+<script>
+let currentArtists = [];
+let currentSort = 'total_plays';
+let currentDirection = 'desc';
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadStations();
+    loadArtists();
+    updateLidarrSortIndicators();
+});
+
+function loadStations() {
+    fetch('/api/stations')
+        .then(response => response.json())
+        .then(data => {
+            // Handle response format from stations.py: {'items': [...], 'count': ...}
+            const stations = data.items || data;
+            const select = document.getElementById('station-filter');
+            stations.forEach(station => {
+                const option = document.createElement('option');
+                option.value = station.id;
+                option.textContent = station.name;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading stations:', error);
+        });
+}
+
+function loadArtists(minPlays = 5, station = 'all') {
+    fetch(`/api/lidarr/artists?min_plays=${minPlays}&station=${station}&sort=${currentSort}&direction=${currentDirection}`)
+        .then(response => response.json())
+        .then(data => {
+            // Check if response is an error
+            if (data.error) {
+                console.error('Error loading artists:', data.error);
+                document.getElementById('artists-table-body').innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center text-danger">
+                            Error loading artists: ${data.error}
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            // Data is an array of artists
+            currentArtists = data;
+            displayArtists(data);
+            document.getElementById('artist-count').textContent = data.length;
+        })
+        .catch(error => {
+            console.error('Error loading artists:', error);
+            document.getElementById('artists-table-body').innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-danger">
+                        Error loading artists: ${error.message}
+                    </td>
+                </tr>
+            `;
+        });
+}
+
+function sortLidarr(column) {
+    if (currentSort === column) {
+        currentDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort = column;
+        currentDirection = 'asc';
+    }
+
+    updateLidarrSortIndicators();
+
+    const minPlays = document.getElementById('min-plays').value;
+    const station = document.getElementById('station-filter').value;
+    loadArtists(parseInt(minPlays), station);
+}
+
+function updateLidarrSortIndicators() {
+    document.querySelectorAll('th.sortable').forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+    });
+
+    const currentHeader = document.querySelector(`th[onclick="sortLidarr('${currentSort}')"]`);
+    if (currentHeader) {
+        currentHeader.classList.add(`sorted-${currentDirection}`);
+    }
+}
+
+function displayArtists(artists) {
+    const tbody = document.getElementById('artists-table-body');
+    tbody.innerHTML = '';
+
+    if (artists.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted">
+                    No artists found matching criteria. Adjust minimum plays filter.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    artists.forEach(artist => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>
+                <div class="form-check">
+                    <input class="form-check-input artist-checkbox" type="checkbox"
+                           value="${artist.mbid}" data-name="${artist.name}">
+                </div>
+            </td>
+            <td><code>${artist.mbid}</code></td>
+            <td><strong>${artist.name}</strong></td>
+            <td>${artist.total_plays}</td>
+            <td>${new Date().toLocaleDateString()}</td>
+        `;
+
+        // Highlight row on checkbox change
+        const checkbox = tr.querySelector('.artist-checkbox');
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                tr.classList.add('selected');
+            } else {
+                tr.classList.remove('selected');
+            }
+            updateImportButton();
+        });
+
+        tbody.appendChild(tr);
+    });
+}
+
+function updateImportButton() {
+    const selected = document.querySelectorAll('.artist-checkbox:checked').length;
+    const btnImport = document.getElementById('btn-import');
+    btnImport.disabled = selected === 0;
+    btnImport.innerHTML = selected > 0
+        ? `<i class="bi bi-cloud-arrow-down"></i> Import ${selected} Artists`
+        : `<i class="bi bi-cloud-arrow-down"></i> Import Selected`;
+}
+
+// Auto-filter on min-plays change
+document.getElementById('min-plays').addEventListener('change', function() {
+    const minPlays = this.value;
+    const station = document.getElementById('station-filter').value;
+    loadArtists(parseInt(minPlays), station);
+});
+
+// Auto-filter on station filter change
+document.getElementById('station-filter').addEventListener('change', function() {
+    const minPlays = document.getElementById('min-plays').value;
+    const station = this.value;
+    loadArtists(parseInt(minPlays), station);
+});
+
+// Reset Import Status button
+document.getElementById('btn-reset-import').addEventListener('click', async function() {
+    if (!await Confirm.confirm(
+        '⚠️ Reset Import Status?\n\n' +
+        'This will mark ALL artists as "Needs Import".\n' +
+        'Useful when sharing databases with friends.\n\n' +
+        'Are you sure you want to continue?',
+        'Reset Import Status',
+        'Reset',
+        'btn-warning'
+    )) {
+        return;
+    }
+
+    fetch('/api/lidarr/reset-import-status', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            Toast.success(`✓ ${data.message}`);
+            // Refresh artist list
+            const minPlays = document.getElementById('min-plays').value;
+            const station = document.getElementById('station-filter').value;
+            loadArtists(parseInt(minPlays), station);
+        } else {
+            Toast.error('✗ Error: ' + (data.error || data.message));
+        }
+    })
+    .catch(error => {
+        Toast.error('✗ Error: ' + error.message);
+    });
+});
+
+// Select all (current page)
+document.getElementById('btn-select-all').addEventListener('click', function() {
+    document.querySelectorAll('.artist-checkbox').forEach(checkbox => {
+        checkbox.checked = true;
+        checkbox.closest('tr').classList.add('selected');
+    });
+    updateImportButton();
+});
+
+// Select none
+document.getElementById('btn-select-none').addEventListener('click', function() {
+    document.querySelectorAll('.artist-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+        checkbox.closest('tr').classList.remove('selected');
+    });
+    updateImportButton();
+});
+
+// Select all page checkbox
+document.getElementById('select-all-page').addEventListener('change', function() {
+    document.querySelectorAll('.artist-checkbox').forEach(checkbox => {
+        checkbox.checked = this.checked;
+        if (this.checked) {
+            checkbox.closest('tr').classList.add('selected');
+        } else {
+            checkbox.closest('tr').classList.remove('selected');
+        }
+    });
+    updateImportButton();
+});
+
+// Import button
+document.getElementById('btn-import').addEventListener('click', async function() {
+    const selectedCheckboxes = document.querySelectorAll('.artist-checkbox:checked');
+    const mbids = Array.from(selectedCheckboxes).map(cb => ({
+        mbid: cb.value,
+        name: cb.getAttribute('data-name')
+    }));
+
+    if (mbids.length === 0) {
+        Toast.warning('Please select at least one artist to import');
+        return;
+    }
+
+    if (!await Confirm.confirm(
+        `Import ${mbids.length} artist${mbids.length > 1 ? 's' : ''} to Lidarr?`,
+        'Import Artists',
+        'Import',
+        'btn-success'
+    )) {
+        return;
+    }
+
+    // Add loading state to button
+    const btn = this;
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.classList.add('loading');
+    btn.innerHTML = 'Importing <span class="inline-spinner"></span>';
+
+    // Show progress
+    document.getElementById('import-progress').style.display = 'block';
+    document.getElementById('import-results').classList.remove('show');
+
+    importArtists(mbids, () => {
+        // Reset button when complete
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        updateImportButton();
+    });
+});
+
+function importArtists(artists, onComplete) {
+    let imported = 0;
+    let alreadyExists = 0;
+    let failed = 0;
+    const failedArtists = [];
+
+    function importNext(index) {
+        if (index >= artists.length) {
+            // All done
+            showImportResults(imported, alreadyExists, failed, failedArtists);
+            if (onComplete) onComplete();
+            return;
+        }
+
+        const artist = artists[index];
+        const progress = Math.round(((index) / artists.length) * 100);
+
+        document.getElementById('import-progress-bar').style.width = `${progress}%`;
+        document.getElementById('import-progress-bar').textContent = `${progress}%`;
+        document.getElementById('import-status-text').textContent =
+            `Importing ${artist.name} (${index + 1}/${artists.length})`;
+
+        fetch('/api/lidarr/import', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                mbids: [artist.mbid]
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.results && data.results.length > 0) {
+                    const result = data.results[0];
+                    if (result.success) {
+                        if (result.message && result.message.toLowerCase().includes('already exists')) {
+                            alreadyExists++;
+                        } else {
+                            imported++;
+                        }
+                    } else {
+                        failed++;
+                        failedArtists.push({ name: artist.name, message: result.message });
+                    }
+                }
+
+                // Import next
+                setTimeout(() => importNext(index + 1), 500); // Small delay between imports
+            })
+            .catch(error => {
+                failed++;
+                failedArtists.push({ name: artist.name, message: error.message });
+                setTimeout(() => importNext(index + 1), 500);
+            });
+    }
+
+    importNext(0);
+}
+
+function showImportResults(imported, alreadyExists, failed, failedArtists) {
+    document.getElementById('import-progress').style.display = 'none';
+    document.getElementById('import-results').classList.add('show');
+
+    document.getElementById('result-imported').textContent = imported;
+    document.getElementById('result-already-exists').textContent = alreadyExists;
+    document.getElementById('result-failed').textContent = failed;
+    document.getElementById('result-total').textContent = imported + alreadyExists + failed;
+
+    if (failedArtists.length > 0) {
+        document.getElementById('failed-artists-list').style.display = 'block';
+        const failedList = document.getElementById('failed-artists');
+        failedList.innerHTML = failedArtists.map(a =>
+            `<li><strong>${a.name}:</strong> ${a.message}</li>`
+        ).join('');
+    } else {
+        document.getElementById('failed-artists-list').style.display = 'none';
+    }
+
+    // Refresh artist list
+    const minPlays = document.getElementById('min-plays').value;
+    loadArtists(parseInt(minPlays));
+}
+</script>
+{% endblock %}
