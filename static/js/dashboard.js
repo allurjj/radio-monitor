@@ -139,13 +139,9 @@
         initializeFilters();
         loadRecentPlays();
 
-        // Auto-refresh every 30 seconds
-        setInterval(() => {
-            checkMonitorStatus();
-            checkLidarrStatus();
-            checkPlexStatus();
-            loadRecentPlays();
-        }, 30000);
+        // Auto-refresh disabled to prevent database locks during scraping
+        // Data updates automatically when scrapes complete
+        // Manually refresh page to see latest data
     });
 })();
 

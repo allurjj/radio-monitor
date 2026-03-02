@@ -20,7 +20,7 @@
   },
   "monitor": {
     "database_file": "radio_songs.db",
-    "scrape_interval_minutes": 12
+    "scrape_interval_minutes": 20
   },
   "musicbrainz": {
     "rate_limit_delay": 1.0,
