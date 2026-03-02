@@ -273,34 +273,8 @@
 
     <!-- Global Status Checking -->
     <script>
-    // Check monitor status
-    function checkMonitorStatus() {
-        fetch('/api/monitor/status')
-            .then(response => response.json())
-            .then(data => {
-                const statusText = document.getElementById('sidebar-status-text');
-                const statusIndicator = document.getElementById('sidebar-status-indicator');
-                if (!statusText || !statusIndicator) return;
-
-                if (data.error) {
-                    statusText.textContent = 'Error';
-                    statusIndicator.className = 'status-indicator offline';
-                } else if (data.running) {
-                    statusText.textContent = 'Running';
-                    statusIndicator.className = 'status-indicator online';
-                } else {
-                    statusText.textContent = 'Stopped';
-                    statusIndicator.className = 'status-indicator offline';
-                }
-            })
-            .catch(error => {
-                console.error('Error checking monitor status:', error);
-                const statusText = document.getElementById('sidebar-status-text');
-                const statusIndicator = document.getElementById('sidebar-status-indicator');
-                if (statusText) statusText.textContent = 'Error';
-                if (statusIndicator) statusIndicator.className = 'status-indicator offline';
-            });
-    }
+    // Monitor status check removed - now handled by sidebar-status.js
+    // with 3 other services (Lidarr, Plex, Scraper) every 3 minutes
 
     // Check system uptime
     function checkSystemUptime() {
@@ -317,12 +291,10 @@
 
     // Initialize on page load
     document.addEventListener('DOMContentLoaded', function() {
-        // Check status immediately
-        checkMonitorStatus();
+        // Check system uptime immediately
         checkSystemUptime();
 
-        // Check every 30 seconds
-        setInterval(checkMonitorStatus, 30000);
+        // Check system uptime every 60 seconds
         setInterval(checkSystemUptime, 60000);
 
         // Sidebar toggle
