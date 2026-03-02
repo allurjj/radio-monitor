@@ -318,7 +318,7 @@ from radio_monitor.gui.routes import wizard
 # Import and register blueprints
 from radio_monitor.gui.routes import dashboard, monitor, lidarr, plex, playlists, settings as settings_routes, backup
 from radio_monitor.gui.routes import system, activity, search, artists, songs, stations, logs
-from radio_monitor.gui.routes import notifications, plex_failures, mbid_overrides, ai_playlists, playlist_builder
+from radio_monitor.gui.routes import notifications, plex_failures, mbid_overrides, ai_playlists, playlist_builder, blocklist
 
 app.register_blueprint(dashboard.dashboard_bp)
 app.register_blueprint(monitor.monitor_bp)
@@ -339,6 +339,7 @@ app.register_blueprint(plex_failures.plex_failures_bp)
 app.register_blueprint(mbid_overrides.mbid_overrides_bp)
 app.register_blueprint(ai_playlists.ai_playlists_bp)
 app.register_blueprint(playlist_builder.playlist_builder_bp)
+app.register_blueprint(blocklist.blocklist_bp)
 
 # Import and register auth blueprint
 from radio_monitor.gui.routes import auth as auth_routes

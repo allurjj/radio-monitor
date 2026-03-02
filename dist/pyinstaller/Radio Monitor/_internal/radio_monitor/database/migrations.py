@@ -111,6 +111,10 @@ def _initialize_schema(cursor, conn, db_path, SCHEMA_VERSION):
             if current_version < 13:
                 _migrate_to_v13(cursor, conn)
 
+            # Migrate to version 14 (add blocklist table)
+            if current_version < 14:
+                _migrate_to_v14(cursor, conn)
+
 
 def _create_new_schema(cursor, conn, SCHEMA_VERSION):
     """Create new schema (6 tables: stations, artists, songs, song_plays_daily, schema_version, playlists)
@@ -948,3 +952,57 @@ def _migrate_to_v13(cursor, conn):
 
     conn.commit()
     print("Migration to version 13 complete!")
+
+
+def _migrate_to_v14(cursor, conn):
+    """Migrate database from v13 to v14 (add blocklist table)
+
+    This migration adds the blocklist table to support blocking artists and songs
+    from playlist generation. Users can block individual songs or all songs by an artist.
+
+    Args:
+        cursor: Database cursor
+        conn: Database connection
+    """
+    print("Migrating database from v13 to v14 (adding blocklist support)...")
+
+    # Step 1: Create blocklist table
+    print("  - Creating blocklist table...")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS blocklist (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entity_type TEXT NOT NULL CHECK(entity_type IN ('artist', 'song')),
+            entity_id TEXT NOT NULL,
+            artist_mbid TEXT,
+            song_id INTEGER,
+            reason TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_by TEXT DEFAULT 'user',
+            FOREIGN KEY (artist_mbid) REFERENCES artists(mbid) ON DELETE CASCADE,
+            FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE,
+            UNIQUE(entity_type, entity_id)
+        )
+    """)
+
+    # Step 2: Create indexes
+    print("  - Creating indexes...")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_blocklist_entity_type ON blocklist(entity_type)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_blocklist_artist_mbid ON blocklist(artist_mbid)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_blocklist_song_id ON blocklist(song_id)")
+
+    # Step 3: Log the migration as an activity
+    print("  - Logging migration event...")
+    cursor.execute("""
+        INSERT INTO activity_log (event_type, event_severity, title, description, source)
+        VALUES ('system', 'success', 'Database Migration', 'Migrated from schema v13 to v14: added blocklist table for blocking artists/songs from playlists', 'system')
+    """)
+
+    # Step 4: Record schema version
+    print("  - Recording schema version...")
+    cursor.execute("""
+        INSERT INTO schema_version (version, description)
+        VALUES (?, ?)
+    """, (14, 'Add blocklist table for blocking artists/songs from playlist generation'))
+
+    conn.commit()
+    print("Migration to version 14 complete!")

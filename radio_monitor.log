@@ -6116,3 +6116,15 @@ RuntimeError: Working outside of request context.
 This typically means that you attempted to use functionality that needed
 an active HTTP request. Consult the documentation on testing for
 information about how to avoid this problem.
+2026-03-01 11:06:58 - ERROR - radio_monitor.database.crud - Error adding artist 'Lynyrd Skynyrd' and song 'Sweet Home Alabama': UNIQUE constraint failed: artists.name
+2026-03-01 13:16:58 - ERROR - radio_monitor.database.crud - Error adding artist 'Foreigner' and song 'I Want to Know What Love Is': UNIQUE constraint failed: artists.name
+2026-03-01 13:57:58 - ERROR - radio_monitor.database.crud - Error adding artist 'Paul Simon' and song 'Kodachrome': UNIQUE constraint failed: artists.name
+2026-03-01 14:56:58 - ERROR - radio_monitor.database.crud - Error adding artist 'Diamond Rio' and song 'How Your Love Makes Me Feel': UNIQUE constraint failed: artists.name
+2026-03-01 19:09:57 - ERROR - radio_monitor.database.crud - Error adding artist 'Alabama' and song 'Close Enough to Perfect': UNIQUE constraint failed: artists.name
+2026-03-01 19:09:57 - ERROR - radio_monitor.database.crud - Error adding artist 'Restless Heart' and song 'The Bluest Eyes In Texas': UNIQUE constraint failed: artists.name
+2026-03-01 19:09:58 - ERROR - radio_monitor.database.crud - Error adding artist 'The Judds' and song 'Turn It Loose': UNIQUE constraint failed: artists.name
+2026-03-01 19:09:58 - ERROR - radio_monitor.database.crud - Error adding artist 'Kathy Mattea' and song 'Eighteen Wheels And A Dozen Roses': UNIQUE constraint failed: artists.name
+2026-03-02 02:30:00 - ERROR - radio_monitor.database.crud - Error adding artist 'Jordan Davis' and song 'Ain't A Bad Life': UNIQUE constraint failed: artists.name
+2026-03-02 03:42:00 - ERROR - radio_monitor.database.crud - Error adding artist 'Foo Fighters' and song 'Everlong': UNIQUE constraint failed: artists.name
+2026-03-02 07:52:15 - ERROR - radio_monitor.mbid - MusicBrainz connection error for John Martin after 10 attempts: <urlopen error [WinError 10054] An existing connection was forcibly closed by the remote host>
+2026-03-02 08:10:50 - ERROR - radio_monitor.mbid - MusicBrainz connection error for John Martin after 10 attempts: <urlopen error [WinError 10054] An existing connection was forcibly closed by the remote host>

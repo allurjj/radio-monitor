@@ -345,6 +345,9 @@ def api_get_songs():
                 # Add filter for unselected songs (this is trickier - need NOT IN)
                 filters['unselected_song_ids'] = selected_ids
 
+            # Get exclude_blocklist preference (default: True)
+            exclude_blocklist = request.args.get('exclude_blocklist', 'true').lower() == 'true'
+
             # Get songs
             result = get_songs_paginated(
                 cursor,
@@ -352,7 +355,8 @@ def api_get_songs():
                 limit=per_page,
                 filters=filters,
                 sort=sort,
-                direction=direction
+                direction=direction,
+                exclude_blocklist=exclude_blocklist
             )
 
             # Mark songs as selected/unselected
@@ -438,6 +442,9 @@ def api_get_artists():
         if search:
             filters['search'] = search.strip()
 
+        # Get exclude_blocklist preference (default: True)
+        exclude_blocklist = request.args.get('exclude_blocklist', 'true').lower() == 'true'
+
         session_id = get_session_id()
         cursor = db.get_cursor()
 
@@ -489,6 +496,10 @@ def api_get_artists():
                 conditions.append(f"EXISTS (SELECT 1 FROM song_plays_daily spd JOIN songs s2 ON spd.song_id = s2.id WHERE s2.artist_mbid = a.mbid AND spd.station_id IN ({placeholders}))")
                 params.extend(station_list)
 
+            # Blocklist filter - exclude blocked artists if requested
+            if exclude_blocklist:
+                conditions.append("NOT EXISTS (SELECT 1 FROM blocklist bl WHERE bl.entity_type = 'artist' AND bl.artist_mbid = a.mbid)")
+
             # Show only selected filter - use subquery to find artists with selected songs
             if show == 'selected':
                 if selected_ids:
@@ -521,6 +532,7 @@ def api_get_artists():
                 order_by = f"{sort_column} {direction.upper()}"
 
             # Get total count
+            # Need to include blocklist filtering in count query too
             count_query = f"""
                 SELECT COUNT(DISTINCT a.mbid)
                 FROM artists a

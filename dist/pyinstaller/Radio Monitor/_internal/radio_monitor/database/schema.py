@@ -2,7 +2,7 @@
 Database schema definitions for Radio Monitor 1.0
 
 This module contains all CREATE TABLE statements and indexes for the
-14-table SQLite schema.
+16-table SQLite schema.
 
 Tables:
 - stations: Radio station metadata
@@ -20,8 +20,9 @@ Tables:
 - manual_playlists: Manual playlist definitions (v12)
 - manual_playlist_songs: Manual playlist song associations (v12)
 - playlist_builder_state: In-progress playlist builder state (v12)
+- blocklist: Blocked artists and songs (v14)
 
-Schema Version: 13
+Schema Version: 14
 """
 
 import logging
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_tables(cursor):
-    """Create all 6 tables and indexes
+    """Create all 16 tables and indexes
 
     Args:
         cursor: SQLite cursor object
@@ -310,6 +311,27 @@ def create_tables(cursor):
 
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_playlist_builder_state_session ON playlist_builder_state(session_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_playlist_builder_state_song ON playlist_builder_state(song_id)")
+
+    # 16. blocklist table (v14)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS blocklist (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entity_type TEXT NOT NULL CHECK(entity_type IN ('artist', 'song')),
+            entity_id TEXT NOT NULL,
+            artist_mbid TEXT,
+            song_id INTEGER,
+            reason TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_by TEXT DEFAULT 'user',
+            FOREIGN KEY (artist_mbid) REFERENCES artists(mbid) ON DELETE CASCADE,
+            FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE,
+            UNIQUE(entity_type, entity_id)
+        )
+    """)
+
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_blocklist_entity_type ON blocklist(entity_type)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_blocklist_artist_mbid ON blocklist(artist_mbid)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_blocklist_song_id ON blocklist(song_id)")
 
 
 def populate_stations(cursor):

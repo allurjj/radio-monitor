@@ -24,6 +24,7 @@ const PlaylistBuilderState = {
     editingPlaylistId: null,   // If editing existing playlist
     editingPlaylistName: null, // Name of playlist being edited
     showOnlySelected: false,
+    excludeBlocklist: true,    // Exclude blocklisted songs
     expandedArtists: new Set()  // Artist IDs with expanded song lists
 };
 
@@ -163,6 +164,7 @@ async function fetchSongs() {
     if (PlaylistBuilderState.showOnlySelected) {
         params.set('show', 'selected');
     }
+    params.set('exclude_blocklist', PlaylistBuilderState.excludeBlocklist);
 
     const response = await fetch(`/api/playlist-builder/songs?${params}`);
     if (!response.ok) {
@@ -203,6 +205,7 @@ async function fetchArtists() {
     if (PlaylistBuilderState.showOnlySelected) {
         params.set('show', 'selected');
     }
+    params.set('exclude_blocklist', PlaylistBuilderState.excludeBlocklist);
 
     const response = await fetch(`/api/playlist-builder/artists?${params}`);
     if (!response.ok) {
@@ -1110,6 +1113,9 @@ async function initPlaylistBuilder() {
 
     document.getElementById('filterPageSize').value = PlaylistBuilderState.pagination.perPage;
 
+    // Set exclude blocklist checkbox state
+    document.getElementById('excludeBlocklist').checked = PlaylistBuilderState.excludeBlocklist;
+
     if (PlaylistBuilderState.showOnlySelected) {
         const btn = document.getElementById('btnShowOnlySelected');
         btn.classList.add('btn-success');
@@ -1721,6 +1727,12 @@ function attachEventListeners() {
     // Date range toggle
     document.getElementById('dateRangeToggle').addEventListener('change', (e) => {
         document.getElementById('dateRangeInputs').style.display = e.target.checked ? 'block' : 'none';
+    });
+
+    // Exclude blocklist toggle
+    document.getElementById('excludeBlocklist').addEventListener('change', (e) => {
+        PlaylistBuilderState.excludeBlocklist = e.target.checked;
+        loadData();  // Reload songs with new filter setting
     });
 
     // Sortable column headers

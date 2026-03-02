@@ -2128,3 +2128,288 @@ def remove_songs_from_builder_state_batch(cursor, session_id, song_ids):
     """, [session_id] + song_ids)
 
     return cursor.rowcount
+
+
+# ==================== BLOCKLIST CRUD (v14) ====================
+
+def add_to_blocklist(cursor, conn, entity_type, entity_id, artist_mbid=None, song_id=None, reason=None, created_by='user'):
+    """Add artist or song to blocklist
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        entity_type: 'artist' or 'song'
+        entity_id: Unique identifier (for artist: mbid, for song: 'song_id:{song_id}')
+        artist_mbid: Artist MBID (required for artist blocks)
+        song_id: Song ID (required for song blocks)
+        reason: Optional reason for blocking
+        created_by: Who created this entry (default: 'user')
+
+    Returns:
+        blocklist_id (int) of created entry, or None if already exists
+    """
+    try:
+        cursor.execute("""
+            INSERT OR IGNORE INTO blocklist (entity_type, entity_id, artist_mbid, song_id, reason, created_by)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (entity_type, entity_id, artist_mbid, song_id, reason, created_by))
+
+        if cursor.rowcount == 0:
+            logger.debug(f"Entry already exists in blocklist: {entity_type} - {entity_id}")
+            return None
+
+        conn.commit()
+        blocklist_id = cursor.lastrowid
+        logger.info(f"Added to blocklist: {entity_type} - {entity_id} (reason: {reason})")
+        return blocklist_id
+
+    except Exception as e:
+        logger.error(f"Error adding to blocklist: {e}")
+        conn.rollback()
+        raise
+
+
+def remove_from_blocklist(cursor, conn, blocklist_id):
+    """Remove item from blocklist
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        blocklist_id: Blocklist entry ID to remove
+
+    Returns:
+        True if removed, False if not found
+    """
+    try:
+        cursor.execute("""
+            DELETE FROM blocklist
+            WHERE id = ?
+        """, (blocklist_id,))
+
+        if cursor.rowcount == 0:
+            logger.debug(f"Blocklist entry {blocklist_id} not found")
+            return False
+
+        conn.commit()
+        logger.info(f"Removed blocklist entry {blocklist_id}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error removing from blocklist: {e}")
+        conn.rollback()
+        raise
+
+
+def is_artist_blocked(cursor, artist_mbid):
+    """Check if artist is blocked
+
+    Args:
+        cursor: SQLite cursor object
+        artist_mbid: Artist MBID to check
+
+    Returns:
+        True if artist is blocked, False otherwise
+    """
+    cursor.execute("""
+        SELECT id FROM blocklist
+        WHERE entity_type = 'artist' AND artist_mbid = ?
+        LIMIT 1
+    """, (artist_mbid,))
+
+    return cursor.fetchone() is not None
+
+
+def is_song_blocked(cursor, song_id, artist_mbid):
+    """Check if song is blocked (or its artist)
+
+    Args:
+        cursor: SQLite cursor object
+        song_id: Song ID to check
+        artist_mbid: Artist MBID to also check
+
+    Returns:
+        True if song or artist is blocked, False otherwise
+    """
+    # Check if song is explicitly blocked
+    cursor.execute("""
+        SELECT id FROM blocklist
+        WHERE entity_type = 'song' AND song_id = ?
+        LIMIT 1
+    """, (song_id,))
+
+    if cursor.fetchone() is not None:
+        return True
+
+    # Check if artist is blocked
+    if artist_mbid:
+        return is_artist_blocked(cursor, artist_mbid)
+
+    return False
+
+
+def get_blocklist_preview(cursor, items_to_block):
+    """Preview impact: returns count of songs that will be blocked
+
+    Args:
+        cursor: SQLite cursor object
+        items_to_block: List of dicts with keys: type ('artist'/'song'), id (mbid/song_id), block_all (bool for artists)
+
+    Returns:
+        Total number of songs that will be blocked
+    """
+    total = 0
+
+    for item in items_to_block:
+        if item['type'] == 'artist':
+            if item.get('block_all', False):
+                # Count all songs by this artist
+                cursor.execute("""
+                    SELECT COUNT(*) FROM songs WHERE artist_mbid = ?
+                """, (item['id'],))
+                count = cursor.fetchone()[0]
+                total += count
+            else:
+                # Individual song blocks will be counted separately
+                pass
+        elif item['type'] == 'song':
+            # Each song block counts as 1
+            total += 1
+
+    return total
+
+
+def export_blocklist(cursor):
+    """Export blocklist to JSON-compatible format
+
+    Args:
+        cursor: SQLite cursor object
+
+    Returns:
+        Dict with export data
+    """
+    import json
+    from datetime import datetime
+
+    # Get all blocklist entries
+    cursor.execute("""
+        SELECT
+            bl.id,
+            bl.entity_type,
+            bl.entity_id,
+            bl.artist_mbid,
+            bl.song_id,
+            bl.reason,
+            bl.created_at,
+            bl.created_by,
+            a.name as artist_name,
+            s.song_title,
+            s.artist_name as song_artist_name
+        FROM blocklist bl
+        LEFT JOIN artists a ON bl.artist_mbid = a.mbid
+        LEFT JOIN songs s ON bl.song_id = s.id
+        ORDER BY bl.created_at DESC
+    """)
+
+    items = []
+    for row in cursor.fetchall():
+        item = {
+            'id': row[0],
+            'entity_type': row[1],
+            'entity_id': row[2],
+            'artist_mbid': row[3],
+            'song_id': row[4],
+            'reason': row[5],
+            'created_at': row[6],
+            'created_by': row[7],
+        }
+
+        # Add display names for convenience
+        if row[1] == 'artist' and row[8]:
+            item['artist_name'] = row[8]
+        elif row[1] == 'song':
+            item['song_title'] = row[9]
+            item['artist_name'] = row[10]
+
+        items.append(item)
+
+    return {
+        'version': '1.0',
+        'exported_at': datetime.now().isoformat(),
+        'total_items': len(items),
+        'items': items
+    }
+
+
+def import_blocklist(cursor, conn, data):
+    """Import blocklist from JSON format
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        data: Dict from export_blocklist format
+
+    Returns:
+        Dict with import results: imported, skipped, errors
+    """
+    imported = 0
+    skipped = 0
+    errors = []
+
+    for item in data.get('items', []):
+        try:
+            entity_type = item.get('entity_type')
+            entity_id = item.get('entity_id')
+            artist_mbid = item.get('artist_mbid')
+            song_id = item.get('song_id')
+            reason = item.get('reason')
+            created_by = item.get('created_by', 'import')
+
+            # Validate entity_type
+            if entity_type not in ['artist', 'song']:
+                errors.append(f"Invalid entity_type: {entity_type}")
+                continue
+
+            # Validate required fields
+            if entity_type == 'artist' and not artist_mbid:
+                errors.append(f"Missing artist_mbid for artist block: {entity_id}")
+                continue
+
+            if entity_type == 'song' and not song_id:
+                errors.append(f"Missing song_id for song block: {entity_id}")
+                continue
+
+            # Validate references exist
+            if entity_type == 'artist':
+                cursor.execute("SELECT mbid FROM artists WHERE mbbid = ?", (artist_mbid,))
+                if not cursor.fetchone():
+                    skipped += 1
+                    continue
+
+            if entity_type == 'song' and song_id:
+                cursor.execute("SELECT id FROM songs WHERE id = ?", (song_id,))
+                if not cursor.fetchone():
+                    skipped += 1
+                    continue
+
+            # Try to insert
+            blocklist_id = add_to_blocklist(
+                cursor, conn, entity_type, entity_id,
+                artist_mbid, song_id, reason, created_by
+            )
+
+            if blocklist_id:
+                imported += 1
+            else:
+                skipped += 1  # Already exists
+
+        except Exception as e:
+            errors.append(f"Error importing item {item.get('entity_id')}: {e}")
+            logger.error(f"Error importing blocklist item: {e}")
+
+    conn.commit()
+
+    return {
+        'imported': imported,
+        'skipped': skipped,
+        'errors': errors
+    }

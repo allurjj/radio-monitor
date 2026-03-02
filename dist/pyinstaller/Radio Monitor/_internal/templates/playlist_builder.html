@@ -276,13 +276,20 @@
                 <!-- Action Buttons Row -->
                 <div class="row mt-3">
                     <div class="col-12 d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center gap-2">
-                            <label class="form-label mb-0">Per Page:</label>
-                            <select class="form-select form-select-sm" id="filterPageSize" style="width: auto;">
-                                <option value="25">25 per page</option>
-                                <option value="50" selected>50 per page</option>
-                                <option value="100">100 per page</option>
-                                <option value="200">200 per page</option>
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="excludeBlocklist" checked>
+                                <label class="form-check-label" for="excludeBlocklist">
+                                    Exclude blocklisted songs
+                                </label>
+                            </div>
+                            <div>
+                                <label class="form-label mb-0">Per Page:</label>
+                                <select class="form-select form-select-sm" id="filterPageSize" style="width: auto;">
+                                    <option value="25">25 per page</option>
+                                    <option value="50" selected>50 per page</option>
+                                    <option value="100">100 per page</option>
+                                    <option value="200">200 per page</option>
                             </select>
                         </div>
                         <button id="btnCreatePlaylist" class="btn btn-success" disabled>

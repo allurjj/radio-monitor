@@ -1,0 +1,254 @@
+{% extends "base_sidebar.html" %}
+
+{% block title %}Blocklist - Radio Monitor{% endblock %}
+
+{% block custom_css %}
+<style>
+.tab-btn {
+    padding: 0.5rem 1.5rem;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem 0.375rem 0 0;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tab-btn.active {
+    background: white;
+    border-bottom-color: white;
+    font-weight: 500;
+}
+
+.tab-btn:hover:not(.active) {
+    background: #e9ecef;
+}
+
+.stats-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.blocklist-item {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    transition: box-shadow 0.2s;
+}
+
+.blocklist-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.search-results {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.search-result-item {
+    padding: 0.75rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.search-result-item:hover {
+    background: #f8f9fa;
+}
+
+.selected-item {
+    background: #e7f3ff;
+    border-color: #0d6efd;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="mb-1">Blocklist</h2>
+            <p class="text-muted">Manage blocked artists and songs from playlist generation</p>
+        </div>
+    </div>
+
+    <!-- Debug Info (collapsible) -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#debugInfo">
+                <i class="bi bi-bug"></i> Debug Info
+            </button>
+            <div class="collapse mt-2" id="debugInfo">
+                <div class="card">
+                    <div class="card-body">
+                        <h6>Current State</h6>
+                        <pre id="debug-state">Loading...</pre>
+                        <h6>API Responses</h6>
+                        <div id="debug-api" class="mb-2"></div>
+                        <button class="btn btn-sm btn-primary" onclick="testBlocklistAPI()">Test API</button>
+                        <button class="btn btn-sm btn-warning" onclick="clearDebug()">Clear</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row" id="stats-container">
+        <div class="col-md-4">
+            <div class="stats-card">
+                <h6 class="text-white-50 mb-1">Blocked Artists</h6>
+                <h2 class="mb-0" id="stat-artists">-</h2>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stats-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <h6 class="text-white-50 mb-1">Blocked Songs</h6>
+                <h2 class="mb-0" id="stat-songs">-</h2>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stats-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                <h6 class="text-white-50 mb-1">Total Songs Affected</h6>
+                <h2 class="mb-0" id="stat-total">-</h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
+                <i class="bi bi-plus-circle"></i> Add to Blocklist
+            </button>
+            <button class="btn btn-outline-secondary" onclick="exportBlocklist()">
+                <i class="bi bi-download"></i> Export
+            </button>
+            <button class="btn btn-outline-secondary" onclick="importBlocklist()">
+                <i class="bi bi-upload"></i> Import
+            </button>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="d-flex">
+                <button class="tab-btn active me-2" onclick="switchTab('artists')">
+                    Blocked Artists (<span id="tab-artists-count">0</span>)
+                </button>
+                <button class="tab-btn" onclick="switchTab('songs')">
+                    Blocked Songs (<span id="tab-songs-count">0</span>)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Blocklist Items -->
+    <div class="row">
+        <div class="col-12">
+            <div id="blocklist-container">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            <div id="pagination-container" class="d-none">
+                <nav>
+                    <ul class="pagination justify-content-center" id="pagination">
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add to Blocklist Modal -->
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add to Blocklist</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Search -->
+                <div class="mb-3">
+                    <label class="form-label">Search for artist or song to block</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="searchInput" placeholder="Type to search...">
+                        <button class="btn btn-outline-secondary" type="button" onclick="clearSearch()">Clear</button>
+                    </div>
+                    <div class="form-text">Minimum 2 characters</div>
+                </div>
+
+                <!-- Search Results -->
+                <div id="searchResults" class="search-results mb-3"></div>
+
+                <!-- Selected Items -->
+                <div id="selectedContainer" class="d-none">
+                    <h6>Selected (<span id="selectedCount">0</span>)</h6>
+                    <div id="selectedItems" class="mb-3"></div>
+
+                    <!-- Reason -->
+                    <div class="mb-3">
+                        <label class="form-label">Reason (optional)</label>
+                        <input type="text" class="form-control" id="reasonInput" placeholder="e.g., Overplayed, Explicit, Personal">
+                    </div>
+
+                    <!-- Preview -->
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        This will block <strong id="previewCount">0</strong> songs from future playlists.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="addToBlocklist()" id="addBtn" disabled>
+                    Add to Blocklist
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Blocklist</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Select file to import</label>
+                    <input type="file" class="form-control" id="importFile" accept=".json">
+                </div>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    Import will merge with existing blocklist. Duplicate entries will be skipped.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="executeImport()">Import</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/blocklist.js') }}"></script>
+{% endblock %}

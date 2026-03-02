@@ -215,9 +215,32 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <a href="/songs/{{ song.id }}" class="btn btn-sm btn-outline-primary" title="View Details">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="/songs/{{ song.id }}" class="btn btn-outline-primary" title="View Details">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            {% if song.is_blocked %}
+                                            <button type="button" class="btn btn-success btn-block-song"
+                                                    data-type="song"
+                                                    data-id="{{ song.id }}"
+                                                    data-title="{{ song.song_title }}"
+                                                    data-artist-name="{{ song.artist_name }}"
+                                                    data-blocked="true"
+                                                    title="Blocked (click to unblock)">
+                                                <i class="bi bi-check-circle-fill"></i>
+                                            </button>
+                                            {% else %}
+                                            <button type="button" class="btn btn-outline-danger btn-block-song"
+                                                    data-type="song"
+                                                    data-id="{{ song.id }}"
+                                                    data-title="{{ song.song_title }}"
+                                                    data-artist-name="{{ song.artist_name }}"
+                                                    data-blocked="false"
+                                                    title="Block Song">
+                                                <i class="bi bi-ban"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -339,6 +362,123 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     document.getElementById('filter-artist').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') applyFilters();
+    });
+
+    // Handle block/unblock song button clicks
+    const blockButtons = document.querySelectorAll('.btn-block-song');
+
+    blockButtons.forEach(function(button, index) {
+        button.addEventListener('click', function(event) {
+            // Prevent default button behavior
+            event.preventDefault();
+            event.stopPropagation();
+
+            const type = this.getAttribute('data-type');
+            const id = this.getAttribute('data-id');
+            const title = this.getAttribute('data-title');
+            const artistName = this.getAttribute('data-artist-name');
+            const isBlocked = this.getAttribute('data-blocked') === 'true';
+
+
+            // Determine if we're blocking or unblocking
+            if (isBlocked) {
+                // Unblock action
+                if (!confirm(`Unblock "${title}" by ${artistName}?`)) {
+                    return;
+                }
+
+                // Find the blocklist_id for this song
+                // We need to call the API to get this first
+                fetch(`/api/blocklist?entity_type=song&page=1&limit=100`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const blockedItem = data.items.find(item => item.song_id == id);
+                        if (blockedItem) {
+                            return fetch(`/api/blocklist/${blockedItem.id}`, { method: 'DELETE' });
+                        } else {
+                            throw new Error('Song not found in blocklist');
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        Toast.success(`Unblocked "${title}"`);
+                        // Reload page to show updated state
+                        setTimeout(() => location.reload(), 500);
+                    })
+                    .catch(error => {
+                        Toast.error('Error unblocking song: ' + error.message);
+                    });
+            } else {
+                // Block action
+                if (!confirm(`Block "${title}" by ${artistName}?`)) {
+                    return;
+                }
+
+                // Disable button during request
+                const originalHTML = this.innerHTML;
+                const originalClass = this.className;
+                this.disabled = true;
+                this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+                // Prepare request data
+                const requestData = {
+                    items: [{
+                        type: type,
+                        id: parseInt(id),  // Ensure id is a number
+                        block_all: false,
+                        reason: null
+                    }]
+                };
+
+                // Call blocklist API
+                fetch('/api/blocklist/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                })
+                .then(async response => {
+                    const data = await response.json();
+
+                    // Check if it was actually added or skipped
+                    if (response.ok) {
+                        if (data.added > 0) {
+                            Toast.success(`Blocked "${title}"`);
+
+                            // Update button to show it was blocked
+                            this.innerHTML = '<i class="bi bi-check-circle-fill"></i>';
+                            this.className = 'btn btn-success btn-block-song';
+                            this.setAttribute('data-blocked', 'true');
+                            this.title = 'Blocked (click to unblock)';
+                        } else if (data.skipped && data.skipped > 0) {
+                            Toast.warning(`"${title}" is already on the blocklist`);
+
+                            // Update button to show it's blocked
+                            this.innerHTML = '<i class="bi bi-check-circle-fill"></i>';
+                            this.className = 'btn btn-success btn-block-song';
+                            this.setAttribute('data-blocked', 'true');
+                            this.title = 'Blocked (click to unblock)';
+                        } else {
+                            Toast.error(data.error || 'Failed to block song');
+                            this.disabled = false;
+                            this.innerHTML = originalHTML;
+                            this.className = originalClass;
+                        }
+                    } else {
+                        Toast.error(data.error || 'Failed to block song');
+                        this.disabled = false;
+                        this.innerHTML = originalHTML;
+                        this.className = originalClass;
+                    }
+                })
+                .catch(error => {
+                    Toast.error('Error blocking song: ' + error.message);
+                    // Re-enable button
+                    this.disabled = false;
+                    this.innerHTML = originalHTML;
+                    this.className = originalClass;
+                });
+            }
+        });
     });
 });
 

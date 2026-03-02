@@ -254,6 +254,24 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Blocklist Settings Section -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-warning text-dark">
+                            <i class="bi bi-shield-check"></i> Blocklist Settings
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="playlist-exclude-blocklist" checked>
+                                <label class="form-check-label" for="playlist-exclude-blocklist">
+                                    Exclude blocklisted artists and songs from this playlist
+                                </label>
+                                <div class="form-text">
+                                    Songs or artists on your <a href="/blocklist" target="_blank">blocklist</a> will be excluded from this playlist.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -872,9 +890,14 @@ async function executePlaylist(id) {
     button.innerHTML = '<span class="inline-spinner"></span>';
 
     // Execute via API
+    const excludeBlocklist = document.getElementById('playlist-exclude-blocklist')?.checked ?? true;
+
     fetch(`/api/plex/playlists/${id}/execute`, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'}
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            exclude_blocklist: excludeBlocklist
+        })
     })
         .then(response => response.json())
         .then(data => {
@@ -882,12 +905,14 @@ async function executePlaylist(id) {
                 // Error case
                 const added = data.added || 0;
                 const notFound = data.not_found || 0;
-                showResults(added, notFound, data.error, true);
+                const excluded = data.excluded_by_blocklist || 0;
+                showResults(added, notFound, data.error, true, excluded);
             } else {
                 // Success case
                 const added = data.added || 0;
                 const notFound = data.not_found || 0;
-                showResults(added, notFound, null, false);
+                const excluded = data.excluded_by_blocklist || 0;
+                showResults(added, notFound, null, false, excluded);
                 loadPlaylists(); // Refresh to show updated last_updated
             }
         })
@@ -924,7 +949,7 @@ async function deletePlaylist(id) {
         });
 }
 
-function showResults(added, notFound, error, isError) {
+function showResults(added, notFound, error, isError, excluded = 0) {
     const alertDiv = document.getElementById('results-alert');
     const messageDiv = document.getElementById('results-message');
 
@@ -932,7 +957,15 @@ function showResults(added, notFound, error, isError) {
     if (isError) {
         message = `Error: ${error}`;
     } else {
-        message = `Tried to add ${added} songs, added ${added}${notFound > 0 ? `, ${notFound} not found in Plex` : ''}`;
+        let parts = [];
+        parts.push(`added ${added}`);
+        if (notFound > 0) {
+            parts.push(`${notFound} not found in Plex`);
+        }
+        if (excluded > 0) {
+            parts.push(`${excluded} excluded by blocklist`);
+        }
+        message = `Tried to add ${added} songs, ${parts.join(', ')}`;
     }
 
     messageDiv.textContent = message;

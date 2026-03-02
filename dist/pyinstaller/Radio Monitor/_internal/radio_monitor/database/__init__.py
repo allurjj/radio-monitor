@@ -12,7 +12,7 @@ This package provides a modular database interface with:
 The main RadioDatabase class (below) provides a unified interface
 to all database operations with backward compatibility.
 
-Schema Version: 13 (Station Grouping and Sorting)
+Schema Version: 14 (Blocklist Support)
 """
 
 import sqlite3
@@ -34,7 +34,7 @@ from . import exports
 
 
 class RadioDatabase:
-    """SQLite database with 14-table schema
+    """SQLite database with 16-table schema
 
     This is the main database interface that provides backward compatibility
     with the original database.py module while using the refactored submodules.
@@ -55,10 +55,11 @@ class RadioDatabase:
     - manual_playlists: Manual playlist definitions (v12)
     - manual_playlist_songs: Manual playlist song associations (v12)
     - playlist_builder_state: In-progress playlist builder state (v12)
+    - blocklist: Blocked artists and songs (v14)
     """
 
     # Current schema version
-    SCHEMA_VERSION = 13
+    SCHEMA_VERSION = 14
 
     def __init__(self, db_path):
         self.db_path = db_path

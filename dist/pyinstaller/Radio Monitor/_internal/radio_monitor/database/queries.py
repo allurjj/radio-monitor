@@ -560,9 +560,14 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
             a.needs_lidarr_import,
             a.lidarr_imported_at,
             COALESCE(SUM(s.play_count), 0) as total_plays,
-            COUNT(s.id) as song_count
+            COUNT(s.id) as song_count,
+            CASE
+                WHEN MAX(bl.id) IS NOT NULL THEN 1
+                ELSE 0
+            END as is_blocked
         FROM artists a
         LEFT JOIN songs s ON a.mbid = s.artist_mbid
+        LEFT JOIN blocklist bl ON bl.entity_type = 'artist' AND bl.artist_mbid = a.mbid
         {where_clause}
         GROUP BY a.mbid
         {having_clause}
@@ -574,7 +579,7 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
 
     columns = ['mbid', 'name', 'first_seen_station',
                'first_seen_at', 'last_seen_at', 'needs_lidarr_import',
-               'lidarr_imported_at', 'total_plays', 'song_count']
+               'lidarr_imported_at', 'total_plays', 'song_count', 'is_blocked']
     items = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
     # Capitalize artist names properly
@@ -700,7 +705,7 @@ def get_artist_play_history(cursor, mbid, days=30):
 
 # ==================== SONG PAGINATION QUERIES ====================
 
-def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', direction='asc'):
+def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', direction='asc', exclude_blocklist=False):
     """Get paginated list of songs with filtering and sorting
 
     Args:
@@ -710,6 +715,7 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
         filters: Dict with filter values (search, artist_name, station_id, last_seen_after, last_seen_before, plays_min, plays_max)
         sort: Sort field ('title', 'artist_name', 'play_count', 'last_seen')
         direction: Sort direction ('asc' or 'desc')
+        exclude_blocklist: If True, exclude blocked artists/songs (default: False)
 
     Returns:
         Dict with keys: items, total, page, pages, limit
@@ -767,6 +773,16 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
             conditions.append("s.last_seen_at <= ?")
             params.append(filters['last_seen_before'])
 
+    # Add blocklist filtering if requested
+    if exclude_blocklist:
+        conditions.append("""
+            NOT EXISTS (
+                SELECT 1 FROM blocklist bl
+                WHERE (bl.entity_type = 'artist' AND bl.artist_mbid = s.artist_mbid)
+                   OR (bl.entity_type = 'song' AND bl.song_id = s.id)
+            )
+        """)
+
     where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
 
     # Build ORDER BY clause dynamically based on sort and direction
@@ -807,9 +823,15 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
             a.lidarr_imported_at,
             s.play_count,
             s.first_seen_at,
-            s.last_seen_at
+            s.last_seen_at,
+            CASE
+                WHEN bl.id IS NOT NULL THEN 1
+                ELSE 0
+            END as is_blocked
         FROM songs s
         LEFT JOIN artists a ON s.artist_mbid = a.mbid
+        LEFT JOIN blocklist bl ON (bl.entity_type = 'song' AND bl.song_id = s.id)
+           OR (bl.entity_type = 'artist' AND bl.artist_mbid = s.artist_mbid)
         {where_clause}
         ORDER BY {order_by}
         LIMIT ? OFFSET ?
@@ -818,7 +840,7 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
     cursor.execute(query, params)
 
     columns = ['id', 'song_title', 'artist_name', 'artist_mbid', 'lidarr_imported_at',
-               'play_count', 'first_seen_at', 'last_seen_at']
+               'play_count', 'first_seen_at', 'last_seen_at', 'is_blocked']
     items = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
     # Capitalize artist names properly
@@ -2097,3 +2119,235 @@ def get_artist_stations(cursor, artist_mbid):
     """, (artist_mbid,))
 
     return [{'id': row[0], 'name': row[1]} for row in cursor.fetchall()]
+
+
+# ==================== BLOCKLIST QUERIES (v14) ====================
+
+def get_blocklist_items(cursor, entity_type=None, page=1, limit=50):
+    """Get paginated blocklist items
+
+    Args:
+        cursor: SQLite cursor object
+        entity_type: Filter by 'artist' or 'song' (None = all)
+        page: Page number (1-indexed)
+        limit: Items per page
+
+    Returns:
+        Dict with keys: items, total, page, pages, limit
+    """
+    offset = (page - 1) * limit
+
+    # Build WHERE clause
+    conditions = []
+    params = []
+
+    if entity_type:
+        conditions.append("bl.entity_type = ?")
+        params.append(entity_type)
+
+    where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+
+    # Get total count
+    count_query = f"""
+        SELECT COUNT(*)
+        FROM blocklist bl
+        {where_clause}
+    """
+    cursor.execute(count_query, params)
+    total = cursor.fetchone()[0]
+
+    # Get paginated results
+    query = f"""
+        SELECT
+            bl.id,
+            bl.entity_type,
+            bl.entity_id,
+            bl.artist_mbid,
+            bl.song_id,
+            bl.reason,
+            bl.created_at,
+            bl.created_by,
+            a.name as artist_name,
+            s.song_title,
+            s.artist_name as song_artist_name
+        FROM blocklist bl
+        LEFT JOIN artists a ON bl.artist_mbid = a.mbid
+        LEFT JOIN songs s ON bl.song_id = s.id
+        {where_clause}
+        ORDER BY bl.created_at DESC
+        LIMIT ? OFFSET ?
+    """
+    params.extend([limit, offset])
+    cursor.execute(query, params)
+
+    columns = ['id', 'entity_type', 'entity_id', 'artist_mbid', 'song_id', 'reason',
+               'created_at', 'created_by', 'artist_name', 'song_title', 'song_artist_name']
+    items = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    # For artist blocks, count how many songs this affects
+    for item in items:
+        if item['entity_type'] == 'artist' and item['artist_mbid']:
+            cursor.execute("""
+                SELECT COUNT(*) FROM songs WHERE artist_mbid = ?
+            """, (item['artist_mbid'],))
+            item['songs_blocked'] = cursor.fetchone()[0]
+        else:
+            item['songs_blocked'] = 1  # Individual song blocks affect 1 song
+
+    return {
+        'items': items,
+        'total': total,
+        'page': page,
+        'pages': (total + limit - 1) // limit,
+        'limit': limit
+    }
+
+
+def get_blocklist_stats(cursor):
+    """Get blocklist statistics
+
+    Args:
+        cursor: SQLite cursor object
+
+    Returns:
+        Dict with keys: total_artists, total_songs, total_entries
+    """
+    # Count artist blocks
+    cursor.execute("""
+        SELECT COUNT(DISTINCT artist_mbid) FROM blocklist WHERE entity_type = 'artist'
+    """)
+    total_artists = cursor.fetchone()[0]
+
+    # Count song blocks
+    cursor.execute("""
+        SELECT COUNT(*) FROM blocklist WHERE entity_type = 'song'
+    """)
+    total_song_entries = cursor.fetchone()[0]
+
+    # Calculate total songs affected (artist blocks count all their songs)
+    cursor.execute("""
+        SELECT
+            COALESCE(SUM(
+                CASE
+                    WHEN bl.entity_type = 'artist' THEN (
+                        SELECT COUNT(*) FROM songs WHERE artist_mbid = bl.artist_mbid
+                    )
+                    ELSE 1
+                END
+            ), 0)
+        FROM blocklist bl
+    """)
+    total_songs_affected = cursor.fetchone()[0]
+
+    return {
+        'total_artists': total_artists,
+        'total_song_entries': total_song_entries,
+        'total_entries': total_artists + total_song_entries,
+        'total_songs_affected': total_songs_affected
+    }
+
+
+def search_artists_songs_for_blocklist(cursor, search_query, limit=20):
+    """Search for artists and songs to add to blocklist
+
+    Args:
+        cursor: SQLite cursor object
+        search_query: Search term (matches artist name or song title)
+        limit: Maximum results per type (artists and songs)
+
+    Returns:
+        Dict with keys: artists, songs
+    """
+    search_pattern = f"%{search_query}%"
+
+    # Search artists
+    cursor.execute("""
+        SELECT
+            mbid,
+            name,
+            (SELECT COUNT(*) FROM songs WHERE artist_mbid = artists.mbid) as song_count
+        FROM artists
+        WHERE name LIKE ?
+        ORDER BY song_count DESC
+        LIMIT ?
+    """, (search_pattern, limit))
+
+    artists = []
+    for row in cursor.fetchall():
+        artists.append({
+            'mbid': row[0],
+            'name': capitalize_name_properly(row[1]),
+            'song_count': row[2]
+        })
+
+    # Search songs
+    cursor.execute("""
+        SELECT
+            id,
+            song_title,
+            artist_name,
+            artist_mbid
+        FROM songs
+        WHERE song_title LIKE ? OR artist_name LIKE ?
+        ORDER BY play_count DESC
+        LIMIT ?
+    """, (search_pattern, search_pattern, limit))
+
+    songs = []
+    for row in cursor.fetchall():
+        songs.append({
+            'id': row[0],
+            'title': row[1],
+            'artist_name': capitalize_name_properly(row[2]),
+            'artist_mbid': row[3]
+        })
+
+    return {
+        'artists': artists,
+        'songs': songs
+    }
+
+
+def filter_blocklist_songs(cursor, songs):
+    """Filter a list of (artist_name, song_title) tuples against blocklist
+
+    Args:
+        cursor: SQLite cursor object
+        songs: List of tuples (artist_name, song_title) or dicts with song info
+
+    Returns:
+        Filtered list with blocked items removed
+    """
+    filtered = []
+
+    for song in songs:
+        # Handle both tuple and dict formats
+        if isinstance(song, tuple):
+            artist_name, song_title = song[0], song[1]
+        elif isinstance(song, dict):
+            artist_name = song.get('artist_name')
+            song_title = song.get('song_title')
+        else:
+            continue
+
+        # Get song ID and artist MBID for blocking check
+        cursor.execute("""
+            SELECT id, artist_mbid FROM songs
+            WHERE artist_name = ? AND song_title = ?
+            LIMIT 1
+        """, (artist_name, song_title))
+
+        song_row = cursor.fetchone()
+        if not song_row:
+            # Song not in database, include it
+            filtered.append(song)
+            continue
+
+        song_id, artist_mbid = song_row
+
+        # Check if blocked
+        from . import crud
+        if not crud.is_song_blocked(cursor, song_id, artist_mbid):
+            filtered.append(song)
+
+    return filtered

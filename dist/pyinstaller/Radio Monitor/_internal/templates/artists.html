@@ -263,6 +263,27 @@
                                             <button class="btn btn-outline-warning btn-edit-mbid" data-artist-name="{{ artist.name }}" data-current-mbid="{{ artist.mbid }}" title="Edit MBID">
                                                 <i class="bi bi-pencil-square"></i>
                                             </button>
+                                            {% if artist.is_blocked %}
+                                            <button type="button" class="btn btn-success btn-block-artist"
+                                                    data-type="artist"
+                                                    data-id="{{ artist.mbid }}"
+                                                    data-name="{{ artist.name }}"
+                                                    data-song-count="{{ artist.song_count }}"
+                                                    data-blocked="true"
+                                                    title="Blocked (click to unblock)">
+                                                <i class="bi bi-check-circle-fill"></i>
+                                            </button>
+                                            {% else %}
+                                            <button type="button" class="btn btn-outline-danger btn-block-artist"
+                                                    data-type="artist"
+                                                    data-id="{{ artist.mbid }}"
+                                                    data-name="{{ artist.name }}"
+                                                    data-song-count="{{ artist.song_count }}"
+                                                    data-blocked="false"
+                                                    title="Block Artist">
+                                                <i class="bi bi-ban"></i>
+                                            </button>
+                                            {% endif %}
                                             <button class="btn btn-outline-danger btn-delete-artist"
                                                     data-mbid="{{ artist.mbid }}"
                                                     data-name="{{ artist.name }}"
@@ -750,7 +771,6 @@ document.querySelectorAll('.btn-import-artist').forEach(button => {
             }
         })
         .catch(error => {
-            console.error('Error importing artist:', error);
             Toast.error(`${name}: Failed to import`);
 
             // Re-enable button
@@ -918,7 +938,6 @@ async function saveMbidOverride() {
             Toast.error('Error: ' + result.error);
         }
     } catch (error) {
-        console.error('Error saving MBID override:', error);
         Toast.error('Error: ' + error.message);
     }
 }
@@ -940,13 +959,11 @@ async function updateArtistMbid(artistName, newMbid) {
 
         const data = await response.json();
         if (!data.success) {
-            console.error('Failed to update artist MBID:', data.message);
             return { success: false, error: data.message || 'Unknown error' };
         }
 
         return data;
     } catch (error) {
-        console.error('Error updating artist MBID:', error);
         return { success: false, error: error.message };
     }
 }
@@ -985,6 +1002,109 @@ document.querySelectorAll('.btn-delete-artist').forEach(button => {
     });
 });
 
+// Handle block/unblock artist button clicks
+document.querySelectorAll('.btn-block-artist').forEach(button => {
+    button.addEventListener('click', function(event) {
+        // Prevent default button behavior
+        event.preventDefault();
+        event.stopPropagation();
+
+        const type = this.getAttribute('data-type');
+        const id = this.getAttribute('data-id');
+        const name = this.getAttribute('data-name');
+        const songCount = this.getAttribute('data-song-count');
+        const isBlocked = this.getAttribute('data-blocked') === 'true';
+
+        // Determine if we're blocking or unblocking
+        if (isBlocked) {
+            // Unblock action
+            if (!confirm(`Unblock artist "${name}"? Their songs will appear in playlists again.`)) {
+                return;
+            }
+
+            // Find the blocklist_id for this artist
+            fetch(`/api/blocklist?entity_type=artist&page=1&limit=100`)
+                .then(response => response.json())
+                .then(data => {
+                    const blockedItem = data.items.find(item => item.artist_mbid === id);
+                    if (blockedItem) {
+                        return fetch(`/api/blocklist/${blockedItem.id}`, { method: 'DELETE' });
+                    } else {
+                        throw new Error('Artist not found in blocklist');
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    Toast.success(`Unblocked "${name}"`);
+                    // Reload page to show updated state
+                    setTimeout(() => location.reload(), 500);
+                })
+                .catch(error => {
+                    Toast.error('Error unblocking artist: ' + error.message);
+                });
+        } else {
+            // Block action
+            if (!confirm(`Block artist "${name}"? This will prevent all their songs from appearing in playlists.`)) {
+                return;
+            }
+
+            // Disable button during request
+            const originalHTML = this.innerHTML;
+            const originalClass = this.className;
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+            // Call blocklist API
+            fetch('/api/blocklist/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    items: [{
+                        type: type,
+                        id: id,
+                        block_all: true,
+                        reason: null
+                    }]
+                })
+            })
+            .then(async response => {
+                const data = await response.json();
+                if (response.ok && (data.success || data.added > 0)) {
+                    Toast.success(`Blocked "${name}" (${songCount} songs)`);
+                    // Update button to show blocked state
+                    this.innerHTML = '<i class="bi bi-check-circle-fill"></i>';
+                    this.className = 'btn btn-success btn-block-artist';
+                    this.setAttribute('data-blocked', 'true');
+                    this.title = 'Blocked (click to unblock)';
+                } else {
+                    // Show error - item might already be blocked
+                    if (data.skipped && data.skipped > 0) {
+                        Toast.warning(`"${name}" is already on the blocklist`);
+                        // Update button to show it's blocked
+                        this.innerHTML = '<i class="bi bi-check-circle-fill"></i>';
+                        this.className = 'btn btn-success btn-block-artist';
+                        this.setAttribute('data-blocked', 'true');
+                        this.title = 'Blocked (click to unblock)';
+                    } else {
+                        Toast.error(data.error || 'Failed to block artist');
+                        // Re-enable button
+                        this.disabled = false;
+                        this.innerHTML = originalHTML;
+                        this.className = originalClass;
+                    }
+                }
+            })
+            .catch(error => {
+                Toast.error('Error blocking artist: ' + error.message);
+                // Re-enable button
+                this.disabled = false;
+                this.innerHTML = originalHTML;
+                this.className = originalClass;
+            });
+        }
+    });
+});
+
 // Enable/disable delete button based on checkbox
 document.getElementById('delete-confirm-checkbox').addEventListener('change', function() {
     document.getElementById('btn-confirm-delete').disabled = !this.checked;
@@ -993,7 +1113,6 @@ document.getElementById('delete-confirm-checkbox').addEventListener('change', fu
 // Confirm delete button
 document.getElementById('btn-confirm-delete').addEventListener('click', function() {
     if (!artistToDelete) {
-        console.error('No artist to delete');
         return;
     }
 
@@ -1052,7 +1171,6 @@ document.getElementById('btn-confirm-delete').addEventListener('click', function
         }, 1000);
     })
     .catch(error => {
-        console.error('Error deleting artist:', error);
 
         // Show error in modal
         const errorDiv = document.getElementById('delete-error-message');
@@ -1102,7 +1220,6 @@ function loadPendingCount() {
             }
         })
         .catch(error => {
-            console.error('Error loading PENDING count:', error);
         });
 }
 
@@ -1176,7 +1293,6 @@ document.getElementById('retry-pending-btn').addEventListener('click', function(
         }
     })
     .catch(error => {
-        console.error('Error triggering MBID retry:', error);
         showRetryError(error.message || 'Failed to start MBID retry');
     })
     .finally(() => {

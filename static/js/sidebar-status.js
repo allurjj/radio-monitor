@@ -9,24 +9,9 @@
 
     // Update all status indicators
     function updateAllStatus() {
-        updateMonitorStatus();
         updateLidarrStatus();
         updatePlexStatus();
         updateScraperStatus();
-    }
-
-    // Update Monitor status
-    function updateMonitorStatus() {
-        fetch('/api/monitor/status')
-            .then(response => response.json())
-            .then(data => {
-                const status = data.running ? 'online' : 'offline';
-                updateStatusIcon('monitor', status);
-            })
-            .catch(error => {
-                console.error('Failed to fetch monitor status:', error);
-                updateStatusIcon('monitor', 'offline');
-            });
     }
 
     // Update Lidarr status
@@ -89,12 +74,12 @@
     }
 
     // Start status updates when DOM is ready
-    if (document.getElementById('status-monitor')) {
+    if (document.getElementById('status-lidarr')) {
         // Update immediately on page load
         updateAllStatus();
 
-        // Update every 30 seconds
-        statusInterval = setInterval(updateAllStatus, 30000);
+        // Update every 3 minutes
+        statusInterval = setInterval(updateAllStatus, 180000);
     }
 
     // Cleanup on page unload
