@@ -624,8 +624,10 @@ def scrape_single_station(db, station_id):
             )
 
         # Use fast scraper (requests + BeautifulSoup)
-        logger.info(f"Using fast scraper for {station_id}...")
-        songs = scrape_station_iheart_fast(config, max_retries=7, initial_wait=4)
+        # Use station's configured wait_time for initial retry delay
+        initial_wait = config.get('wait_time', 10)  # Default to 10 seconds
+        logger.info(f"Using fast scraper for {station_id} (initial_wait={initial_wait}s)...")
+        songs = scrape_station_iheart_fast(config, max_retries=7, initial_wait=initial_wait)
 
         if len(songs) == 0:
             logger.warning(f"Fast scraper found 0 songs for {station_id} after all retries")
