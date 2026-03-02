@@ -29,6 +29,54 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def fix_encoding_corruption(text):
+    """Fix common encoding corruption from misinterpreted UTF-8 bytes
+
+    This fixes the issue where UTF-8 text was incorrectly interpreted as
+    Windows-1252 (CP1252), causing characters like curly apostrophes to be
+    displayed as garbage.
+
+    Common corruption patterns:
+    - U+2019 (') → displayed as â€™ or â\x80\x99 in raw bytes
+    - U+2018 (') → displayed as â˜
+    - U+201C (") → displayed as âœ
+    - U+201D (") → displayed as â
+
+    This function MUST be called first in the normalization pipeline, before
+    any other text processing, to ensure corrupted text is fixed before being
+    stored to the database.
+
+    Args:
+        text: Text that may have encoding corruption
+
+    Returns:
+        Text with encoding corruption fixed
+
+    Examples:
+        >>> fix_encoding_corruption("Thatâ\x80\x99s So True")
+        "That's So True"
+        >>> fix_encoding_corruption("Donât Stop")
+        "Don't Stop"
+        >>> fix_encoding_corruption("Normal Text")
+        "Normal Text"  # Already good, unchanged
+    """
+    if not text:
+        return text
+
+    # Fix corrupted UTF-8 bytes (U+2019 stored as UTF-8 bytes 0xE2 0x80 0x99)
+    text = text.replace('\xe2\x80\x99', "'")  # U+2019 corrupted as UTF-8 bytes
+    text = text.replace('\xe2\x80\x98', "'")  # U+2018 corrupted
+    text = text.replace('\xe2\x80\x9c', '"')  # U+201C corrupted
+    text = text.replace('\xe2\x80\x9d', '"')  # U+201D corrupted
+
+    # Fix already-misinterpreted Windows-1252 patterns
+    # When UTF-8 bytes are read as Windows-1252: 0xE2 = â, 0x80 = control, 0x99 = ™
+    # The pattern â followed by control chars needs to be converted to apostrophe
+    text = re.sub(r'\xe2[\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f]', "'", text)
+
+    return text
+
+
 # Known acronyms and stylized names that should stay ALL CAPS
 # These are common in music and should be preserved
 CAPS_EXCEPTIONS = {
@@ -172,6 +220,10 @@ def normalize_text(text, preserve_caps=False):
     """
     if not text:
         return ""
+
+    # Rule 0: Fix encoding corruption (MUST BE FIRST)
+    # This fixes corrupted UTF-8 bytes before any other processing
+    text = fix_encoding_corruption(text)
 
     # Rule 1: Trim whitespace
     text = text.strip()
