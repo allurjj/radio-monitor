@@ -516,7 +516,7 @@ def cmd_test(args, settings):
     try:
         from radio_monitor.mbid import lookup_artist_mbid
         # Simple lookup test
-        result = lookup_artist_mbid("Test Artist 12345", db)
+        mbid, verified_name = lookup_artist_mbid("Test Artist 12345", db)
         print(f"[OK] MusicBrainz API reachable (API reachable)")
     except Exception as e:
         print(f"[OK] MusicBrainz API reachable")  # API is up, artist not found is expected

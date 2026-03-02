@@ -248,14 +248,14 @@ def try_musicbrainz_search(
 
     for artist_name in artist_names:
         try:
-            mbid = lookup_artist_mbid(
+            mbid, verified_name = lookup_artist_mbid(
                 artist_name=artist_name,
                 db=db,
                 user_agent=user_agent
             )
             if mbid and not mbid.startswith('PENDING'):
                 results[artist_name] = mbid
-                logger.debug(f"Found MBID for '{artist_name}': {mbid}")
+                logger.debug(f"Found MBID for '{artist_name}': {mbid} (verified: {verified_name})")
             else:
                 results[artist_name] = None
                 logger.debug(f"No MBID found for '{artist_name}'")

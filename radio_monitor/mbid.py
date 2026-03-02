@@ -70,11 +70,13 @@ def lookup_artist_mbid(artist_name, db, user_agent=None, max_retries=10, auto_re
         auto_retry_pending: Auto-retry PENDING MBIDs (default: True)
 
     Returns:
-        MBID string if found, None if not found
+        Tuple of (mbid: str or None, verified_name: str or None)
+        - mbid: MusicBrainz ID if found, None if not found
+        - verified_name: Canonical artist name from MusicBrainz (or database), None if not found
 
     Flow:
         1. Check if artist exists in database
-        2. If exists and has real MBID → return cached MBID
+        2. If exists and has real MBID → return cached MBID and database name
         3. If exists and has PENDING MBID → auto-retry lookup
         4. If exists but MBID is NULL → retry lookup
         5. If not in database → query MusicBrainz API
@@ -82,7 +84,7 @@ def lookup_artist_mbid(artist_name, db, user_agent=None, max_retries=10, auto_re
         7. Rate limit: 1 second between requests (0.5s before + 0.5s after)
         8. Short timeout (5s) - fail fast on connection issues
         9. Validate artist name with fuzzy matching (80% threshold)
-        10. Return MBID or None (skip song if None)
+        10. Return (MBID, verified_name) or (None, None) if not found
     """
     # Check cache first
     artist = db.get_artist_by_name(artist_name)
@@ -101,7 +103,8 @@ def lookup_artist_mbid(artist_name, db, user_agent=None, max_retries=10, auto_re
             else:
                 # Valid cached MBID found
                 logger.debug(f"Using cached MBID for {artist_name}: {artist_mbid}")
-                return artist_mbid
+                # Return cached MBID and the artist's name from database
+                return artist_mbid, artist.get('name')
         else:
             # Artist exists but MBID is NULL - retry lookup
             logger.info(f"Retrying MBID lookup for {artist_name}")
@@ -192,27 +195,27 @@ def lookup_artist_mbid(artist_name, db, user_agent=None, max_retries=10, auto_re
                                     db.update_artist_mbid_from_pending(artist_name, mbid)
                                     logger.debug(f"Updated MBID in database for {artist_name}")
 
-                            return mbid
+                            return mbid, matched_name
                         else:
                             # Best match is below threshold - reject all results
                             logger.warning(
                                 f"No good match found for {artist_name} "
                                 f"(best: {best_match[1] if best_match else 'N/A'} at {best_similarity:.1%})"
                             )
-                            return None
+                            return None, None
                     else:
                         # No results found
                         logger.warning(f"No MBID found for {artist_name} (no results from MusicBrainz)")
-                        return None
+                        return None, None
 
                 elif response.status == 404:
                     # Not found
                     logger.warning(f"No MBID found for {artist_name} (HTTP 404)")
-                    return None
+                    return None, None
                 else:
                     # Other error
                     logger.error(f"MusicBrainz API error for {artist_name}: HTTP {response.status}")
-                    return None
+                    return None, None
 
         except urllib.error.URLError as e:
             # SSL, EOF, and connection errors - retry with exponential backoff
@@ -225,11 +228,11 @@ def lookup_artist_mbid(artist_name, db, user_agent=None, max_retries=10, auto_re
                     time.sleep(wait_time)
                 else:
                     logger.error(f"MusicBrainz connection error for {artist_name} after {max_retries} attempts: {e}")
-                    return None
+                    return None, None
             else:
                 # Other URL errors - don't retry
                 logger.error(f"MusicBrainz API request failed for {artist_name}: {e}")
-                return None
+                return None, None
 
         except urllib.error.URLError as e:
             # Other URL errors
@@ -237,13 +240,13 @@ def lookup_artist_mbid(artist_name, db, user_agent=None, max_retries=10, auto_re
                 logger.error(f"MusicBrainz API request failed for {artist_name}: {e.reason}")
             else:
                 logger.error(f"MusicBrainz API request failed for {artist_name}: {e}")
-            return None
+            return None, None
 
         except Exception as e:
             logger.error(f"Unexpected error looking up MBID for {artist_name}: {e}")
-            return None
+            return None, None
 
-    return None
+    return None, None
 
 
 def batch_lookup_mbids(artist_names, db, user_agent=None):
@@ -255,13 +258,13 @@ def batch_lookup_mbids(artist_names, db, user_agent=None):
         user_agent: Custom User-Agent string (optional)
 
     Returns:
-        Dict mapping {artist_name: mbid or None}
+        Dict mapping {artist_name: (mbid: str or None, verified_name: str or None)}
     """
     results = {}
 
     for artist_name in artist_names:
-        mbid = lookup_artist_mbid(artist_name, db, user_agent)
-        results[artist_name] = mbid
+        mbid, verified_name = lookup_artist_mbid(artist_name, db, user_agent)
+        results[artist_name] = (mbid, verified_name)
 
     return results
 

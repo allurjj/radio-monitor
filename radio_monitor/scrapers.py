@@ -775,6 +775,7 @@ def scrape_all_stations(db=None, station_ids=None):
                         # Get MBID with manual override support
                         # Priority: Station MBID > Manual override > MusicBrainz API > PENDING
                         primary_artist_mbid = artist_mbid if len(artists_to_process) == 1 else None
+                        primary_artist_verified_name = None  # Will be set by MusicBrainz lookup
 
                         if not primary_artist_mbid:
                             # Check for manual override first
@@ -791,17 +792,19 @@ def scrape_all_stations(db=None, station_ids=None):
 
                                 if mbid_with_source:
                                     primary_artist_mbid = mbid_with_source
+                                    primary_artist_verified_name = None  # Override doesn't provide verified name
                                 elif source == 'musicbrainz_needed':
                                     # No override found, try MusicBrainz lookup
                                     try:
                                         from radio_monitor.mbid import lookup_artist_mbid
                                         # Get user_agent from settings for MusicBrainz API
                                         user_agent = settings.get('musicbrainz', {}).get('user_agent') if settings else None
-                                        primary_artist_mbid = lookup_artist_mbid(primary_artist, db, user_agent=user_agent)
+                                        primary_artist_mbid, primary_artist_verified_name = lookup_artist_mbid(primary_artist, db, user_agent=user_agent)
                                         if primary_artist_mbid:
-                                            logger.debug(f"MBID from MusicBrainz for '{primary_artist}': {primary_artist_mbid}")
+                                            logger.debug(f"MBID from MusicBrainz for '{primary_artist}': {primary_artist_mbid} (verified: {primary_artist_verified_name})")
                                     except Exception as e:
                                         logger.warning(f"MBID lookup failed for '{primary_artist}': {e}")
+                                        primary_artist_verified_name = None
                             finally:
                                 cursor.close()
 
@@ -822,14 +825,14 @@ def scrape_all_stations(db=None, station_ids=None):
                                     # Get the MBID of the first (primary) artist
                                     from radio_monitor.mbid import lookup_artist_mbid
                                     primary_name = validated_artists[0]
-                                    primary_artist_mbid = lookup_artist_mbid(
+                                    primary_artist_mbid, primary_artist_verified_name = lookup_artist_mbid(
                                         artist_name=primary_name,
                                         db=db,
                                         user_agent=user_agent
                                     )
 
                                 if primary_artist_mbid and not primary_artist_mbid.startswith('PENDING'):
-                                    logger.info(f"Multi-artist resolution successful for '{primary_artist}' -> '{primary_name}': {primary_artist_mbid}")
+                                    logger.info(f"Multi-artist resolution successful for '{primary_artist}' -> '{primary_name}': {primary_artist_mbid} (verified: {primary_artist_verified_name})")
                                 else:
                                     logger.debug(f"Multi-artist resolution failed for '{primary_artist}'")
                             except Exception as e:
@@ -844,13 +847,16 @@ def scrape_all_stations(db=None, station_ids=None):
                             logger.debug(f"Using placeholder MBID for {primary_artist}: {primary_artist_mbid}")
 
                     # Add artist and song to database atomically (prevents orphaned artists)
+                    # Use MusicBrainz's canonical name if available, otherwise fall back to scraped name
+                    # This prevents artist name corruption in the artists table
+                    artist_name_for_db = primary_artist_verified_name if primary_artist_verified_name else primary_artist
                     artist_added, song_added, play_id = db.add_artist_and_song_if_new(
-                        primary_artist_mbid, primary_artist, song_title
+                        primary_artist_mbid, artist_name_for_db, song_title
                     )
 
                     if artist_added:
                         total_artists_added += 1
-                        logger.info(f"New artist: {primary_artist} ({primary_artist_mbid})")
+                        logger.info(f"New artist: {artist_name_for_db} ({primary_artist_mbid})")
 
                     if song_added:
                         total_songs_added += 1
