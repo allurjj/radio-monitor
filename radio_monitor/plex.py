@@ -700,61 +700,61 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
 
             artists = music_library.search(search_artist, libtype='artist')
 
-        if artists:
-            # Check each artist match
-            for artist in artists:
-                artist_title = artist.title if hasattr(artist, 'title') else str(artist)
+            if artists:
+                # Check each artist match
+                for artist in artists:
+                    artist_title = artist.title if hasattr(artist, 'title') else str(artist)
 
-                # Check if artist name matches any of our variations (case-insensitive)
-                # This handles "A Ha" matching "A-ha", "Brooks Dunn" matching "Brooks & Dunn", etc.
-                artist_match_found = False
-                for variation in artist_variations:
-                    if artist_title.lower() == variation.lower():
-                        artist_match_found = True
+                    # Check if artist name matches any of our variations (case-insensitive)
+                    # This handles "A Ha" matching "A-ha", "Brooks Dunn" matching "Brooks & Dunn", etc.
+                    artist_match_found = False
+                    for variation in artist_variations:
+                        if artist_title.lower() == variation.lower():
+                            artist_match_found = True
+                            break
+
+                    if artist_match_found:
+                        if debug:
+                            logger.debug(f"  Found artist: {artist_title}")
+
+                        # Get ALL tracks from this artist
+                        all_tracks = []
+                        for album in artist.albums():
+                            all_tracks.extend(album.tracks())
+
+                        if debug:
+                            logger.debug(f"  Artist has {len(all_tracks)} tracks")
+
+                        # Search for matching title within artist's catalog
+                        # Try all title variations
+                        for search_title in get_title_variations(song_title):
+                            # Match using all strategies (exact, normalized, fuzzy)
+                            for track in all_tracks:
+                                try:
+                                    # Strategy 0a: Exact match (case-insensitive)
+                                    if track.title.lower() == search_title.lower():
+                                        if debug:
+                                            logger.debug(f"  ✓ Artist-first exact match: {track.title}")
+                                        return track
+
+                                    # Strategy 0b: Normalized match
+                                    track_norm = normalize_song_title(track.title)
+                                    search_norm = normalize_song_title(search_title)
+
+                                    if (track_norm.lower() == search_norm.lower() or
+                                        track_norm.lower() in search_norm.lower() or
+                                        search_norm.lower() in track_norm.lower()):
+                                        if debug:
+                                            logger.debug(f"  ✓ Artist-first normalized match: {track.title}")
+                                        return track
+
+                                    # Strategy 0c: Adaptive fuzzy match
+                                    # Uses 85% threshold for single-character differences
+                                    if adaptive_fuzzy_match(track.title, search_title, debug=debug):
+                                        return track
+                                except Exception:
+                                    continue
                         break
-
-                if artist_match_found:
-                    if debug:
-                        logger.debug(f"  Found artist: {artist_title}")
-
-                    # Get ALL tracks from this artist
-                    all_tracks = []
-                    for album in artist.albums():
-                        all_tracks.extend(album.tracks())
-
-                    if debug:
-                        logger.debug(f"  Artist has {len(all_tracks)} tracks")
-
-                    # Search for matching title within artist's catalog
-                    # Try all title variations
-                    for search_title in get_title_variations(song_title):
-                        # Match using all strategies (exact, normalized, fuzzy)
-                        for track in all_tracks:
-                            try:
-                                # Strategy 0a: Exact match (case-insensitive)
-                                if track.title.lower() == search_title.lower():
-                                    if debug:
-                                        logger.debug(f"  ✓ Artist-first exact match: {track.title}")
-                                    return track
-
-                                # Strategy 0b: Normalized match
-                                track_norm = normalize_song_title(track.title)
-                                search_norm = normalize_song_title(search_title)
-
-                                if (track_norm.lower() == search_norm.lower() or
-                                    track_norm.lower() in search_norm.lower() or
-                                    search_norm.lower() in track_norm.lower()):
-                                    if debug:
-                                        logger.debug(f"  ✓ Artist-first normalized match: {track.title}")
-                                    return track
-
-                                # Strategy 0c: Adaptive fuzzy match
-                                # Uses 85% threshold for single-character differences
-                                if adaptive_fuzzy_match(track.title, search_title, debug=debug):
-                                    return track
-                            except Exception:
-                                continue
-                    break
     except Exception as e:
         if debug:
             logger.debug(f"  Artist-first search failed: {e}")
