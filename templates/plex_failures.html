@@ -141,7 +141,7 @@
         <div class="card card-standard">
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <label class="form-label">Status</label>
                         <select class="form-select" id="resolvedFilter">
                             <option value="all">All</option>
@@ -149,16 +149,7 @@
                             <option value="true">Resolved</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Reason</label>
-                        <select class="form-select" id="reasonFilter">
-                            <option value="">All Reasons</option>
-                            <option value="no_match">No Match</option>
-                            <option value="multiple_matches">Multiple Matches</option>
-                            <option value="plex_error">Plex Error</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <label class="form-label">Per Page</label>
                         <select class="form-select" id="pageSize">
                             <option value="25">25</option>
@@ -167,7 +158,7 @@
                             <option value="200">200</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <label class="form-label">&nbsp;</label>
                         <div class="d-flex gap-2">
                             <button class="btn btn-outline-primary" id="exportBtn">
@@ -319,7 +310,6 @@ class PlexFailuresView {
     initElements() {
         this.tableBody = document.getElementById('failuresTableBody');
         this.resolvedFilter = document.getElementById('resolvedFilter');
-        this.reasonFilter = document.getElementById('reasonFilter');
         this.pageSizeSelect = document.getElementById('pageSize');
         this.refreshBtn = document.getElementById('refreshBtn');
         this.clearAllBtn = document.getElementById('clearAllBtn');
@@ -333,7 +323,6 @@ class PlexFailuresView {
 
     bindEvents() {
         this.resolvedFilter.addEventListener('change', () => this.onFilterChange());
-        this.reasonFilter.addEventListener('change', () => this.onFilterChange());
         this.pageSizeSelect.addEventListener('change', () => this.onPageSizeChange());
         this.refreshBtn.addEventListener('click', () => this.loadFailures());
         this.clearAllBtn.addEventListener('click', () => this.clearAll());
@@ -354,10 +343,6 @@ class PlexFailuresView {
                 sort: this.sortColumn,
                 direction: this.sortDirection
             });
-
-            if (this.reasonFilter.value) {
-                params.append('reason', this.reasonFilter.value);
-            }
 
             const response = await fetch(`/plex-failures/api/failures?${params}`);
             const data = await response.json();
