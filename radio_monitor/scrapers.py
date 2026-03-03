@@ -715,6 +715,10 @@ def scrape_all_stations(db=None, station_ids=None):
     stations_scraped = 0
     failed_stations = []
 
+    # Session-level cache for artist MBID lookups (prevents redundant API calls)
+    # Key: artist_name, Value: mbid
+    artist_cache = {}
+
     for station_id in stations_to_scrape:
         # Check for cancellation before each station
         if is_scraping_cancelled():
@@ -819,7 +823,7 @@ def scrape_all_stations(db=None, station_ids=None):
                                 logger.info(f"No MBID found for '{primary_artist}', trying multi-artist resolution...")
 
                                 # Use the smart grouping resolver to find the primary MBID
-                                validated_artists = try_split_and_validate(primary_artist, db, user_agent)
+                                validated_artists = try_split_and_validate(primary_artist, db, user_agent, artist_cache)
 
                                 if validated_artists:
                                     # Get the MBID of the first (primary) artist

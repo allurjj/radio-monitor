@@ -231,42 +231,87 @@ def _split_former_names(artist_name: str, song_title: str = None) -> List[str]:
 def try_musicbrainz_search(
     artist_names: List[str],
     db,
-    user_agent: str
+    user_agent: str,
+    cache: Dict[str, str] = None
 ) -> Dict[str, str]:
     """
     Validate split artist names against MusicBrainz API.
+
+    OPTIMIZATION: Checks local database FIRST before querying MusicBrainz API.
+    Uses in-memory cache to avoid redundant lookups within the same session.
 
     Args:
         artist_names: List of artist names to validate
         db: Database instance
         user_agent: User agent for MusicBrainz API
+        cache: Optional in-memory cache {artist_name: mbid} for session-level caching
 
     Returns:
         Dict mapping {artist_name: mbid or None}
     """
     results = {}
+    if cache is None:
+        cache = {}
 
-    for artist_name in artist_names:
-        try:
-            mbid, verified_name = lookup_artist_mbid(
-                artist_name=artist_name,
-                db=db,
-                user_agent=user_agent
-            )
-            if mbid and not mbid.startswith('PENDING'):
-                results[artist_name] = mbid
-                logger.debug(f"Found MBID for '{artist_name}': {mbid} (verified: {verified_name})")
-            else:
+    # First pass: Check cache and local database (no API calls)
+    artists_needing_api = []
+    cursor = db.get_cursor()
+
+    try:
+        for artist_name in artist_names:
+            # Check 1: Session cache (fastest)
+            if artist_name in cache:
+                cached_mbid = cache[artist_name]
+                if cached_mbid and not cached_mbid.startswith('PENDING'):
+                    results[artist_name] = cached_mbid
+                    logger.debug(f"[CACHE HIT] '{artist_name}': {cached_mbid}")
+                    continue
+
+            # Check 2: Local database (fast)
+            cursor.execute("""
+                SELECT mbid, name FROM artists
+                WHERE name = ? COLLATE NOCASE
+            """, (artist_name,))
+            row = cursor.fetchone()
+
+            if row:
+                db_mbid, db_name = row
+                if db_mbid and not db_mbid.startswith('PENDING'):
+                    # Found in database - use it and cache it
+                    results[artist_name] = db_mbid
+                    cache[artist_name] = db_mbid
+                    logger.debug(f"[DB HIT] '{artist_name}' found in local database: {db_mbid}")
+                    continue
+
+            # Not in cache or database - needs API lookup
+            artists_needing_api.append(artist_name)
+
+        # Second pass: Only query MusicBrainz for artists not found locally
+        for artist_name in artists_needing_api:
+            try:
+                mbid, verified_name = lookup_artist_mbid(
+                    artist_name=artist_name,
+                    db=db,
+                    user_agent=user_agent
+                )
+                if mbid and not mbid.startswith('PENDING'):
+                    results[artist_name] = mbid
+                    cache[artist_name] = mbid  # Cache for future lookups
+                    logger.debug(f"[API] Found MBID for '{artist_name}': {mbid} (verified: {verified_name})")
+                else:
+                    results[artist_name] = None
+                    logger.debug(f"[API] No MBID found for '{artist_name}'")
+            except Exception as e:
+                logger.warning(f"Error looking up '{artist_name}': {e}")
                 results[artist_name] = None
-                logger.debug(f"No MBID found for '{artist_name}'")
-        except Exception as e:
-            logger.warning(f"Error looking up '{artist_name}': {e}")
-            results[artist_name] = None
+
+    finally:
+        cursor.close()
 
     return results
 
 
-def try_split_and_validate(artist_name: str, db, user_agent: str) -> List[str]:
+def try_split_and_validate(artist_name: str, db, user_agent: str, cache: Dict[str, str] = None) -> List[str]:
     """
     Try multiple split strategies and validate against MusicBrainz.
 
@@ -282,10 +327,14 @@ def try_split_and_validate(artist_name: str, db, user_agent: str) -> List[str]:
         artist_name: The collaboration name to split
         db: Database instance
         user_agent: User agent for MusicBrainz API
+        cache: Optional in-memory cache for session-level caching
 
     Returns:
         List of validated artist names (empty if validation fails)
     """
+    if cache is None:
+        cache = {}
+
     all_valid_splits = []
 
     # Strategy 1: Smart grouping for 2-3 word collaborations (NEW!)
@@ -298,14 +347,14 @@ def try_split_and_validate(artist_name: str, db, user_agent: str) -> List[str]:
         logger.debug(f"Trying 2-word smart grouping for: {artist_name}")
 
         # Try both words together first
-        validation = try_musicbrainz_search([artist_name], db, user_agent)
+        validation = try_musicbrainz_search([artist_name], db, user_agent, cache)
         if validation.get(artist_name):
             # It's a single artist with 2-word name
             logger.info(f"Validated as single 2-word artist: {artist_name}")
             return [artist_name]
 
         # Try individual words
-        validation = try_musicbrainz_search(words, db, user_agent)
+        validation = try_musicbrainz_search(words, db, user_agent, cache)
         if all(validation.get(word) for word in words):
             logger.info(f"Validated 2-word split: {words}")
             all_valid_splits.append(words)
@@ -318,7 +367,7 @@ def try_split_and_validate(artist_name: str, db, user_agent: str) -> List[str]:
         # Strategy 1: First 2 words + last 1 word
         artist1 = ' '.join(words[:2])
         artist2 = words[2]
-        validation = try_musicbrainz_search([artist1, artist2], db, user_agent)
+        validation = try_musicbrainz_search([artist1, artist2], db, user_agent, cache)
         if validation.get(artist1) and validation.get(artist2):
             logger.info(f"Validated 3-word split (2+1): [{artist1}, {artist2}]")
             all_valid_splits.append([artist1, artist2])
@@ -326,13 +375,13 @@ def try_split_and_validate(artist_name: str, db, user_agent: str) -> List[str]:
         # Strategy 2: First 1 word + last 2 words
         artist1 = words[0]
         artist2 = ' '.join(words[1:])
-        validation = try_musicbrainz_search([artist1, artist2], db, user_agent)
+        validation = try_musicbrainz_search([artist1, artist2], db, user_agent, cache)
         if validation.get(artist1) and validation.get(artist2):
             logger.info(f"Validated 3-word split (1+2): [{artist1}, {artist2}]")
             all_valid_splits.append([artist1, artist2])
 
         # Strategy 3: All individual words (fallback)
-        validation = try_musicbrainz_search(words, db, user_agent)
+        validation = try_musicbrainz_search(words, db, user_agent, cache)
         if all(validation.get(word) for word in words):
             logger.info(f"Validated 3-word split (1+1+1): {words}")
             all_valid_splits.append(words)
@@ -345,7 +394,7 @@ def try_split_and_validate(artist_name: str, db, user_agent: str) -> List[str]:
         # Strategy 1: First 3 + last 1 (3-word artist name + featured artist)
         artist1 = ' '.join(words[:3])
         artist2 = words[3]
-        validation = try_musicbrainz_search([artist1, artist2], db, user_agent)
+        validation = try_musicbrainz_search([artist1, artist2], db, user_agent, cache)
         if validation.get(artist1) and validation.get(artist2):
             logger.info(f"Validated 4-word split (3+1): [{artist1}, {artist2}]")
             all_valid_splits.append([artist1, artist2])
@@ -353,7 +402,7 @@ def try_split_and_validate(artist_name: str, db, user_agent: str) -> List[str]:
         # Strategy 2: First 2 + last 2 (two 2-word artist names)
         artist1 = ' '.join(words[:2])
         artist2 = ' '.join(words[2:])
-        validation = try_musicbrainz_search([artist1, artist2], db, user_agent)
+        validation = try_musicbrainz_search([artist1, artist2], db, user_agent, cache)
         if validation.get(artist1) and validation.get(artist2):
             logger.info(f"Validated 4-word split (2+2): [{artist1}, {artist2}]")
             all_valid_splits.append([artist1, artist2])
@@ -361,7 +410,7 @@ def try_split_and_validate(artist_name: str, db, user_agent: str) -> List[str]:
         # Strategy 3: First 1 + last 3 (rare)
         artist1 = words[0]
         artist2 = ' '.join(words[1:])
-        validation = try_musicbrainz_search([artist1, artist2], db, user_agent)
+        validation = try_musicbrainz_search([artist1, artist2], db, user_agent, cache)
         if validation.get(artist1) and validation.get(artist2):
             logger.info(f"Validated 4-word split (1+3): [{artist1}, {artist2}]")
             all_valid_splits.append([artist1, artist2])
@@ -383,7 +432,7 @@ def try_split_and_validate(artist_name: str, db, user_agent: str) -> List[str]:
             if first_count + second_count == num_words:
                 artist1 = ' '.join(words[:first_count])
                 artist2 = ' '.join(words[first_count:])
-                validation = try_musicbrainz_search([artist1, artist2], db, user_agent)
+                validation = try_musicbrainz_search([artist1, artist2], db, user_agent, cache)
                 if validation.get(artist1) and validation.get(artist2):
                     logger.info(f"Validated {num_words}-word split ({first_count}+{second_count}): [{artist1}, {artist2}]")
                     all_valid_splits.append([artist1, artist2])
@@ -408,7 +457,7 @@ def try_split_and_validate(artist_name: str, db, user_agent: str) -> List[str]:
     standard_splits = split_artist_name(artist_name)
     if len(standard_splits) > 1:
         # Validate the standard split
-        validation = try_musicbrainz_search(standard_splits, db, user_agent)
+        validation = try_musicbrainz_search(standard_splits, db, user_agent, cache)
         # Check if ALL parts were found
         if all(validation.get(name) for name in standard_splits):
             logger.info(f"Validated standard split: {standard_splits}")
@@ -443,7 +492,7 @@ def try_split_and_validate(artist_name: str, db, user_agent: str) -> List[str]:
                         artist2 = ' '.join(candidate_parts[j:])
 
                         # Validate both
-                        validation = try_musicbrainz_search([artist1, artist2], db, user_agent)
+                        validation = try_musicbrainz_search([artist1, artist2], db, user_agent, cache)
 
                         # If both found, this is a valid split!
                         if validation.get(artist1) and validation.get(artist2):
@@ -468,7 +517,8 @@ def resolve_multi_artist_recursive(
     db,
     user_agent: str,
     depth: int = 0,
-    max_depth: int = 3
+    max_depth: int = 3,
+    cache: Dict[str, str] = None
 ) -> Tuple[Optional[str], List[str]]:
     """
     Recursive resolution with 3 depths of fallback strategies.
@@ -480,24 +530,28 @@ def resolve_multi_artist_recursive(
         user_agent: User agent for MusicBrainz API
         depth: Current recursion depth
         max_depth: Maximum recursion depth (default 3)
+        cache: In-memory cache for session-level caching
 
     Returns:
         Tuple of (primary_mbid or None, all_found_mbids)
     """
+    if cache is None:
+        cache = {}
+
     if depth >= max_depth:
         logger.debug(f"Max depth reached for '{artist_name}'")
         return None, []
 
     # Use hybrid validation: try split strategies and validate against MusicBrainz
     logger.debug(f"Depth {depth}: Trying hybrid validation for '{artist_name}'")
-    validated_artists = try_split_and_validate(artist_name, db, user_agent)
+    validated_artists = try_split_and_validate(artist_name, db, user_agent, cache)
 
     if validated_artists:
         # Found a validated split!
         logger.info(f"Validated split at depth {depth}: {validated_artists}")
 
         # Get MBIDs for all validated artists
-        validation_results = try_musicbrainz_search(validated_artists, db, user_agent)
+        validation_results = try_musicbrainz_search(validated_artists, db, user_agent, cache)
         found_mbids = [mbid for mbid in validation_results.values() if mbid]
 
         # Return first artist's MBID as primary
@@ -543,6 +597,9 @@ def resolve_multi_artist(
 
     logger.info(f"Attempting multi-artist resolution for: {artist_name}")
 
+    # Create cache for this resolution attempt (not shared across calls)
+    cache = {}
+
     # Try recursive resolution
     primary_mbid, all_mbids = resolve_multi_artist_recursive(
         artist_name=artist_name,
@@ -550,7 +607,8 @@ def resolve_multi_artist(
         db=db,
         user_agent=user_agent,
         depth=0,
-        max_depth=3
+        max_depth=3,
+        cache=cache
     )
 
     if primary_mbid:
@@ -576,7 +634,7 @@ def resolve_multi_artist(
                     logger.debug(f"Split artists: {split_artists}")
 
                     if split_artists:
-                        validation_results = try_musicbrainz_search(split_artists, db, user_agent)
+                        validation_results = try_musicbrainz_search(split_artists, db, user_agent, cache)
                         logger.debug(f"Validation results: {validation_results}")
 
                         for name, mbid in validation_results.items():
