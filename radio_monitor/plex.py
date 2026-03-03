@@ -969,17 +969,20 @@ def create_playlist(db, plex, playlist_name, mode='merge', filters=None):
         for song in songs:
             # song format: (song_id, song_title, artist_name, play_count)
             song_id, song_title, artist_name, play_count = song
-            # Get artist_mbid for blocking check
+
+            # Reuse single cursor for both queries (prevents cursor leaks)
             cursor = db.get_cursor()
             try:
+                # Get artist_mbid for blocking check
                 cursor.execute("SELECT artist_mbid FROM songs WHERE id = ?", (song_id,))
                 row = cursor.fetchone()
                 artist_mbid = row[0] if row else None
+
+                # Check if song or artist is blocked (reuse same cursor)
+                if not crud.is_song_blocked(cursor, song_id, artist_mbid):
+                    filtered_songs.append(song)
             finally:
                 cursor.close()
-
-            if not crud.is_song_blocked(db.get_cursor(), song_id, artist_mbid):
-                filtered_songs.append(song)
 
         songs = filtered_songs
         excluded_by_blocklist = original_count - len(songs)

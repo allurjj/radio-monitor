@@ -705,6 +705,7 @@ def _execute_playlist_immediate(playlist_id, db_path, plex_config):
         plex = PlexServer(plex_config['url'], plex_config['token'])
 
         # Build filters from playlist config
+        # Note: exclude_blocklist defaults to True for background jobs (can't access request context)
         filters = {
             'station_ids': playlist['station_ids'],
             'days': playlist.get('days'),
@@ -712,7 +713,7 @@ def _execute_playlist_immediate(playlist_id, db_path, plex_config):
             'min_plays': playlist.get('min_plays', 1),
             'max_plays': playlist.get('max_plays'),
             'music_library_name': plex_config.get('library_name', 'Music'),
-            'exclude_blocklist': request.json.get('exclude_blocklist', True) if request.json else True  # Default: True
+            'exclude_blocklist': True  # Default: True (blocklist filtering enabled)
         }
 
         # Create/update playlist in Plex
