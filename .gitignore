@@ -85,7 +85,9 @@ radio_monitor_settings.json  # Application settings (contains API keys/tokens)
 *.bak                  # Backup files
 *.tmp                  # Temporary files
 *.backup*              # Any backup files
+*.backup_*             # Backup files with timestamp
 *.old                  # Old versions of files
+*~                     # Editor backup files
 nul                    # Windows null device redirects
 
 # ------------------------------------------
