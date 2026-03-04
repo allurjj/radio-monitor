@@ -44,21 +44,21 @@
 
     // Update Scraper status
     function updateScraperStatus() {
-        fetch('/api/system/status')
+        fetch('/api/monitor/status')
             .then(response => response.json())
             .then(data => {
                 // Scraper can be running or idle
                 let status;
-                if (data.scrapers && data.scrapers.status === 'running') {
+                if (data.running) {
                     status = 'online';
                 } else {
-                    status = 'warning'; // Idle
+                    status = 'offline'; // Stopped
                 }
                 updateStatusIcon('scraper', status);
             })
             .catch(error => {
                 console.error('Failed to fetch scraper status:', error);
-                updateStatusIcon('scraper', 'warning');
+                updateStatusIcon('scraper', 'offline');
             });
     }
 
