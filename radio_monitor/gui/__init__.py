@@ -279,7 +279,13 @@ def run_app(host='0.0.0.0', port=5000, debug=False):
         port: Port to bind to (default: 5000)
         debug: Enable debug mode (default: False)
     """
+    import sys
+
+    # Ensure unbuffered output for real-time logging
+    sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure') else None
+
     logger.info(f"Starting Flask GUI on {host}:{port}")
+    logger.info(f"Access the web interface at http://127.0.0.1:{port}")
 
     try:
         app.run(host=host, port=port, debug=debug, use_reloader=False)

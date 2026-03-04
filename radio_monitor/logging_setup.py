@@ -23,6 +23,19 @@ class ColorStripFormatter(logging.Formatter):
         return super().format(record)
 
 
+class FlushStreamHandler(logging.StreamHandler):
+    """Custom StreamHandler that flushes after each emit for real-time logging"""
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            stream = self.stream
+            stream.write(msg + self.terminator)
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
+
 def setup_logging(settings=None):
     """Setup logging based on settings
 
@@ -58,7 +71,8 @@ def setup_logging(settings=None):
 
     # Create console handler (ONLY if not frozen EXE)
     if not is_frozen:
-        console_handler = logging.StreamHandler(sys.stdout)
+        # Use custom handler that flushes after each log for real-time output
+        console_handler = FlushStreamHandler(sys.stdout)
         console_handler.setLevel(console_level)
         console_formatter = logging.Formatter(
             '%(asctime)s - %(levelname)s - %(name)s - %(message)s',
