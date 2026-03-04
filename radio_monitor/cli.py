@@ -605,6 +605,7 @@ def cmd_gui(args, settings):
 
     # Create scheduler
     interval = settings.get('monitor', {}).get('scrape_interval_minutes', 10)
+    auto_start = settings.get('monitor', {}).get('auto_start', True)
 
     def scrape_job():
         try:
@@ -614,7 +615,8 @@ def cmd_gui(args, settings):
         except Exception as e:
             logger.error(f"Error during scheduled scrape: {e}")
 
-    scheduler = RadioScheduler(scrape_job, scrape_interval_minutes=interval)
+    scheduler = RadioScheduler(scrape_job, scrape_interval_minutes=interval, auto_start=auto_start)
+    logger.info(f"Scheduler created with auto_start={auto_start}")
 
     # Initialize GUI
     from radio_monitor.gui import init_gui

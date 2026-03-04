@@ -26,19 +26,20 @@ class RadioScheduler:
         scrape_interval: Interval in minutes between scrapes
     """
 
-    def __init__(self, scrape_func, scrape_interval_minutes=10):
+    def __init__(self, scrape_func, scrape_interval_minutes=10, auto_start=True):
         """Initialize scheduler with scraping function
 
         Args:
             scrape_func: Function to call for each scrape (should take no args)
             scrape_interval_minutes: Minutes between scrapes (default: 10)
+            auto_start: Whether to start scraping automatically (default: True)
         """
         self.scheduler = BackgroundScheduler()
         self.scrape_interval = scrape_interval_minutes
         self.scrape_func = scrape_func
         self.job_id = 'scrape_job'
 
-        # Add scrape job (paused initially)
+        # Add scrape job
         self.scheduler.add_job(
             self._run_scrape,
             'interval',
@@ -47,9 +48,15 @@ class RadioScheduler:
             name='Radio Station Scraping Job'
         )
 
-        # Start scheduler (job is paused by default)
+        # Start scheduler
         self.scheduler.start()
-        logger.info(f"Scheduler initialized (interval: {scrape_interval_minutes} minutes)")
+
+        # Pause job if auto_start is False
+        if not auto_start:
+            self.scheduler.pause_job(self.job_id)
+            logger.info(f"Scheduler initialized (interval: {scrape_interval_minutes} minutes, monitoring paused)")
+        else:
+            logger.info(f"Scheduler initialized (interval: {scrape_interval_minutes} minutes, monitoring started)")
 
     def _run_scrape(self):
         """Run the scraping function

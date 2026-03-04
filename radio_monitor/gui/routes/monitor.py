@@ -39,11 +39,19 @@ def api_monitor_start():
             "message": "Monitoring started"
         }
     """
-    from radio_monitor.gui import scheduler
+    from radio_monitor.gui import scheduler, load_settings, save_settings_to_file
 
     if scheduler:
         try:
             if scheduler.start():
+                # Save state to settings
+                settings = load_settings() or {}
+                if 'monitor' not in settings:
+                    settings['monitor'] = {}
+                settings['monitor']['auto_start'] = True
+                save_settings_to_file(settings)
+                logger.info("Monitoring started - saved auto_start=True to settings")
+
                 return jsonify({
                     'status': 'started',
                     'message': 'Monitoring started'
@@ -70,11 +78,19 @@ def api_monitor_stop():
             "message": "Monitoring stopped"
         }
     """
-    from radio_monitor.gui import scheduler
+    from radio_monitor.gui import scheduler, load_settings, save_settings_to_file
 
     if scheduler:
         try:
             if scheduler.stop():
+                # Save state to settings
+                settings = load_settings() or {}
+                if 'monitor' not in settings:
+                    settings['monitor'] = {}
+                settings['monitor']['auto_start'] = False
+                save_settings_to_file(settings)
+                logger.info("Monitoring stopped - saved auto_start=False to settings")
+
                 return jsonify({
                     'status': 'stopped',
                     'message': 'Monitoring stopped'

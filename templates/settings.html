@@ -248,7 +248,7 @@
         <div class="card card-standard settings-card">
             <div class="card-body">
                 <h5 class="card-title"><i class="bi bi-broadcast text-info"></i> Monitor</h5>
-                <div class="row g-2 mb-0">
+                <div class="row g-2 mb-2">
                     <div class="col-md-7">
                         <label for="monitor-database" class="form-label form-label-sm">Database File</label>
                         <input type="text" class="form-control form-control-sm" id="monitor-database" required autocomplete="off">
@@ -259,6 +259,19 @@
                     </div>
                     <div class="col-md-2 d-flex align-items-center">
                         <small class="text-muted"><i class="bi bi-info-circle"></i> Runs every <strong id="interval-display">12</strong> min</small>
+                    </div>
+                </div>
+                <div class="row g-2 mb-0">
+                    <div class="col-md-12">
+                        <div class="form-check form-check-sm">
+                            <input class="form-check-input" type="checkbox" id="monitor-auto-start">
+                            <label class="form-check-label" for="monitor-auto-start">
+                                Auto-start monitoring on app launch
+                                <span class="text-muted" data-bs-toggle="tooltip" data-bs-placement="top" title="If enabled, monitoring will start automatically when the app launches. If disabled, you must manually start monitoring from the Monitor page.">
+                                    <i class="bi bi-info-circle"></i>
+                                </span>
+                            </label>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -647,6 +660,8 @@ function populateForm(settings) {
         if (intervalDisplay) {
             intervalDisplay.textContent = interval;
         }
+        // Auto-start checkbox (defaults to true for current behavior)
+        document.getElementById('monitor-auto-start').checked = settings.monitor.auto_start !== false;
     }
 
     // Database
@@ -980,7 +995,8 @@ function getFormSettings() {
         },
         monitor: {
             database_file: document.getElementById('monitor-database').value,
-            scrape_interval_minutes: parseInt(document.getElementById('monitor-interval').value)
+            scrape_interval_minutes: parseInt(document.getElementById('monitor-interval').value),
+            auto_start: document.getElementById('monitor-auto-start').checked
         },
         database: {
             backup_enabled: document.getElementById('db-backup-enabled').checked,
