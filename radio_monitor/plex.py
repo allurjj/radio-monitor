@@ -367,6 +367,45 @@ def adaptive_fuzzy_match(str1, str2, debug=False):
     return False
 
 
+def get_track_version_preference(track_title):
+    """Determine if a track is a studio version or a special version
+
+    Returns a preference score (lower is better):
+    - 0: Studio version (no version keywords)
+    - 1: Radio edit / Single version (acceptable alternative)
+    - 2: Remix/Extended/other version (prefer last)
+    - 3: Acoustic version (prefer last)
+    - 4: Live version (prefer last)
+
+    Args:
+        track_title: Track title to check
+
+    Returns:
+        int: Preference score (0 = best/studio, higher = less preferred)
+    """
+    title_lower = track_title.lower()
+
+    # Check for version keywords (in parentheses or after dash)
+    # Priority order: Studio (0) > Radio Edit (1) > Remix (2) > Acoustic (3) > Live (4)
+    version_patterns = [
+        (r'[\(\[].*?\b(live|live from|live at)\b.*?[\)\]]', 4),
+        (r'[\(\[].*?\bacoustic\b.*?[\)\]]', 3),
+        (r'[\(\[].*?\b(remix|extended|dub|club|mix)\b.*?[\)\]]', 2),
+        (r'[\(\[].*?\b(radio edit|radio version)\b.*?[\)\]]', 1),
+        (r' - .*?\blive\b', 4),
+        (r' - .*?\bacoustic\b', 3),
+        (r' - .*?\b(remix|extended|dub|club|mix)\b', 2),
+    ]
+
+    import re
+    for pattern, score in version_patterns:
+        if re.search(pattern, title_lower, re.IGNORECASE):
+            return score
+
+    # No version keywords found = studio version
+    return 0
+
+
 def get_title_variations(title):
     """Generate multiple title variations for Plex searching
 
@@ -787,22 +826,41 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
             logger.debug(f"  Found {len(tracks)} tracks with title: {search_title}")
 
         # Strategy 1: Exact match (with artist variations)
+        # Collect all exact matches first, then choose the best one preferring studio versions
+        exact_matches = []
+
         for track in tracks:
             try:
                 track_artist = track.artist().title if track.artist() else ""
                 # Check if artist matches any variation
                 for search_artist in artist_variations:
                     if track_artist.lower() == search_artist.lower() and track.title.lower() == song_title.lower():
+                        version_preference = get_track_version_preference(track.title)
+                        exact_matches.append({
+                            'track': track,
+                            'version_preference': version_preference
+                        })
                         if debug:
-                            logger.debug(f"  ✓ Exact match: {track.title} - {track_artist}")
-                        return track
+                            version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][version_preference] if version_preference < 5 else 'unknown'
+                            logger.debug(f"  ✓ Exact match candidate: {track.title} - {track_artist} (version: {version_label})")
             except Exception as e:
                 if debug:
                     logger.debug(f"  Error accessing track: {e}")
                 continue
 
+        # Choose the best exact match, preferring studio versions
+        if exact_matches:
+            exact_matches.sort(key=lambda m: m['version_preference'])
+            best = exact_matches[0]
+            if debug:
+                version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][best['version_preference']] if best['version_preference'] < 5 else 'unknown'
+                logger.debug(f"  → Selected exact match: {best['track'].title} (version: {version_label})")
+            return best['track']
+
         # Strategy 2: Normalized match (using proper normalization + artist variations)
+        # Collect all normalized matches first, then choose the best one preferring studio versions
         song_norm = normalize_song_title(song_title)
+        normalized_matches = []
 
         # Try matching with each artist variation
         for search_artist in artist_variations:
@@ -822,17 +880,31 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
                                  track_song_norm.lower() in song_norm.lower())
 
                     if artist_match and song_match:
+                        version_preference = get_track_version_preference(track.title)
+                        normalized_matches.append({
+                            'track': track,
+                            'version_preference': version_preference
+                        })
                         if debug:
-                            logger.debug(f"  ✓ Normalized match: {track.title} - {track_artist}")
+                            version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][version_preference] if version_preference < 5 else 'unknown'
+                            logger.debug(f"  ✓ Normalized match candidate: {track.title} - {track_artist} (version: {version_label})")
                             logger.debug(f"    DB norm: {song_norm} - {artist_norm}")
                             logger.debug(f"    Plex norm: {track_song_norm} - {track_artist_norm}")
-                        return track
                 except Exception as e:
                     continue
 
+        # Choose the best normalized match, preferring studio versions
+        if normalized_matches:
+            normalized_matches.sort(key=lambda m: m['version_preference'])
+            best = normalized_matches[0]
+            if debug:
+                version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][best['version_preference']] if best['version_preference'] < 5 else 'unknown'
+                logger.debug(f"  → Selected normalized match: {best['track'].title} (version: {version_label})")
+            return best['track']
+
         # Strategy 3: Adaptive fuzzy match (Levenshtein with adaptive threshold + artist variations)
-        best_match = None
-        best_score = 0
+        # Collect all potential matches first, then choose the best one preferring studio versions
+        potential_matches = []
 
         for track in tracks[:20]:  # Check top 20 for fuzzy
             try:
@@ -843,31 +915,73 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
                     artist_ratio = fuzzy_ratio(search_artist, track_artist)
                     song_ratio = fuzzy_ratio(song_title, track.title)
 
-                    if artist_ratio > best_score and song_ratio > best_score:
-                        best_score = min(artist_ratio, song_ratio)
-                        best_match = (track, artist_ratio, song_ratio)
-
                     # Use adaptive fuzzy matching for both artist AND song
                     if adaptive_fuzzy_match(search_artist, track_artist, debug=debug) and \
                        adaptive_fuzzy_match(song_title, track.title, debug=debug):
+                        # Calculate version preference (0 = studio, 1 = radio edit, 2 = live, 3 = acoustic, 4 = remix)
+                        version_preference = get_track_version_preference(track.title)
+
+                        # Calculate combined score (lower version_preference is better)
+                        # Use min(artist_ratio, song_ratio) as the base score
+                        combined_score = min(artist_ratio, song_ratio)
+
+                        potential_matches.append({
+                            'track': track,
+                            'artist_ratio': artist_ratio,
+                            'song_ratio': song_ratio,
+                            'combined_score': combined_score,
+                            'version_preference': version_preference
+                        })
+
                         if debug:
-                            logger.debug(f"  ✓ Adaptive fuzzy match: {track.title} - {track_artist} (artist: {artist_ratio}%, song: {song_ratio}%)")
-                        return track
+                            version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][version_preference] if version_preference < 5 else 'unknown'
+                            logger.debug(f"  ✓ Fuzzy match candidate: {track.title} - {track_artist} "
+                                       f"(artist: {artist_ratio}%, song: {song_ratio}%, version: {version_label})")
             except Exception as e:
                 continue
 
+        # Choose the best match, preferring studio versions
+        if potential_matches:
+            # Sort by: version_preference (asc), then combined_score (desc)
+            potential_matches.sort(key=lambda m: (m['version_preference'], -m['combined_score']))
+            best = potential_matches[0]
+
+            if debug:
+                version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][best['version_preference']] if best['version_preference'] < 5 else 'unknown'
+                logger.debug(f"  → Selected: {best['track'].title} - {best['track'].artist().title} "
+                           f"(version: {version_label}, artist: {best['artist_ratio']}%, song: {best['song_ratio']}%)")
+
+            return best['track']
+
         # Strategy 4: Partial match (substring with artist variations)
+        # Collect all partial matches first, then choose the best one preferring studio versions
+        partial_matches = []
+
         for track in tracks:
             try:
                 track_artist = track.artist().title if track.artist() else ""
                 # Check if any artist variation is a substring
                 for search_artist in artist_variations:
                     if search_artist.lower() in track_artist.lower() and song_title.lower() in track.title.lower():
+                        version_preference = get_track_version_preference(track.title)
+                        partial_matches.append({
+                            'track': track,
+                            'version_preference': version_preference
+                        })
                         if debug:
-                            logger.debug(f"  ✓ Partial match: {track.title} - {track_artist}")
-                        return track
+                            version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][version_preference] if version_preference < 5 else 'unknown'
+                            logger.debug(f"  ✓ Partial match candidate: {track.title} - {track_artist} (version: {version_label})")
             except Exception as e:
                 continue
+
+        # Choose the best partial match, preferring studio versions
+        if partial_matches:
+            partial_matches.sort(key=lambda m: m['version_preference'])
+            best = partial_matches[0]
+            if debug:
+                version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][best['version_preference']] if best['version_preference'] < 5 else 'unknown'
+                logger.debug(f"  → Selected partial match: {best['track'].title} (version: {version_label})")
+            return best['track']
 
     # If we get here, no match found with any title variation
     if debug:
