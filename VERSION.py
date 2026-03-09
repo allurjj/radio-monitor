@@ -8,6 +8,6 @@ The version here represents the actual running version of the application,
 not necessarily the latest version in git.
 """
 
-__version__ = "1.2.0"
-__build_date__ = "2026-03-01"
+__version__ = "1.2.1"
+__build_date__ = "2026-03-09"
 __github_url__ = "https://github.com/allurjj/radio-monitor"

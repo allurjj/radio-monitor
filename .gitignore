@@ -110,6 +110,11 @@ docs/                  # Entire docs directory excluded
 !pyinstaller/**/*.md    # Allow .md files in pyinstaller/ subdirectory
 
 # User mappings documentation (allow these specific files)
+!README.md
+!INSTALL.md
+!API.md
+!TROUBLESHOOTING.md
+!ARCHITECTURE.md
 !USER_MAPPINGS_README.md
 !USER_MAPPINGS_QUICKSTART.md
 
