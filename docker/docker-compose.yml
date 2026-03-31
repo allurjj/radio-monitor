@@ -1,13 +1,33 @@
+# Radio Monitor - Docker Compose
+# Supports both building from source and using pre-built images
+#
+# Quick Start (Pre-built Image - Recommended):
+#   cd docker
+#   docker-compose up -d
+#
+# Build from Source:
+#   cd docker
+#   docker-compose --profile build up -d
+#
+# Access: http://localhost:5000
+#
+# Updates:
+#   docker-compose pull
+#   docker-compose up -d
+
 version: '3.8'
 
 services:
   radio-monitor:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    image: radio-monitor:latest
+    # Default: Use pre-built image from GitHub Container Registry
+    image: ghcr.io/allurjj/radio-monitor:latest
     container_name: radio-monitor
     hostname: radio-monitor
+
+    # Build from source (uncomment to use local build)
+    # build:
+    #   context: ..
+    #   dockerfile: docker/Dockerfile
 
     # Port mapping (host:container)
     ports:
@@ -15,12 +35,10 @@ services:
 
     # Volume mounts for persistent data
     volumes:
-      # Database and settings
+      # Database and settings (persists across updates)
       - ./data:/app/data
-      # Optional: Mount settings file directly (read-only)
-      # - ../radio_monitor_settings.json:/app/radio_monitor_settings.json:ro
-      # Optional: Mount log directory
-      # - ./logs:/app/logs
+      # Optional: Mount your own settings file
+      # - ./radio_monitor_settings.json:/app/radio_monitor_settings.json:ro
 
     # Environment variables
     environment:
@@ -33,7 +51,7 @@ services:
     # Restart policy
     restart: unless-stopped
 
-    # Resource limits (optional - uncomment if needed)
+    # Resource limits (adjust based on your system)
     deploy:
       resources:
         limits:

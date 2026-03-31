@@ -406,6 +406,74 @@ def get_track_version_preference(track_title):
     return 0
 
 
+def get_track_year_safe(track):
+    """Safely get the year from a Plex track
+
+    Args:
+        track: Plex Track object
+
+    Returns:
+        int: Year of the track, or None if not available
+    """
+    try:
+        # Try to get year from the track's parent (album)
+        if hasattr(track, 'parent') and track.parent:
+            if hasattr(track.parent, 'year'):
+                year = track.parent.year
+                if year:
+                    return int(year)
+        # Fallback: try track's year attribute directly
+        if hasattr(track, 'year'):
+            year = track.year
+            if year:
+                return int(year)
+    except Exception:
+        pass
+    return None
+
+
+def break_tie_by_year(matches, debug=False):
+    """Break ties in matching tracks by preferring earlier years (original/studio versions)
+
+    Args:
+        matches: List of match dicts with 'track' and 'version_preference' keys
+        debug: Enable debug logging
+
+    Returns:
+        Plex Track object: Best match after tiebreaking
+    """
+    if len(matches) == 1:
+        return matches[0]['track']
+
+    # Find best version_preference score
+    best_score = min(m['version_preference'] for m in matches)
+    tied_matches = [m for m in matches if m['version_preference'] == best_score]
+
+    if len(tied_matches) == 1:
+        # Clear winner - no tiebreak needed
+        return tied_matches[0]['track']
+
+    # Tie detected - use year to break it
+    if debug:
+        logger.debug(f"  → Tie detected ({len(tied_matches)} matches with version score {best_score}), checking years...")
+
+    # Add year to each tied match
+    for match in tied_matches:
+        match['year'] = get_track_year_safe(match['track'])
+
+    # Sort by year (earlier = original = studio), None values last
+    tied_matches.sort(key=lambda m: m['year'] if m['year'] is not None else 9999)
+
+    best = tied_matches[0]
+    if debug:
+        if best['year']:
+            logger.debug(f"  → Selected earliest year: {best['year']} - {best['track'].title}")
+        else:
+            logger.debug(f"  → Selected match (no year data): {best['track'].title}")
+
+    return best['track']
+
+
 def get_title_variations(title):
     """Generate multiple title variations for Plex searching
 
@@ -764,6 +832,9 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
                         if debug:
                             logger.debug(f"  Artist has {len(all_tracks)} tracks")
 
+                        # Collect all matching tracks, then use tiebreaking
+                        artist_first_matches = []
+
                         # Search for matching title within artist's catalog
                         # Try all title variations
                         for search_title in get_title_variations(song_title):
@@ -772,9 +843,14 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
                                 try:
                                     # Strategy 0a: Exact match (case-insensitive)
                                     if track.title.lower() == search_title.lower():
+                                        version_preference = get_track_version_preference(track.title)
+                                        artist_first_matches.append({
+                                            'track': track,
+                                            'version_preference': version_preference
+                                        })
                                         if debug:
-                                            logger.debug(f"  ✓ Artist-first exact match: {track.title}")
-                                        return track
+                                            version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][version_preference] if version_preference < 5 else 'unknown'
+                                            logger.debug(f"  ✓ Artist-first exact match: {track.title} (version: {version_label})")
 
                                     # Strategy 0b: Normalized match
                                     track_norm = normalize_song_title(track.title)
@@ -783,16 +859,39 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
                                     if (track_norm.lower() == search_norm.lower() or
                                         track_norm.lower() in search_norm.lower() or
                                         search_norm.lower() in track_norm.lower()):
-                                        if debug:
-                                            logger.debug(f"  ✓ Artist-first normalized match: {track.title}")
-                                        return track
+                                        version_preference = get_track_version_preference(track.title)
+                                        # Avoid duplicates if already added by exact match
+                                        if not any(m['track'] == track for m in artist_first_matches):
+                                            artist_first_matches.append({
+                                                'track': track,
+                                                'version_preference': version_preference
+                                            })
+                                            if debug:
+                                                version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][version_preference] if version_preference < 5 else 'unknown'
+                                                logger.debug(f"  ✓ Artist-first normalized match: {track.title} (version: {version_label})")
 
                                     # Strategy 0c: Adaptive fuzzy match
                                     # Uses 85% threshold for single-character differences
                                     if adaptive_fuzzy_match(track.title, search_title, debug=debug):
-                                        return track
+                                        version_preference = get_track_version_preference(track.title)
+                                        # Avoid duplicates if already added by exact or normalized match
+                                        if not any(m['track'] == track for m in artist_first_matches):
+                                            artist_first_matches.append({
+                                                'track': track,
+                                                'version_preference': version_preference
+                                            })
+                                            if debug:
+                                                version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][version_preference] if version_preference < 5 else 'unknown'
+                                                logger.debug(f"  ✓ Artist-first fuzzy match: {track.title} (version: {version_label})")
                                 except Exception:
                                     continue
+
+                        # If we found matches in Strategy 0, use tiebreaking and return
+                        if artist_first_matches:
+                            if debug:
+                                logger.debug(f"  → Strategy 0 found {len(artist_first_matches)} matches, using tiebreaking...")
+                            return break_tie_by_year(artist_first_matches, debug=debug)
+
                         break
     except Exception as e:
         if debug:
@@ -850,12 +949,7 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
 
         # Choose the best exact match, preferring studio versions
         if exact_matches:
-            exact_matches.sort(key=lambda m: m['version_preference'])
-            best = exact_matches[0]
-            if debug:
-                version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][best['version_preference']] if best['version_preference'] < 5 else 'unknown'
-                logger.debug(f"  → Selected exact match: {best['track'].title} (version: {version_label})")
-            return best['track']
+            return break_tie_by_year(exact_matches, debug=debug)
 
         # Strategy 2: Normalized match (using proper normalization + artist variations)
         # Collect all normalized matches first, then choose the best one preferring studio versions
@@ -895,12 +989,7 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
 
         # Choose the best normalized match, preferring studio versions
         if normalized_matches:
-            normalized_matches.sort(key=lambda m: m['version_preference'])
-            best = normalized_matches[0]
-            if debug:
-                version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][best['version_preference']] if best['version_preference'] < 5 else 'unknown'
-                logger.debug(f"  → Selected normalized match: {best['track'].title} (version: {version_label})")
-            return best['track']
+            return break_tie_by_year(normalized_matches, debug=debug)
 
         # Strategy 3: Adaptive fuzzy match (Levenshtein with adaptive threshold + artist variations)
         # Collect all potential matches first, then choose the best one preferring studio versions
@@ -944,14 +1033,44 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
         if potential_matches:
             # Sort by: version_preference (asc), then combined_score (desc)
             potential_matches.sort(key=lambda m: (m['version_preference'], -m['combined_score']))
+
+            # Check if we have ties after sorting by version_preference and combined_score
             best = potential_matches[0]
+            best_version_pref = best['version_preference']
+            best_score = best['combined_score']
 
-            if debug:
-                version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][best['version_preference']] if best['version_preference'] < 5 else 'unknown'
-                logger.debug(f"  → Selected: {best['track'].title} - {best['track'].artist().title} "
-                           f"(version: {version_label}, artist: {best['artist_ratio']}%, song: {best['song_ratio']}%)")
+            # Find all matches with same version_preference and combined_score
+            tied_matches = [m for m in potential_matches
+                          if m['version_preference'] == best_version_pref
+                          and abs(m['combined_score'] - best_score) < 0.01]
 
-            return best['track']
+            if len(tied_matches) == 1:
+                # Clear winner - no tiebreak needed
+                if debug:
+                    version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][best['version_preference']] if best['version_preference'] < 5 else 'unknown'
+                    logger.debug(f"  → Selected: {best['track'].title} - {best['track'].artist().title} "
+                               f"(version: {version_label}, artist: {best['artist_ratio']}%, song: {best['song_ratio']}%)")
+                return best['track']
+            else:
+                # Tie detected - use year to break it
+                if debug:
+                    logger.debug(f"  → Tie detected ({len(tied_matches)} matches), checking years...")
+
+                # Add year to each tied match
+                for match in tied_matches:
+                    match['year'] = get_track_year_safe(match['track'])
+
+                # Sort by year (earlier = original = studio), None values last
+                tied_matches.sort(key=lambda m: m['year'] if m['year'] is not None else 9999)
+
+                best = tied_matches[0]
+                if debug:
+                    if best['year']:
+                        logger.debug(f"  → Selected earliest year: {best['year']} - {best['track'].title}")
+                    else:
+                        logger.debug(f"  → Selected match (no year data): {best['track'].title}")
+
+                return best['track']
 
         # Strategy 4: Partial match (substring with artist variations)
         # Collect all partial matches first, then choose the best one preferring studio versions
@@ -976,12 +1095,7 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
 
         # Choose the best partial match, preferring studio versions
         if partial_matches:
-            partial_matches.sort(key=lambda m: m['version_preference'])
-            best = partial_matches[0]
-            if debug:
-                version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][best['version_preference']] if best['version_preference'] < 5 else 'unknown'
-                logger.debug(f"  → Selected partial match: {best['track'].title} (version: {version_label})")
-            return best['track']
+            return break_tie_by_year(partial_matches, debug=debug)
 
     # If we get here, no match found with any title variation
     if debug:

@@ -53,7 +53,7 @@ try:
     app.config['GITHUB_URL'] = get_github_url()
 except ImportError:
     # Fallback if import fails
-    app.config['VERSION'] = '1.1.0'
+    app.config['VERSION'] = '1.2.0'
     app.config['GITHUB_URL'] = 'https://github.com/allurjj/radio-monitor'
 
 # Import and initialize authentication

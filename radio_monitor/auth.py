@@ -75,7 +75,7 @@ def save_auth_config(username, password_hash):
             from radio_monitor import get_version
             version = get_version()
         except ImportError:
-            version = '1.1.0'
+            version = '1.2.0'
 
         config = {
             'username': username,

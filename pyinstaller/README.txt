@@ -1,4 +1,4 @@
-RADIO MONITOR v1.1.0 - Windows Edition
+RADIO MONITOR v1.2.0 - Windows Edition
 =======================================
 
 Thank you for using Radio Monitor!
@@ -13,7 +13,7 @@ QUICK START
 WHAT'S NEW
 -----------
 
-Version 1.1.0 (February 19, 2026)
+Version 1.2.0 (March 1, 2026)
 - Removed Selenium dependency (reduced EXE size by 20-30 MB)
 - WTMX station no longer supported (requires Vue.js rendering)
 - All scraping now uses requests + BeautifulSoup (faster, more reliable)
