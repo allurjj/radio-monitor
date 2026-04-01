@@ -96,6 +96,15 @@
                                     {% else %}
                                     {{ song.artist_name }}
                                     {% endif %}
+                                    <button class="btn btn-sm btn-outline-secondary ms-2"
+                                            id="btn-edit-artist"
+                                            data-song-id="{{ song.id }}"
+                                            data-song-title="{{ song.song_title }}"
+                                            data-current-artist-mbid="{{ song.artist_mbid }}"
+                                            data-current-artist-name="{{ song.artist_name }}"
+                                            title="Change artist assignment">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </button>
                                 </td>
                             </tr>
                             <tr>
@@ -242,6 +251,64 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Artist Modal -->
+<div class="modal fade" id="editArtistModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-person-gear"></i> Change Artist</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editArtistForm">
+                    <div class="mb-3">
+                        <label class="form-label">Song Title</label>
+                        <input type="text" class="form-control" id="edit-song-title" readonly>
+                        <div class="form-text">This field is read-only</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Current Artist</label>
+                        <input type="text" class="form-control" id="edit-current-artist" readonly>
+                        <div class="form-text">This field is read-only</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="edit-artist-search">Search Artists</label>
+                        <input type="text" class="form-control" id="edit-artist-search"
+                               placeholder="Type to search artists...">
+                        <div class="form-text">Search by name or MBID</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="edit-artist-select">Select New Artist</label>
+                        <select class="form-select" id="edit-artist-select" required size="8">
+                            <option value="" disabled selected>Loading artists...</option>
+                        </select>
+                        <div class="form-text">
+                            Only existing artists can be selected.
+                            <a href="https://musicbrainz.org" target="_blank">
+                                <i class="bi bi-box-arrow-up-right"></i> MusicBrainz
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning d-none" id="edit-artist-warning">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <span id="edit-artist-warning-text"></span>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-save-artist">
+                    <i class="bi bi-check-lg"></i> Change Artist
+                </button>
             </div>
         </div>
     </div>
@@ -479,6 +546,183 @@ document.addEventListener('DOMContentLoaded', function() {
     // Also initialize if already visible on page load (e.g., from URL hash)
     if (window.location.hash === '#history' && songHistoryData.length === 0) {
         setTimeout(initSongHistorySorting, 100);
+    }
+
+    // ========== Artist Change Functionality ==========
+    let editArtistModal;
+    let allArtists = []; // Cache of all artists
+
+    // Initialize modal and fetch artists
+    editArtistModal = new bootstrap.Modal(document.getElementById('editArtistModal'));
+
+    // Fetch all artists on page load
+    fetchAllArtists();
+
+    // Fetch all artists from API
+    function fetchAllArtists() {
+        fetch('/api/artists?limit=10000')
+            .then(response => response.json())
+            .then(data => {
+                allArtists = data.items || [];
+                populateArtistSelect();
+            })
+            .catch(error => {
+                console.error('Error fetching artists:', error);
+                Toast.error('Failed to load artists list');
+            });
+    }
+
+    // Populate the artist select dropdown with optional filter
+    function populateArtistSelect(filter = '') {
+        const select = document.getElementById('edit-artist-select');
+        const currentArtistMbid = select.getAttribute('data-current-artist-mbid') || '';
+
+        // Filter artists based on search
+        const filteredArtists = allArtists.filter(artist => {
+            if (!filter) return true;
+            const searchLower = filter.toLowerCase();
+            return (artist.name && artist.name.toLowerCase().includes(searchLower)) ||
+                   (artist.mbid && artist.mbid.toLowerCase().includes(searchLower));
+        });
+
+        // Sort by name (case-insensitive)
+        filteredArtists.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, {sensitivity: 'base'}));
+
+        // Clear existing options
+        select.innerHTML = '';
+
+        // Add placeholder
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.disabled = true;
+        placeholder.selected = true;
+        placeholder.textContent = '-- Select an artist --';
+        select.appendChild(placeholder);
+
+        // Add artist options
+        filteredArtists.forEach(artist => {
+            const option = document.createElement('option');
+            option.value = artist.mbid;
+            const name = artist.name || 'Unknown';
+            const badge = artist.mbid && artist.mbid.startsWith('PENDING-') ? ' (PENDING)' : '';
+            option.textContent = name + badge;
+            select.appendChild(option);
+        });
+
+        // Enable the select
+        select.disabled = false;
+    }
+
+    // Handle Edit Artist button click
+    const editArtistBtn = document.getElementById('btn-edit-artist');
+    if (editArtistBtn) {
+        editArtistBtn.addEventListener('click', function() {
+            const songId = this.getAttribute('data-song-id');
+            const songTitle = this.getAttribute('data-song-title');
+            const currentArtistMbid = this.getAttribute('data-current-artist-mbid');
+            const currentArtistName = this.getAttribute('data-current-artist-name');
+
+            // Populate modal
+            document.getElementById('edit-song-title').value = songTitle;
+            document.getElementById('edit-current-artist').value = currentArtistName;
+
+            // Store song ID and current artist for save operation
+            const select = document.getElementById('edit-artist-select');
+            select.setAttribute('data-song-id', songId);
+            select.setAttribute('data-current-artist-mbid', currentArtistMbid);
+
+            // Clear search and populate artist select
+            document.getElementById('edit-artist-search').value = '';
+            populateArtistSelect();
+
+            // Hide warning
+            document.getElementById('edit-artist-warning').classList.add('d-none');
+
+            // Show modal
+            editArtistModal.show();
+        });
+    }
+
+    // Handle artist search/filter (debounced)
+    let searchTimeout;
+    const artistSearchInput = document.getElementById('edit-artist-search');
+    if (artistSearchInput) {
+        artistSearchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                populateArtistSelect(this.value);
+            }, 300);
+        });
+    }
+
+    // Handle Save button click
+    const saveArtistBtn = document.getElementById('btn-save-artist');
+    if (saveArtistBtn) {
+        saveArtistBtn.addEventListener('click', function() {
+            const select = document.getElementById('edit-artist-select');
+            const newArtistMbid = select.value;
+            const songId = select.getAttribute('data-song-id');
+            const currentArtistMbid = select.getAttribute('data-current-artist-mbid');
+
+            if (!newArtistMbid) {
+                Toast.error('Please select an artist');
+                return;
+            }
+
+            if (newArtistMbid === currentArtistMbid) {
+                Toast.error('Please select a different artist');
+                return;
+            }
+
+            // Show loading state
+            this.disabled = true;
+            this.innerHTML = '<span class="spin"><i class="bi bi-arrow-clockwise"></i></span> Changing...';
+
+            // Call API
+            fetch(`/api/songs/${songId}/change-artist`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    new_artist_mbid: newArtistMbid
+                })
+            })
+            .then(async response => {
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Session expired. Please refresh the page.');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    Toast.success(data.message);
+
+                    // Close modal
+                    editArtistModal.hide();
+
+                    // Reload page to show updated artist
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    Toast.error(data.error || 'Failed to change artist');
+
+                    // Re-enable button
+                    this.disabled = false;
+                    this.innerHTML = '<i class="bi bi-check-lg"></i> Change Artist';
+                }
+            })
+            .catch(error => {
+                console.error('Error changing artist:', error);
+                Toast.error('Error: ' + error.message);
+
+                // Re-enable button
+                this.disabled = false;
+                this.innerHTML = '<i class="bi bi-check-lg"></i> Change Artist';
+            });
+        });
     }
 });
 </script>

@@ -235,3 +235,146 @@ def api_song_history(song_id):
         'count': len(history),
         'days': days
     })
+
+
+@songs_bp.route('/api/songs/<int:song_id>/change-artist', methods=['POST'])
+@requires_auth
+def api_change_song_artist(song_id):
+    """API endpoint to change a song's artist assignment
+
+    Updates the song's artist_mbid and artist_name to point to a different
+    existing artist. Handles blocklist updates and validates for duplicates.
+
+    Request JSON:
+        new_artist_mbid: MusicBrainz ID of the new artist (required)
+
+    Returns:
+        JSON response with success status and details
+    """
+    from radio_monitor.database.activity import log_activity
+
+    db = get_db()
+
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    data = request.get_json()
+    new_artist_mbid = data.get('new_artist_mbid', '').strip()
+
+    if not new_artist_mbid:
+        return jsonify({'error': 'new_artist_mbid is required'}), 400
+
+    cursor = db.get_cursor()
+    try:
+        # Step 1: Get current song details
+        cursor.execute("""
+            SELECT id, artist_mbid, artist_name, song_title
+            FROM songs
+            WHERE id = ?
+        """, (song_id,))
+        song = cursor.fetchone()
+
+        if not song:
+            return jsonify({'error': 'Song not found'}), 404
+
+        current_song_id, current_artist_mbid, current_artist_name, song_title = song
+
+        # Step 2: Validate - can't select the same artist
+        if current_artist_mbid == new_artist_mbid:
+            return jsonify({'error': 'Song is already assigned to this artist'}), 400
+
+        # Step 3: Get new artist details
+        cursor.execute("""
+            SELECT mbid, name
+            FROM artists
+            WHERE mbid = ?
+        """, (new_artist_mbid,))
+        new_artist = cursor.fetchone()
+
+        if not new_artist:
+            return jsonify({'error': 'Selected artist not found in database'}), 404
+
+        new_artist_mbid_actual, new_artist_name = new_artist
+
+        # Step 4: Check for duplicate song (same artist + title)
+        cursor.execute("""
+            SELECT id
+            FROM songs
+            WHERE artist_mbid = ? AND song_title = ?
+        """, (new_artist_mbid, song_title))
+        duplicate = cursor.fetchone()
+
+        if duplicate:
+            duplicate_id = duplicate[0]
+            return jsonify({
+                'error': f'Duplicate song detected. The artist "{new_artist_name}" already has a song titled "{song_title}" (ID: {duplicate_id}). '
+                        f'Please delete the duplicate song first or merge them manually.',
+                'duplicate_song_id': duplicate_id,
+                'duplicate_artist_name': new_artist_name,
+                'duplicate_song_title': song_title
+            }), 409
+
+        # Step 5: All validations passed - perform the update
+        # Use connection as context manager for automatic transaction
+        with db.conn:
+            # Update the song's artist assignment
+            cursor.execute("""
+                UPDATE songs
+                SET artist_mbid = ?, artist_name = ?
+                WHERE id = ?
+            """, (new_artist_mbid, new_artist_name, song_id))
+
+            # Update any blocklist entries that reference the old artist_mbid for this song
+            cursor.execute("""
+                UPDATE blocklist
+                SET artist_mbid = ?
+                WHERE song_id = ? AND artist_mbid = ?
+            """, (new_artist_mbid, song_id, current_artist_mbid))
+
+            blocklist_updated = cursor.rowcount
+
+            # Note: We DO NOT delete the old artist even if no songs remain
+            # User decision: Keep old artist records for safety
+
+            # Log activity
+            log_activity(
+                cursor=cursor,
+                event_type='song_artist_changed',
+                title=f'Song "{song_title}" reassigned to artist "{new_artist_name}"',
+                description=f'Moved from "{current_artist_name}" to "{new_artist_name}". '
+                           f'{blocklist_updated} blocklist entries updated.',
+                metadata={
+                    'song_id': song_id,
+                    'song_title': song_title,
+                    'old_artist_mbid': current_artist_mbid,
+                    'old_artist_name': current_artist_name,
+                    'new_artist_mbid': new_artist_mbid,
+                    'new_artist_name': new_artist_name,
+                    'blocklist_updated': blocklist_updated
+                },
+                severity='info',
+                source='user'
+            )
+
+        logger.info(f"Changed artist for song '{song_title}' (ID: {song_id}) "
+                   f"from '{current_artist_name}' to '{new_artist_name}'")
+
+        # Build success message
+        message = f'Song "{song_title}" reassigned to "{new_artist_name}"'
+        if blocklist_updated > 0:
+            message += f'. {blocklist_updated} blocklist entr{"y" if blocklist_updated == 1 else "ies"} updated.'
+
+        return jsonify({
+            'success': True,
+            'message': message,
+            'song_title': song_title,
+            'old_artist_name': current_artist_name,
+            'new_artist_name': new_artist_name,
+            'blocklist_updated': blocklist_updated
+        })
+
+    except Exception as e:
+        logger.error(f"Error changing artist for song {song_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cursor.close()

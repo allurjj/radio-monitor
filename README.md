@@ -1,6 +1,6 @@
 # Radio Monitor
 
-**Version:** 1.2.1
+**Version:** 1.2.3
 **License:** GNU General Public License v3.0
 
 ---
@@ -165,6 +165,6 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 ---
 
-**Version:** 1.2.1
+**Version:** 1.2.3
 **Python:** 3.10+
 **Last Updated:** 2026-03-09
