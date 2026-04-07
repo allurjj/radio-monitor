@@ -59,7 +59,7 @@ class RadioDatabase:
     """
 
     # Current schema version
-    SCHEMA_VERSION = 14
+    SCHEMA_VERSION = 17
 
     def __init__(self, db_path):
         self.db_path = db_path

@@ -1,7 +1,18 @@
 # Radio Monitor
 
-**Version:** 1.2.5
+**Version:** 1.2.6
 **License:** GNU General Public License v3.0
+
+---
+
+## What's New
+
+**v1.2.6 (2026-04-07) - Bug Fixes**
+- Fixed crashes from NULL artist MBIDs during scraping
+- Fixed Internal Server Error when clicking artist links from song pages
+- Fixed orphaned artists (0 songs) unable to be deleted
+- Added database migration to automatically fix existing NULL values
+- Cleaned up orphaned artists from multi-artist collaborations
 
 ---
 

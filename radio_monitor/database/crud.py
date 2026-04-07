@@ -670,16 +670,59 @@ def update_artist_mbid_from_pending(cursor, conn, artist_name, mbid):
                         """, (old_mbid,))
 
                         # Step 4: Update new artist name back to original
-                        logger.debug(f"Step 4: Updating artist name back to {artist_name}")
+                        # NEW: Check for name collision BEFORE updating
+                        logger.debug(f"Step 4: Checking if name '{artist_name}' already exists")
+
                         cursor.execute("""
-                            UPDATE artists
-                            SET name = ?
-                            WHERE mbid = ?
+                            SELECT mbid FROM artists WHERE name = ? AND mbid != ?
                         """, (artist_name, mbid))
+                        name_collision = cursor.fetchone()
+
+                        if name_collision:
+                            # Name already exists with different MBID
+                            collision_mbid = name_collision[0]
+
+                            logger.warning(
+                                f"Name collision detected: '{artist_name}' already exists with MBID {collision_mbid}. "
+                                f"Keeping temp name: {temp_name}"
+                            )
+
+                            # Keep the temp name (don't update)
+                            # This is rare but prevents UNIQUE constraint violation
+                            logger.info(f"Artist '{temp_name}' created with MBID {mbid} (name collision avoided)")
+
+                        else:
+                            # Safe to update name back to original
+                            logger.debug(f"Step 4b: Updating artist name back to {artist_name}")
+                            cursor.execute("""
+                                UPDATE artists
+                                SET name = ?
+                                WHERE mbid = ?
+                            """, (artist_name, mbid))
+                            logger.debug(f"Name updated successfully")
 
                     conn.commit()
                     logger.debug(f"Successfully updated {artist_name}")
                     return True
+
+                except sqlite3.IntegrityError as e:
+                    # Log the specific constraint that failed
+                    error_msg = str(e)
+                    if "artists.name" in error_msg:
+                        logger.error(
+                            f"Name collision when updating {artist_name}: {e}. "
+                            f"This should have been prevented by pre-check."
+                        )
+                    elif "artists.mbid" in error_msg:
+                        logger.error(
+                            f"MBID collision when updating {artist_name}: {e}. "
+                            f"Another thread likely inserted this MBID concurrently."
+                        )
+                    else:
+                        logger.error(f"IntegrityError updating {artist_name}: {e}")
+
+                    conn.rollback()
+                    raise e
 
                 except Exception as e:
                     logger.error(f"Database error updating {artist_name}: {e}")
@@ -966,7 +1009,8 @@ def increment_play_count(cursor, conn, date, hour, song_id, station_id):
 # ==================== PLAYLIST CRUD ====================
 
 def add_playlist(cursor, conn, name, is_auto, interval_minutes=None, station_ids=None, max_songs=None, mode=None,
-                 min_plays=1, max_plays=None, days=None, enabled=True):
+                 min_plays=1, max_plays=None, days=None, enabled=True,
+                 enable_various_artists_fallback=False, various_artists_timeout_ms=5000):
     """Add a new playlist (manual or auto)
 
     Args:
@@ -982,6 +1026,8 @@ def add_playlist(cursor, conn, name, is_auto, interval_minutes=None, station_ids
         max_plays: Maximum plays per song (optional, NULL = no maximum)
         days: Only include songs from last N days (optional)
         enabled: Whether playlist is active (default: TRUE)
+        enable_various_artists_fallback: Enable Various Artists fallback for Plex matching (default: FALSE)
+        various_artists_timeout_ms: Max search time per song in milliseconds (default: 5000)
 
     Returns:
         playlist_id (int)
@@ -1002,8 +1048,9 @@ def add_playlist(cursor, conn, name, is_auto, interval_minutes=None, station_ids
             INSERT INTO playlists (
                 name, is_auto, interval_minutes, station_ids, max_songs, mode,
                 min_plays, max_plays, days, enabled,
-                last_updated, next_update, plex_playlist_name, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
+                last_updated, next_update, plex_playlist_name, created_at,
+                enable_various_artists_fallback, various_artists_timeout_ms
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)
         """, (
             name,
             is_auto,
@@ -1017,7 +1064,9 @@ def add_playlist(cursor, conn, name, is_auto, interval_minutes=None, station_ids
             enabled,
             next_update,
             name,  # plex_playlist_name same as playlist name
-            created_at
+            created_at,
+            1 if enable_various_artists_fallback else 0,
+            various_artists_timeout_ms
         ))
 
         conn.commit()
@@ -1030,7 +1079,8 @@ def add_playlist(cursor, conn, name, is_auto, interval_minutes=None, station_ids
 
 def update_playlist(cursor, conn, playlist_id, name=None, is_auto=None, interval_minutes=None,
                    station_ids=None, max_songs=None, mode=None,
-                   min_plays=None, max_plays=None, days=None):
+                   min_plays=None, max_plays=None, days=None,
+                   enable_various_artists_fallback=None, various_artists_timeout_ms=None):
     """Update playlist (manual or auto)
 
     Args:
@@ -1046,6 +1096,8 @@ def update_playlist(cursor, conn, playlist_id, name=None, is_auto=None, interval
         min_plays: New min plays (optional)
         max_plays: New max plays filter (optional)
         days: New days filter (optional)
+        enable_various_artists_fallback: Enable Various Artists fallback (optional)
+        various_artists_timeout_ms: Max search time per song in milliseconds (optional)
 
     Returns:
         True if updated, False if not found
@@ -1096,6 +1148,14 @@ def update_playlist(cursor, conn, playlist_id, name=None, is_auto=None, interval
         if days is not None:
             updates.append("days = ?")
             params.append(days)
+
+        if enable_various_artists_fallback is not None:
+            updates.append("enable_various_artists_fallback = ?")
+            params.append(1 if enable_various_artists_fallback else 0)
+
+        if various_artists_timeout_ms is not None:
+            updates.append("various_artists_timeout_ms = ?")
+            params.append(various_artists_timeout_ms)
 
         if not updates:
             return False
@@ -1468,6 +1528,18 @@ def add_artist_and_song_if_new(cursor, conn, artist_mbid, artist_name, song_titl
     This function ensures that if the song creation fails, the artist is also rolled back.
     This prevents orphaned artists (artists with 0 songs) from being created.
 
+    **Artist Uniqueness Handling:**
+    - If an artist with the given MBID exists → Use that artist (update last_seen_at)
+    - If an artist with the given name exists → Use that artist (handle MBID conflicts)
+    - If existing artist has PENDING MBID and new MBID is real → Promote PENDING to real
+    - Only inserts new artist if neither MBID nor name exists
+
+    **Rationale for "First Wins" on Name Collisions:**
+    - Prevents data churn when scraper variations occur (e.g., "Brooks & Dunn" vs "Brooks Dunn")
+    - Maintains foreign key stability in songs table
+    - MBID corrections can be handled manually via the MBID Editor UI
+    - PENDING MBIDs are auto-promoted to real MBIDs when available
+
     Args:
         cursor: Database cursor object
         conn: Database connection object
@@ -1479,44 +1551,130 @@ def add_artist_and_song_if_new(cursor, conn, artist_mbid, artist_name, song_titl
         Tuple of (artist_added: bool, song_added: bool, song_id: int or None)
         - artist_added: True if new artist was created
         - song_added: True if new song was created
-        - song_id: Song ID (None if song already exists or artist not found)
+        - song_id: Song ID (None if song already exists or error occurred)
+
+    Raises:
+        Exception: If database error occurs (artist and song will be rolled back)
     """
     try:
         # Normalize inputs
         normalized_artist_name = normalize_artist_name(artist_name)
         normalized_song_title = normalize_song_title(song_title)
 
-        # Step 1: Add artist if new
+        # Prevent NULL mbids - generate PENDING if needed
+        import uuid
+        if not artist_mbid or not artist_mbid.strip():
+            logger.warning(f"NULL or empty artist_mbid provided for '{artist_name}', generating PENDING MBID")
+            artist_mbid = f"PENDING-{uuid.uuid4()}"
+
+        # Step 1: Check for existing artist BEFORE attempting insert
+        # This prevents race conditions with UNIQUE constraints
         artist_added = False
-        try:
+
+        # Check 1a: Does an artist with this MBID already exist?
+        cursor.execute("SELECT mbid, name FROM artists WHERE mbid = ?", (artist_mbid,))
+        existing_by_mbid = cursor.fetchone()
+
+        # Check 1b: Does an artist with this name already exist?
+        cursor.execute("SELECT mbid, name FROM artists WHERE name = ?", (normalized_artist_name,))
+        existing_by_name = cursor.fetchone()
+
+        # Determine which artist to use (if any)
+        artist_to_use = None
+
+        if existing_by_mbid:
+            # Case 1: MBID already exists - use this artist
+            # This handles re-scraping of same artist
+            artist_to_use = {
+                'mbid': existing_by_mbid[0],
+                'name': existing_by_mbid[1],
+                'reason': 'existing_mbid'
+            }
+            logger.debug(f"Artist found by MBID: {artist_mbid} ({existing_by_mbid[1]})")
+
+        elif existing_by_name:
+            # Case 2: Name already exists with DIFFERENT MBID
+            # This handles artist name variations (e.g., "Brooks & Dunn" vs "Brooks Dunn")
+            #
+            # Subcase 2a: Existing artist has PENDING MBID and we have a real MBID
+            if existing_by_name[0] and existing_by_name[0].startswith('PENDING-') and not artist_mbid.startswith('PENDING-'):
+                # Update existing artist with real MBID (promote PENDING to real)
+                logger.info(f"Updating PENDING artist '{normalized_artist_name}' with real MBID: {artist_mbid}")
+                cursor.execute("UPDATE artists SET mbid = ? WHERE name = ?", (artist_mbid, normalized_artist_name))
+                artist_to_use = {
+                    'mbid': artist_mbid,
+                    'name': normalized_artist_name,
+                    'reason': 'pending_to_real'
+                }
+
+            # Subcase 2b: Existing artist has real MBID (different from ours)
+            # Keep the existing artist (first wins) to maintain data stability
+            else:
+                artist_to_use = {
+                    'mbid': existing_by_name[0],
+                    'name': existing_by_name[1],
+                    'reason': 'existing_name'
+                }
+                logger.debug(
+                    f"Artist name '{normalized_artist_name}' already exists with MBID {existing_by_name[0]}. "
+                    f"Keeping existing artist (ignoring new MBID {artist_mbid})"
+                )
+
+        else:
+            # Case 3: Neither MBID nor name exists - safe to insert new artist
+            try:
+                now = datetime.now()
+                cursor.execute("""
+                    INSERT INTO artists (mbid, name, first_seen_at, last_seen_at, needs_lidarr_import)
+                    VALUES (?, ?, ?, ?, 1)
+                """, (artist_mbid, normalized_artist_name, now, now))
+                artist_added = True
+                artist_to_use = {
+                    'mbid': artist_mbid,
+                    'name': normalized_artist_name,
+                    'reason': 'new_insert'
+                }
+                logger.debug(f"Inserted new artist: {normalized_artist_name} ({artist_mbid})")
+
+            except sqlite3.IntegrityError as e:
+                # This should never happen if our checks are correct
+                # Log it as a warning and investigate
+                logger.error(
+                    f"Unexpected IntegrityError when inserting artist '{normalized_artist_name}' "
+                    f"with MBID {artist_mbid}: {e}. "
+                    f"This indicates a race condition or logic error."
+                )
+                # Try to recover by checking what exists now
+                cursor.execute("SELECT mbid, name FROM artists WHERE mbid = ? OR name = ?", (artist_mbid, normalized_artist_name))
+                result = cursor.fetchone()
+                if result:
+                    artist_to_use = {
+                        'mbid': result[0],
+                        'name': result[1],
+                        'reason': 'error_recovery'
+                    }
+                else:
+                    # Nothing we can do - raise the error
+                    raise
+
+        # Update last_seen_at for the artist we're using
+        if artist_to_use:
             now = datetime.now()
             cursor.execute("""
-                INSERT INTO artists (mbid, name, first_seen_at, last_seen_at, needs_lidarr_import)
-                VALUES (?, ?, ?, ?, 1)
-            """, (artist_mbid, normalized_artist_name, now, now))
-            artist_added = True
-        except sqlite3.IntegrityError:
-            # Artist already exists - check if we need to update MBID
-            cursor.execute("SELECT mbid FROM artists WHERE mbid = ?", (artist_mbid,))
-            existing_by_mbid = cursor.fetchone()
-            if existing_by_mbid:
-                # Artist with this MBID already exists
-                artist_added = False
-            else:
-                # Check for name collision with NULL/PENDING MBID
-                cursor.execute("SELECT mbid FROM artists WHERE name = ?", (normalized_artist_name,))
-                existing_by_name = cursor.fetchone()
-                if existing_by_name and (not existing_by_name[0] or existing_by_name[0].startswith('PENDING-')):
-                    # Update existing artist with better MBID
-                    logger.debug(f"Updating artist '{normalized_artist_name}' with MBID: {artist_mbid}")
-                    cursor.execute("UPDATE artists SET mbid = ? WHERE name = ?", (artist_mbid, normalized_artist_name))
-                    artist_added = False
+                UPDATE artists
+                SET last_seen_at = ?
+                WHERE mbid = ?
+            """, (now, artist_to_use['mbid']))
 
         # Step 2: Add song if new
+        # Use the MBID from the artist we found/inserted
+        effective_mbid = artist_to_use['mbid']
+        effective_name = artist_to_use['name']
+
         cursor.execute("""
             SELECT id FROM songs
             WHERE artist_mbid = ? AND song_title = ?
-        """, (artist_mbid, normalized_song_title))
+        """, (effective_mbid, normalized_song_title))
 
         existing_song = cursor.fetchone()
         if existing_song:
@@ -1528,7 +1686,7 @@ def add_artist_and_song_if_new(cursor, conn, artist_mbid, artist_name, song_titl
         cursor.execute("""
             INSERT INTO songs (artist_mbid, artist_name, song_title, play_count)
             VALUES (?, ?, ?, 0)
-        """, (artist_mbid, normalized_artist_name, normalized_song_title))
+        """, (effective_mbid, effective_name, normalized_song_title))
 
         song_id = cursor.lastrowid
 
@@ -1755,7 +1913,8 @@ def delete_pending_artists_older_than(cursor, conn, days=30):
 
 # ==================== MANUAL PLAYLIST CRUD ====================
 
-def create_manual_playlist(cursor, conn, name, plex_playlist_name=None):
+def create_manual_playlist(cursor, conn, name, plex_playlist_name=None,
+                          enable_various_artists_fallback=False, various_artists_timeout_ms=5000):
     """Create a new manual playlist
 
     Args:
@@ -1763,6 +1922,8 @@ def create_manual_playlist(cursor, conn, name, plex_playlist_name=None):
         conn: SQLite connection object
         name: Internal playlist name (must be unique)
         plex_playlist_name: Optional name for Plex (defaults to name if not provided)
+        enable_various_artists_fallback: Enable Various Artists fallback for Plex matching
+        various_artists_timeout_ms: Max search time per song in milliseconds for Various Artists fallback
 
     Returns:
         playlist_id (int) of created playlist
@@ -1778,9 +1939,12 @@ def create_manual_playlist(cursor, conn, name, plex_playlist_name=None):
             plex_playlist_name = name
 
         cursor.execute("""
-            INSERT INTO manual_playlists (name, plex_playlist_name, created_at, updated_at)
-            VALUES (?, ?, ?, ?)
-        """, (name, plex_playlist_name, now, now))
+            INSERT INTO manual_playlists (name, plex_playlist_name, created_at, updated_at,
+                                        enable_various_artists_fallback, various_artists_timeout_ms)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (name, plex_playlist_name, now, now,
+              1 if enable_various_artists_fallback else 0,
+              various_artists_timeout_ms))
 
         conn.commit()
         playlist_id = cursor.lastrowid
@@ -1795,7 +1959,8 @@ def create_manual_playlist(cursor, conn, name, plex_playlist_name=None):
         conn.rollback()
         raise
 
-def update_manual_playlist(cursor, conn, playlist_id, name=None, plex_playlist_name=None):
+def update_manual_playlist(cursor, conn, playlist_id, name=None, plex_playlist_name=None,
+                          enable_various_artists_fallback=None, various_artists_timeout_ms=None):
     """Update manual playlist metadata
 
     Args:
@@ -1804,6 +1969,8 @@ def update_manual_playlist(cursor, conn, playlist_id, name=None, plex_playlist_n
         playlist_id: Playlist ID to update
         name: New internal name (optional)
         plex_playlist_name: New Plex name (optional)
+        enable_various_artists_fallback: Enable Various Artists fallback (optional)
+        various_artists_timeout_ms: Max search time per song in milliseconds (optional)
 
     Returns:
         True if updated, False if playlist not found
@@ -1823,6 +1990,14 @@ def update_manual_playlist(cursor, conn, playlist_id, name=None, plex_playlist_n
         if plex_playlist_name is not None:
             updates.append("plex_playlist_name = ?")
             params.append(plex_playlist_name)
+
+        if enable_various_artists_fallback is not None:
+            updates.append("enable_various_artists_fallback = ?")
+            params.append(1 if enable_various_artists_fallback else 0)
+
+        if various_artists_timeout_ms is not None:
+            updates.append("various_artists_timeout_ms = ?")
+            params.append(various_artists_timeout_ms)
 
         # Always update updated_at timestamp
         updates.append("updated_at = ?")

@@ -12,6 +12,13 @@ This module handles all database migrations:
 - v7 → v8 (add wait_time column to stations)
 - v8 → v9 (add manual_mbid_overrides table)
 - v9 → v10 (add ai_playlist_generations table)
+- v10 → v11 (remove WTMX support)
+- v11 → v12 (add manual playlist support)
+- v12 → v13 (add station grouping and sorting)
+- v13 → v14 (add blocklist table)
+- v14 → v15 (add Various Artists fallback support)
+- v15 → v16 (add Plex manual overrides system)
+- v16 → v17 (fix NULL artist_mbid values and clean up orphaned artists)
 
 Migrations are applied automatically when the database is opened.
 """
@@ -114,6 +121,18 @@ def _initialize_schema(cursor, conn, db_path, SCHEMA_VERSION):
             # Migrate to version 14 (add blocklist table)
             if current_version < 14:
                 _migrate_to_v14(cursor, conn)
+
+            # Migrate to version 15 (add Various Artists fallback support)
+            if current_version < 15:
+                _migrate_to_v15(cursor, conn)
+
+            # Migrate to version 16 (add Plex manual overrides system)
+            if current_version < 16:
+                _migrate_to_v16(cursor, conn)
+
+            # Migrate to version 17 (fix NULL artist_mbid values and clean up orphaned artists)
+            if current_version < 17:
+                _migrate_to_v17(cursor, conn)
 
 
 def _create_new_schema(cursor, conn, SCHEMA_VERSION):
@@ -1006,3 +1025,239 @@ def _migrate_to_v14(cursor, conn):
 
     conn.commit()
     print("Migration to version 14 complete!")
+
+
+def _migrate_to_v15(cursor, conn):
+    """Migrate database from v14 to v15 (add Various Artists fallback support)
+
+    This migration adds Various Artists fallback support to both automatic and manual playlists.
+    Users can opt-in to scan 'Various Artists' compilation albums in Plex when standard
+    matching strategies fail, with a configurable per-song timeout to prevent runaway searches.
+
+    Args:
+        cursor: Database cursor
+        conn: Database connection
+    """
+    print("Migrating database from v14 to v15 (adding Various Artists fallback support)...")
+
+    # Step 1: Add columns to playlists table (automatic playlists)
+    print("  - Adding columns to playlists table...")
+    try:
+        cursor.execute("ALTER TABLE playlists ADD COLUMN enable_various_artists_fallback BOOLEAN DEFAULT 0")
+        print("    - Added enable_various_artists_fallback to playlists")
+    except sqlite3.OperationalError:
+        print("    - enable_various_artists_fallback already exists in playlists (skipping)")
+
+    try:
+        cursor.execute("ALTER TABLE playlists ADD COLUMN various_artists_timeout_ms INTEGER DEFAULT 5000")
+        print("    - Added various_artists_timeout_ms to playlists")
+    except sqlite3.OperationalError:
+        print("    - various_artists_timeout_ms already exists in playlists (skipping)")
+
+    # Step 2: Add columns to manual_playlists table (manual playlists)
+    print("  - Adding columns to manual_playlists table...")
+    try:
+        cursor.execute("ALTER TABLE manual_playlists ADD COLUMN enable_various_artists_fallback BOOLEAN DEFAULT 0")
+        print("    - Added enable_various_artists_fallback to manual_playlists")
+    except sqlite3.OperationalError:
+        print("    - enable_various_artists_fallback already exists in manual_playlists (skipping)")
+
+    try:
+        cursor.execute("ALTER TABLE manual_playlists ADD COLUMN various_artists_timeout_ms INTEGER DEFAULT 5000")
+        print("    - Added various_artists_timeout_ms to manual_playlists")
+    except sqlite3.OperationalError:
+        print("    - various_artists_timeout_ms already exists in manual_playlists (skipping)")
+
+    # Step 3: Log the migration as an activity
+    print("  - Logging migration event...")
+    cursor.execute("""
+        INSERT INTO activity_log (event_type, event_severity, title, description, source)
+        VALUES ('system', 'success', 'Database Migration', 'Migrated from schema v14 to v15: added Various Artists fallback support to playlists and manual_playlists tables', 'system')
+    """)
+
+    # Step 4: Record schema version
+    print("  - Recording schema version...")
+    cursor.execute("""
+        INSERT INTO schema_version (version, description)
+        VALUES (?, ?)
+    """, (15, 'Add Various Artists fallback support to playlists and manual_playlists: enable_various_artists_fallback, various_artists_timeout_ms'))
+
+    conn.commit()
+    print("Migration to version 15 complete!")
+
+
+def _migrate_to_v16(cursor, conn):
+    """Migrate database from v15 to v16 (add Plex manual overrides system)
+
+    This migration adds a user manual override system for Plex song matching.
+    Users can manually map failed Plex matches to correct tracks for 100% reliability.
+
+    Args:
+        cursor: Database cursor
+        conn: Database connection
+    """
+    print("Migrating database from v15 to v16 (adding Plex manual overrides system)...")
+
+    # Step 1: Create plex_manual_overrides table
+    print("  - Creating plex_manual_overrides table...")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS plex_manual_overrides (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            song_id INTEGER NOT NULL,
+            plex_track_key TEXT NOT NULL,
+            plex_track_title TEXT NOT NULL,
+            plex_artist_name TEXT NOT NULL,
+            plex_album_title TEXT,
+            plex_year INTEGER,
+            plex_duration_ms INTEGER,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            is_active INTEGER DEFAULT 1,
+            notes TEXT,
+            FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE,
+            UNIQUE(song_id, plex_track_key)
+        )
+    """)
+
+    # Step 2: Create indexes
+    print("  - Creating indexes...")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_plex_overrides_song_id ON plex_manual_overrides(song_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_plex_overrides_plex_key ON plex_manual_overrides(plex_track_key)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_plex_overrides_active ON plex_manual_overrides(is_active)")
+
+    # Step 3: Log the migration as an activity
+    print("  - Logging migration event...")
+    cursor.execute("""
+        INSERT INTO activity_log (event_type, event_severity, title, description, source)
+        VALUES ('system', 'success', 'Database Migration', 'Migrated from schema v15 to v16: added plex_manual_overrides table for manual Plex track matching', 'system')
+    """)
+
+    # Step 4: Record schema version
+    print("  - Recording schema version...")
+    cursor.execute("""
+        INSERT INTO schema_version (version, description)
+        VALUES (?, ?)
+    """, (16, 'Add Plex manual overrides system: plex_manual_overrides table with user-specified Plex track mappings'))
+
+    conn.commit()
+    print("Migration to version 16 complete!")
+
+
+def _migrate_to_v17(cursor, conn):
+    """Migrate database from v16 to v17 (fix NULL artist_mbid values and clean up orphaned artists)
+
+    This migration fixes critical issues:
+    1. Songs with NULL artist_mbid cause crashes when linking to artist detail pages
+    2. Orphaned artists (0 songs) clutter the database and can't be deleted
+    3. Existing NULL mbids in artists table cause startswith() crashes
+
+    Strategy:
+    - Find all songs with NULL artist_mbid
+    - For each song, try to match artist_name to existing artists
+    - If no match, create PENDING artist
+    - Delete orphaned artists (0 songs)
+    """
+    import uuid
+    from radio_monitor.normalization import normalize_artist_name
+
+    print("Migrating from schema v16 to v17...")
+    print("  - Fixing NULL artist_mbid values and cleaning up orphaned artists...")
+
+    # Step 1: Find all songs with NULL artist_mbid
+    print("  - Finding songs with NULL artist_mbid...")
+    cursor.execute("""
+        SELECT id, song_title, artist_name
+        FROM songs
+        WHERE artist_mbid IS NULL
+    """)
+    null_songs = cursor.fetchall()
+
+    if not null_songs:
+        print("  - No songs with NULL artist_mbid found (good!)")
+    else:
+        print(f"  - Found {len(null_songs)} songs with NULL artist_mbid, fixing...")
+
+        # Step 2: For each song, try to find matching artist
+        for song_id, song_title, artist_name in null_songs:
+            if not artist_name:
+                # No artist name either, create generic PENDING artist
+                pending_mbid = f"PENDING-{uuid.uuid4()}"
+                cursor.execute("""
+                    INSERT INTO artists (mbid, name, first_seen_at, last_seen_at, needs_lidarr_import)
+                    VALUES (?, ?, datetime('now'), datetime('now'), 1)
+                """, (pending_mbid, "Unknown Artist"))
+                cursor.execute("UPDATE songs SET artist_mbid = ? WHERE id = ?", (pending_mbid, song_id))
+                print(f"    - Created 'Unknown Artist' for song: {song_title}")
+                continue
+
+            # Try to find existing artist by name (case-insensitive)
+            normalized_name = normalize_artist_name(artist_name)
+            cursor.execute("SELECT mbid FROM artists WHERE name = ? COLLATE NOCASE", (normalized_name,))
+            result = cursor.fetchone()
+
+            if result:
+                # Found matching artist, use it
+                cursor.execute("UPDATE songs SET artist_mbid = ? WHERE id = ?", (result[0], song_id))
+                print(f"    - Matched '{artist_name}' to existing MBID: {result[0]}")
+            else:
+                # No matching artist, create PENDING artist
+                pending_mbid = f"PENDING-{uuid.uuid4()}"
+                cursor.execute("""
+                    INSERT INTO artists (mbid, name, first_seen_at, last_seen_at, needs_lidarr_import)
+                    VALUES (?, ?, datetime('now'), datetime('now'), 1)
+                """, (pending_mbid, normalized_name))
+                cursor.execute("UPDATE songs SET artist_mbid = ? WHERE id = ?", (pending_mbid, song_id))
+                print(f"    - Created PENDING artist for '{artist_name}'")
+
+    # Step 3: Clean up orphaned artists (0 songs)
+    print("  - Cleaning up orphaned artists (0 songs)...")
+    cursor.execute("""
+        SELECT mbid, name FROM artists
+        WHERE mbid NOT IN (SELECT DISTINCT artist_mbid FROM songs WHERE artist_mbid IS NOT NULL)
+    """)
+    orphaned_artists = cursor.fetchall()
+
+    if orphaned_artists:
+        print(f"  - Found {len(orphaned_artists)} orphaned artists, deleting...")
+        for mbid, name in orphaned_artists:
+            print(f"    - Deleting orphaned artist: {name} ({mbid})")
+
+        cursor.execute("""
+            DELETE FROM artists
+            WHERE mbid NOT IN (SELECT DISTINCT artist_mbid FROM songs WHERE artist_mbid IS NOT NULL)
+        """)
+        print(f"  - Deleted {cursor.rowcount} orphaned artists")
+    else:
+        print("  - No orphaned artists found (good!)")
+
+    # Step 4: Fix any remaining NULL mbids in artists table
+    print("  - Fixing NULL mbids in artists table...")
+    cursor.execute("SELECT COUNT(*) FROM artists WHERE mbid IS NULL")
+    null_artist_count = cursor.fetchone()[0]
+
+    if null_artist_count > 0:
+        print(f"  - Found {null_artist_count} artists with NULL mbid, fixing...")
+        cursor.execute("""
+            UPDATE artists
+            SET mbid = 'PENDING-' || lower(hex(randomblob(16)))
+            WHERE mbid IS NULL
+        """)
+        print(f"  - Fixed {cursor.rowcount} NULL mbids in artists table")
+    else:
+        print("  - No NULL mbids in artists table (good!)")
+
+    # Step 5: Record schema version
+    print("  - Recording schema version...")
+    cursor.execute("""
+        INSERT INTO schema_version (version, description)
+        VALUES (?, ?)
+    """, (17, 'Fix NULL artist_mbid values and clean up orphaned artists: all songs now have valid artist_mbids, orphaned artists removed'))
+
+    # Step 6: Log migration completion
+    cursor.execute("""
+        INSERT INTO activity_log (event_type, title, description, event_severity, source)
+        VALUES ('system', 'success', 'Database Migration', 'Migrated from schema v16 to v17: fixed NULL artist_mbid values, removed orphaned artists', 'system')
+    """)
+
+    conn.commit()
+    print("Migration to version 17 complete!")
