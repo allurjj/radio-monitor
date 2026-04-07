@@ -1,6 +1,6 @@
 # Radio Monitor
 
-**Version:** 1.2.3
+**Version:** 1.2.5
 **License:** GNU General Public License v3.0
 
 ---
@@ -84,7 +84,9 @@ Once running, open your web browser and navigate to:
 ### Music Library Integration
 - **Lidarr Integration** - Import discovered artists with quality profile and root folder selection
 - **Plex Integration** - Create dynamic playlists with 7 different modes (merge, replace, append, create, snapshot, recent, random)
-- Fuzzy matching for accurate Plex song identification
+- **Multi-Strategy Matching** - 6-strategy fuzzy matching with normalization for accurate Plex song identification
+- **Manual Overrides** - Manually specify Plex track matches for songs that fail automatic matching
+- **Various Artists Fallback** - Opt-in scanning of compilation albums when standard matching fails
 
 ### Playlist Creation
 - **Automated Playlists** - Generate playlists based on play counts, date ranges, and station filters
@@ -165,6 +167,6 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 ---
 
-**Version:** 1.2.3
+**Version:** 1.2.5
 **Python:** 3.10+
 **Last Updated:** 2026-03-09
