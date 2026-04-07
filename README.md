@@ -1,11 +1,15 @@
 # Radio Monitor
 
-**Version:** 1.2.6
+**Version:** 1.2.7
 **License:** GNU General Public License v3.0
 
 ---
 
 ## What's New
+
+**v1.2.7 (2026-04-07) - Bug Fixes**
+- Fixed Plex Overrides page not loading (template inheritance)
+- Fixed manual match error in Plex Failures (Plex connection check)
 
 **v1.2.6 (2026-04-07) - Bug Fixes**
 - Fixed crashes from NULL artist MBIDs during scraping
