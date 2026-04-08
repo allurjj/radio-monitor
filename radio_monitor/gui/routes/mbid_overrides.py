@@ -146,9 +146,10 @@ def validate_mbid():
         if existing:
             existing_name = existing[0]
             if existing_name.lower() != artist_name.lower():
-                issues.append({
+                # Changed from issue to warning - our backend handles merges correctly
+                warnings.append({
                     'type': 'duplicate',
-                    'message': f'This MBID is already used by "{existing_name}" in your database',
+                    'message': f'This MBID is already used by "{existing_name}". The system will merge "{artist_name}" into "{existing_name}" and all songs will be updated accordingly.',
                     'existing_artist': existing_name
                 })
     finally:
