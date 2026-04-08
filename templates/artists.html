@@ -854,6 +854,7 @@ document.querySelectorAll('.btn-edit-mbid').forEach(button => {
 // Save MBID override
 async function saveMbidOverride() {
     const artistName = document.getElementById('edit-artist-name').value.trim();
+    const currentMbid = document.getElementById('edit-current-mbid').value.trim();
     const newMbid = document.getElementById('edit-new-mbid').value.trim();
     const notes = document.getElementById('edit-notes').value.trim();
 
@@ -913,7 +914,7 @@ async function saveMbidOverride() {
 
         if (result.success) {
             // Update the artist's MBID in the database
-            const updateResult = await updateArtistMbid(artistName, newMbid);
+            const updateResult = await updateArtistMbid(artistName, currentMbid, newMbid);
 
             if (updateResult.success) {
                 // Show success message
@@ -943,12 +944,12 @@ async function saveMbidOverride() {
 }
 
 // Update artist's MBID in database
-async function updateArtistMbid(artistName, newMbid) {
+async function updateArtistMbid(artistName, currentMbid, newMbid) {
     try {
         const response = await fetch('/api/artists/update-mbid', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({artist_name: artistName, mbid: newMbid})
+            body: JSON.stringify({artist_name: artistName, current_mbid: currentMbid, mbid: newMbid})
         });
 
         // Check if response is JSON (not HTML)

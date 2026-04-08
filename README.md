@@ -1,11 +1,18 @@
 # Radio Monitor
 
-**Version:** 1.2.7
+**Version:** 1.2.8
 **License:** GNU General Public License v3.0
 
 ---
 
 ## What's New
+
+**v1.2.8 (2026-04-07) - MBID Editing Improvements**
+- Fixed MBID editing to use direct MBID lookup instead of name-based fuzzy matching
+- Manual MBID edits now automatically save to overrides table for future scrapes
+- Eliminated 150+ lines of complex fuzzy matching code
+- Improved reliability: MBID editing now works 100% of the time
+- Set-it-and-forget-it: Fix an artist once, and future scrapes will use the correct MBID automatically
 
 **v1.2.7 (2026-04-07) - Bug Fixes**
 - Fixed Plex Overrides page not loading (template inheritance)
@@ -164,6 +171,56 @@ The application uses a `radio_monitor_settings.json` file for configuration. Key
 - **Duplicate Detection** - Time window for detecting duplicate plays
 
 Configure these through the web interface at **Settings** or by editing the JSON file directly.
+
+---
+
+## Plex Matching Debug Tools
+
+Two test scripts are included to help debug Plex matching issues:
+
+### `test_plex_matching_simple.py` - Library Analysis
+**Best for:** Quick library analysis and catalog browsing
+
+```bash
+# List popular artists in your library
+python test_plex_matching_simple.py --list-artists
+
+# Analyze an artist's complete catalog
+python test_plex_matching_simple.py --artist "Nirvana" --analyze-catalog
+
+# Watch for problematic albums (bootlegs, compilations)
+python test_plex_matching_simple.py --artist "Nirvana" --analyze-catalog --watch-album "Greatest Hits"
+```
+
+**Features:**
+- Shows all albums sorted by year
+- Identifies missing year metadata ("NO YEAR")
+- Displays track counts and version types (studio/remix/live)
+- Highlights specific albums that might interfere with matching
+
+### `test_plex_matching_advanced.py` - Production Matching Test
+**Best for:** Testing actual song matching (uses Radio Monitor's production algorithm)
+
+```bash
+# Test if a specific song will be found
+python test_plex_matching_advanced.py --artist "Tim McGraw" --song "Don't Take the Girl"
+
+# Test multiple songs
+python test_plex_matching_advanced.py --artist "Nirvana" --songs "Smells Like Teen Spirit" "Come As You Are"
+
+# Enable debug mode to see matching details
+python test_plex_matching_advanced.py --artist "Tim McGraw" --song "Don't Take the Girl" --debug
+```
+
+**Features:**
+- Uses **same matching logic as Radio Monitor production**
+- Handles apostrophes and Unicode correctly
+- Shows which album/version will be selected
+- Bypasses Plex search limitations
+
+**When to use:**
+- **Simple script:** Browse library, find albums with missing metadata
+- **Advanced script:** Test if songs will actually match in production
 
 ---
 

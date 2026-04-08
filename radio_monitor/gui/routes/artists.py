@@ -291,7 +291,18 @@ def api_artist_history(mbid):
 @artists_bp.route('/api/artists/update-mbid', methods=['POST'])
 @requires_auth
 def api_update_artist_mbid():
-    """API endpoint to update an artist's MBID and name"""
+    """API endpoint to update an artist's MBID and name
+
+    Finds artist by current_mbid (no fuzzy matching needed!) and updates to new_mbid.
+    Warns if artist name discrepancy is detected.
+
+    Expected JSON:
+        {
+            "artist_name": "Current artist name (for display/warning)",
+            "current_mbid": "Current MBID of artist to update",
+            "mbid": "New MBID to set"
+        }
+    """
     db = get_db()
 
     if not db:
@@ -299,12 +310,13 @@ def api_update_artist_mbid():
 
     data = request.get_json()
     artist_name = data.get('artist_name', '').strip()
+    current_mbid = data.get('current_mbid', '').strip()
     new_mbid = data.get('mbid', '').strip()
 
-    if not artist_name or not new_mbid:
-        return jsonify({'error': 'artist_name and mbid are required'}), 400
+    if not current_mbid or not new_mbid:
+        return jsonify({'error': 'current_mbid and mbid are required'}), 400
 
-    # Get the correct artist name from MusicBrainz
+    # Get the correct artist name from MusicBrainz for the new MBID
     from radio_monitor.mbid import get_artist_from_mbid
 
     try:
@@ -322,45 +334,18 @@ def api_update_artist_mbid():
 
     cursor = db.get_cursor()
     try:
-        # Normalize artist name for database lookup
-        from radio_monitor.normalization import normalize_artist_name
-        normalized_name = normalize_artist_name(artist_name)
-
-        # Try multiple search strategies to find the artist
-        # 1. Exact match
-        cursor.execute("SELECT mbid, first_seen_station, first_seen_at FROM artists WHERE name = ?", (artist_name,))
+        # Find the artist by their CURRENT MBID (simple, direct lookup - no fuzzy matching!)
+        cursor.execute("SELECT mbid, name, first_seen_station, first_seen_at FROM artists WHERE mbid = ?", (current_mbid,))
         result = cursor.fetchone()
 
-        # 2. Normalized name
-        if not result and normalized_name != artist_name:
-            cursor.execute("SELECT mbid, first_seen_station, first_seen_at FROM artists WHERE name = ?", (normalized_name,))
-            result = cursor.fetchone()
-            if result:
-                artist_name = normalized_name
-
-        # 3. Case-insensitive LIKE search
         if not result:
-            cursor.execute("SELECT mbid, first_seen_station, first_seen_at FROM artists WHERE name LIKE ?", (f'%{artist_name}%',))
-            result = cursor.fetchone()
-
-        # 4. MusicBrainz name (handles Unicode differences like "A-ha" vs "a‐ha")
-        if not result and correct_artist_name != artist_name:
-            cursor.execute("SELECT mbid, first_seen_station, first_seen_at FROM artists WHERE name = ?", (correct_artist_name,))
-            result = cursor.fetchone()
-            if result:
-                artist_name = correct_artist_name
-
-        if not result:
-            # Try to find similar artists for helpful error message
-            search_term = artist_name.replace('-', '').replace(' ', '')
-            cursor.execute("SELECT name FROM artists WHERE REPLACE(REPLACE(name, '-', ''), ' ', '') LIKE ? LIMIT 10", (f'%{search_term}%',))
-            similar = cursor.fetchall()
-            logger.error(f"Artist not found: '{artist_name}'. Similar artists: {[r[0] for r in similar]}")
-            return jsonify({'error': f'Artist not found: {artist_name}. Check that the artist name matches exactly.'}), 404
+            logger.error(f"Artist not found with current MBID: {current_mbid}")
+            return jsonify({'error': f'Artist not found with MBID: {current_mbid}'}), 404
 
         old_mbid = result[0]
-        first_seen_station = result[1]
-        first_seen_at = result[2]
+        old_artist_name = result[1]
+        first_seen_station = result[2]
+        first_seen_at = result[3]
 
         # Check if new MBID already exists in artists table
         cursor.execute("SELECT mbid, name FROM artists WHERE mbid = ?", (new_mbid,))
@@ -377,17 +362,27 @@ def api_update_artist_mbid():
 
             songs_updated = cursor.rowcount
 
-            # Delete the old artist record (PENDING artist being replaced)
+            # Delete the old artist record (artist being replaced)
             cursor.execute("DELETE FROM artists WHERE mbid = ?", (old_mbid,))
+
+            # Save to manual MBID overrides so future scrapes use correct MBID
+            from radio_monitor.database.crud import add_manual_mbid_override
+            override_id = add_manual_mbid_override(
+                cursor,
+                artist_name_original=old_artist_name,
+                mbid=new_mbid,
+                notes=f"Manually merged with '{existing_new_artist[1]}' via MBID edit"
+            )
+            logger.info(f"Saved manual MBID override: '{old_artist_name}' -> '{new_mbid}' (ID: {override_id})")
 
             db.conn.commit()
 
-            logger.info(f"Merged {songs_updated} songs from '{artist_name}' (MBID: {old_mbid}) into existing artist '{existing_new_artist[1]}' (MBID: {new_mbid})")
+            logger.info(f"Merged {songs_updated} songs from '{old_artist_name}' (MBID: {old_mbid}) into existing artist '{existing_new_artist[1]}' (MBID: {new_mbid})")
 
             return jsonify({
                 'success': True,
-                'message': f'MBID override saved! Merged {songs_updated} song(s) into existing artist "{existing_new_artist[1]}".',
-                'old_name': artist_name,
+                'message': f'MBID override saved! Merged {songs_updated} song(s) into existing artist "{existing_new_artist[1]}". Future scrapes will automatically use the correct MBID.',
+                'old_name': old_artist_name,
                 'new_name': existing_new_artist[1],
                 'mbid': new_mbid,
                 'songs_updated': songs_updated
@@ -418,17 +413,27 @@ def api_update_artist_mbid():
             if cursor.rowcount == 0:
                 raise Exception(f"Failed to update artist: old MBID {old_mbid} not found")
 
+            # Save to manual MBID overrides so future scrapes use correct MBID
+            from radio_monitor.database.crud import add_manual_mbid_override
+            override_id = add_manual_mbid_override(
+                cursor,
+                artist_name_original=old_artist_name,
+                mbid=new_mbid,
+                notes=f"Manually updated to '{correct_artist_name}' via MBID edit"
+            )
+            logger.info(f"Saved manual MBID override: '{old_artist_name}' -> '{new_mbid}' (ID: {override_id})")
+
             # Re-enable foreign key constraints
             cursor.execute("PRAGMA foreign_keys = ON")
 
             db.conn.commit()
 
-            logger.info(f"Updated artist '{artist_name}' (MBID: {old_mbid}) to '{correct_artist_name}' (MBID: {new_mbid}) with {songs_updated} songs")
+            logger.info(f"Updated artist '{old_artist_name}' (MBID: {old_mbid}) to '{correct_artist_name}' (MBID: {new_mbid}) with {songs_updated} songs")
 
             return jsonify({
                 'success': True,
-                'message': f'Artist updated successfully! {songs_updated} song(s) updated.',
-                'old_name': artist_name,
+                'message': f'Artist updated successfully! {songs_updated} song(s) updated. Future scrapes will automatically use the correct MBID.',
+                'old_name': old_artist_name,
                 'new_name': correct_artist_name,
                 'mbid': new_mbid,
                 'songs_updated': songs_updated
