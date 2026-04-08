@@ -1,11 +1,16 @@
 # Radio Monitor
 
-**Version:** 1.2.8
+**Version:** 1.2.8.1
 **License:** GNU General Public License v3.0
 
 ---
 
 ## What's New
+
+**v1.2.8.1 (2026-04-08) - Hotfix - MBID Editing**
+- Fixed MBID editing validation to allow artist merges
+- Duplicate MBID now shows as warning instead of blocking error
+- Users can now merge artists like "Brooks Dunn" into "Brooks & Dunn"
 
 **v1.2.8 (2026-04-07) - MBID Editing Improvements**
 - Fixed MBID editing to use direct MBID lookup instead of name-based fuzzy matching
