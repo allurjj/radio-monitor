@@ -1,11 +1,16 @@
 # Radio Monitor
 
-**Version:** 1.2.8.2
+**Version:** 1.2.8.3
 **License:** GNU General Public License v3.0
 
 ---
 
 ## What's New
+
+**v1.2.8.3 (2026-04-08) - Critical Fix - Foreign Key Constraints**
+- Fixed FOREIGN KEY constraint error when merging artists
+- Disabled foreign key constraints during artist merge operations
+- Artist merges now work correctly even with song_plays_daily references
 
 **v1.2.8.2 (2026-04-08) - Critical Fix - UNIQUE Constraint in Artist Merges**
 - Fixed UNIQUE constraint error when merging artists with duplicate songs
