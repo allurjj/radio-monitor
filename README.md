@@ -1,11 +1,17 @@
 # Radio Monitor
 
-**Version:** 1.2.8.1
+**Version:** 1.2.8.2
 **License:** GNU General Public License v3.0
 
 ---
 
 ## What's New
+
+**v1.2.8.2 (2026-04-08) - Critical Fix - UNIQUE Constraint in Artist Merges**
+- Fixed UNIQUE constraint error when merging artists with duplicate songs
+- Play counts from duplicate songs are now added to existing songs (no data loss)
+- Artists can now be merged even when they share the same songs
+- Example: "Brooks Dunn" → "Brooks & Dunn" with 5 duplicate songs now works correctly
 
 **v1.2.8.1 (2026-04-08) - Hotfix - MBID Editing**
 - Fixed MBID editing validation to allow artist merges

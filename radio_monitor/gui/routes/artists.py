@@ -353,14 +353,42 @@ def api_update_artist_mbid():
 
         if existing_new_artist:
             # Scenario 1: New MBID already exists - merge into existing artist
-            # Update all songs to point to the existing artist
+            # First, add play counts from duplicate songs to existing songs
+            cursor.execute("""
+                UPDATE songs
+                SET play_count = play_count + (
+                    SELECT play_count FROM songs s2
+                    WHERE s2.artist_mbid = ?
+                      AND s2.song_title = songs.song_title
+                )
+                WHERE artist_mbid = ?
+                  AND song_title IN (
+                      SELECT song_title FROM songs WHERE artist_mbid = ?
+                  )
+            """, (old_mbid, new_mbid, old_mbid))
+
+            plays_added = cursor.rowcount
+
+            # Then update songs that don't already exist (avoid UNIQUE constraint)
             cursor.execute("""
                 UPDATE songs
                 SET artist_mbid = ?, artist_name = ?
                 WHERE artist_mbid = ?
-            """, (new_mbid, existing_new_artist[1], old_mbid))
+                AND song_title NOT IN (
+                    SELECT song_title FROM songs WHERE artist_mbid = ?
+                )
+            """, (new_mbid, existing_new_artist[1], old_mbid, new_mbid))
 
             songs_updated = cursor.rowcount
+
+            # Count how many songs were skipped (already existed)
+            cursor.execute("""
+                SELECT COUNT(*) FROM songs
+                WHERE artist_mbid = ? AND song_title IN (
+                    SELECT song_title FROM songs WHERE artist_mbid = ?
+                )
+            """, (new_mbid, old_mbid))
+            songs_skipped = cursor.fetchone()[0]
 
             # Delete the old artist record (artist being replaced)
             cursor.execute("DELETE FROM artists WHERE mbid = ?", (old_mbid,))
@@ -377,15 +405,21 @@ def api_update_artist_mbid():
 
             db.conn.commit()
 
-            logger.info(f"Merged {songs_updated} songs from '{old_artist_name}' (MBID: {old_mbid}) into existing artist '{existing_new_artist[1]}' (MBID: {new_mbid})")
+            logger.info(f"Merged {songs_updated} songs from '{old_artist_name}' (MBID: {old_mbid}) into existing artist '{existing_new_artist[1]}' (MBID: {new_mbid}), added plays to {songs_skipped} existing songs, deleted old artist")
+
+            message = f'MBID override saved! Merged {songs_updated} song(s) into existing artist "{existing_new_artist[1]}"'
+            if songs_skipped > 0:
+                message += f', added play counts to {songs_skipped} existing song(s)'
+            message += '. Future scrapes will automatically use the correct MBID.'
 
             return jsonify({
                 'success': True,
-                'message': f'MBID override saved! Merged {songs_updated} song(s) into existing artist "{existing_new_artist[1]}". Future scrapes will automatically use the correct MBID.',
+                'message': message,
                 'old_name': old_artist_name,
                 'new_name': existing_new_artist[1],
                 'mbid': new_mbid,
-                'songs_updated': songs_updated
+                'songs_updated': songs_updated,
+                'songs_skipped': songs_skipped
             })
         else:
             # Scenario 2: New MBID doesn't exist - update the existing artist in-place
