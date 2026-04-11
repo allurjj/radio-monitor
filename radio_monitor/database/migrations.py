@@ -19,6 +19,9 @@ This module handles all database migrations:
 - v14 → v15 (add Various Artists fallback support)
 - v15 → v16 (add Plex manual overrides system)
 - v16 → v17 (fix NULL artist_mbid values and clean up orphaned artists)
+- v17 → v18 (add retry_match_succeeded column)
+- v18 → v19 (add spotiflac_downloads table)
+- v19 → v20 (add match_key column for duplicate detection)
 
 Migrations are applied automatically when the database is opened.
 """
@@ -133,6 +136,18 @@ def _initialize_schema(cursor, conn, db_path, SCHEMA_VERSION):
             # Migrate to version 17 (fix NULL artist_mbid values and clean up orphaned artists)
             if current_version < 17:
                 _migrate_to_v17(cursor, conn)
+
+            # Migrate to version 18 (add retry_match_succeeded column)
+            if current_version < 18:
+                _migrate_to_v18(cursor, conn)
+
+            # Migrate to version 19 (add spotiflac_downloads table)
+            if current_version < 19:
+                _migrate_to_v19(cursor, conn)
+
+            # Migrate to version 20 (add match_key column for duplicate detection)
+            if current_version < 20:
+                _migrate_to_v20(cursor, conn)
 
 
 def _create_new_schema(cursor, conn, SCHEMA_VERSION):
@@ -1261,3 +1276,132 @@ def _migrate_to_v17(cursor, conn):
 
     conn.commit()
     print("Migration to version 17 complete!")
+
+
+def _migrate_to_v18(cursor, conn):
+    """Migrate database from v17 to v18 (add retry_match_succeeded column)
+
+    This migration adds tracking for retry match success status:
+    - retry_match_succeeded column to plex_match_failures table
+    - Tracks whether manual retry attempts succeeded (TRUE), failed (FALSE), or not yet tried (NULL)
+    """
+    from pathlib import Path
+
+    print("Migrating from schema v17 to v18...")
+    print("  - Adding retry_match_succeeded column to plex_match_failures table...")
+
+    # Execute migration SQL
+    migration_file = Path(__file__).parent / 'migrations' / 'migrate_v17_to_v18.sql'
+    with open(migration_file, 'r') as f:
+        sql = f.read()
+
+    cursor.executescript(sql)
+
+    print("  - Added retry_match_succeeded column")
+
+    # Log migration completion
+    cursor.execute("""
+        INSERT INTO activity_log (event_type, title, description, event_severity, source)
+        VALUES ('system', 'success', 'Database Migration', 'Migrated from schema v17 to v18: added retry_match_succeeded column for tracking Plex retry attempts', 'system')
+    """)
+
+    conn.commit()
+    print("Migration to version 18 complete!")
+
+
+def _migrate_to_v19(cursor, conn):
+    """Migrate database from v17 to v18 (add spotiflac_downloads table)
+
+    This migration adds tracking for SpotiFLAC download jobs:
+    - spotiflac_downloads table with job tracking
+    - Links to plex_match_failures for download context
+    - Tracks download status, service used, file paths
+    """
+    from pathlib import Path
+
+    print("Migrating from schema v18 to v19...")
+    print("  - Adding spotiflac_downloads table...")
+
+    # Execute migration SQL
+    migration_file = Path(__file__).parent / 'migrations' / 'migrate_v18_to_v19.sql'
+    with open(migration_file, 'r') as f:
+        sql = f.read()
+
+    cursor.executescript(sql)
+
+    print("  - Added spotiflac_downloads table")
+
+    # Log migration completion
+    cursor.execute("""
+        INSERT INTO activity_log (event_type, title, description, event_severity, source)
+        VALUES ('system', 'success', 'Database Migration', 'Migrated from schema v18 to v19: added spotiflac_downloads table for tracking SpotiFLAC download jobs', 'system')
+    """)
+
+    conn.commit()
+    print("Migration to version 19 complete!")
+
+
+def _migrate_to_v20(cursor, conn):
+    """Migrate database from v19 to v20 (add match_key column)
+
+    This migration adds aggressive normalization for duplicate detection:
+    - match_key column to artists table
+    - Backfills existing artists with match_key values
+    - Creates index for fast duplicate detection
+    """
+    from pathlib import Path
+
+    print("Migrating from schema v19 to v20...")
+    print("  - Adding match_key column for duplicate detection...")
+
+    # Check if match_key column already exists (for fresh databases)
+    cursor.execute("PRAGMA table_info(artists)")
+    columns = cursor.fetchall()
+    column_names = [col[1] for col in columns]
+
+    if 'match_key' not in column_names:
+        # Add the column for existing v19 databases
+        print("  - Adding match_key column to existing table...")
+        cursor.execute("ALTER TABLE artists ADD COLUMN match_key TEXT")
+    else:
+        print("  - match_key column already exists (fresh database)")
+
+    # Backfill existing artists with match_key (safe for both cases)
+    print("  - Backfilling match_key for existing artists...")
+
+    # Use a parameterized approach to avoid apostrophe escaping issues
+    # Step 1: Lowercase and remove spaces, ampersands, plus signs, commas, periods, hyphens
+    cursor.execute("""
+        UPDATE artists SET match_key = LOWER(name)
+        WHERE match_key IS NULL
+    """)
+    cursor.execute("UPDATE artists SET match_key = REPLACE(match_key, ' ', '') WHERE match_key IS NOT NULL")
+    cursor.execute("UPDATE artists SET match_key = REPLACE(match_key, '&', '') WHERE match_key IS NOT NULL")
+    cursor.execute("UPDATE artists SET match_key = REPLACE(match_key, '+', '') WHERE match_key IS NOT NULL")
+    cursor.execute("UPDATE artists SET match_key = REPLACE(match_key, ',', '') WHERE match_key IS NOT NULL")
+    cursor.execute("UPDATE artists SET match_key = REPLACE(match_key, '.', '') WHERE match_key IS NOT NULL")
+    cursor.execute("UPDATE artists SET match_key = REPLACE(match_key, '-', '') WHERE match_key IS NOT NULL")
+    cursor.execute("UPDATE artists SET match_key = REPLACE(match_key, char(39), '') WHERE match_key IS NOT NULL")
+
+    # Remove "the" prefix
+    cursor.execute("UPDATE artists SET match_key = SUBSTR(match_key, 4) WHERE match_key LIKE 'the%'")
+
+    # Create index
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_artists_match_key ON artists(match_key)")
+
+    # Update schema version
+    cursor.execute("""
+        INSERT INTO schema_version (version, description)
+        VALUES (20, 'Add match_key column for aggressive duplicate detection')
+    """)
+
+    print("  - Added match_key column and index")
+
+    # Log migration completion
+    cursor.execute("""
+        INSERT INTO activity_log (event_type, title, description, event_severity, source)
+        VALUES ('system', 'success', 'Database Migration', 'Migrated from schema v19 to v20: added match_key column for aggressive duplicate detection', 'system')
+    """)
+
+    conn.commit()
+    print("Migration to version 20 complete!")
