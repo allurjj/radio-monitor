@@ -1,6 +1,6 @@
 # Radio Monitor API Documentation
 
-**Version:** 1.2.0
+**Version:** 1.2.8.3
 **Base URL:**
 - Windows: `http://127.0.0.1:5000`
 - Linux/Mac: `http://localhost:5000`
@@ -29,6 +29,7 @@
 - [Stations](#stations)
 - [Notifications](#notifications)
 - [Plex Failures](#plex-failures)
+- [Plex Overrides](#plex-overrides) ✨ **NEW**
 - [AI Playlists](#ai-playlists)
 - [Blocklist](#blocklist) ✨ **NEW**
 
@@ -683,9 +684,28 @@ Create new playlist (manual or auto).
   "min_plays": 5,
   "max_plays": 100,
   "days": 30,
-  "enabled": true
+  "enabled": true,
+  "enable_various_artists_fallback": false,
+  "various_artists_timeout_ms": 5000
 }
 ```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | string | required | Playlist name |
+| `is_auto` | boolean | false | Auto-update playlist on schedule |
+| `interval_minutes` | integer | null | Update interval (required if is_auto=true) |
+| `station_ids` | array | required | Station IDs to include |
+| `max_songs` | integer | required | Maximum songs in playlist |
+| `mode` | string | required | Playlist mode (merge, replace, append, create, snapshot, recent, random) |
+| `min_plays` | integer | 1 | Minimum plays per song |
+| `max_plays` | integer | null | Maximum plays per song (optional) |
+| `days` | integer | null | Only include songs from last N days |
+| `enabled` | boolean | true | Enable/disable playlist |
+| `enable_various_artists_fallback` | boolean | false | Search 'Various Artists' compilations when standard matching fails |
+| `various_artists_timeout_ms` | integer | 5000 | Max search time per song in milliseconds (1000-30000) |
 
 **Response:**
 ```json
@@ -705,9 +725,13 @@ Update existing playlist.
 {
   "name": "New Name",
   "is_auto": true,
-  "interval_minutes": 60
+  "interval_minutes": 60,
+  "enable_various_artists_fallback": true,
+  "various_artists_timeout_ms": 7000
 }
 ```
+
+**Parameters:** Same as POST (all fields optional except playlist_id)
 
 **Response:**
 ```json
@@ -942,9 +966,21 @@ Create a new manual playlist.
 {
   "name": "My Favorites",
   "song_ids": [123, 456, 789],
-  "sync_to_plex": true
+  "sync_to_plex": true,
+  "enable_various_artists_fallback": false,
+  "various_artists_timeout_ms": 5000
 }
 ```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | string | required | Playlist name |
+| `song_ids` | array | required | Song IDs to include (from current builder selections) |
+| `sync_to_plex` | boolean | false | Sync to Plex after creation |
+| `enable_various_artists_fallback` | boolean | false | Search 'Various Artists' compilations when standard matching fails |
+| `various_artists_timeout_ms` | integer | 5000 | Max search time per song in milliseconds (1000-30000) |
 
 **Response:**
 ```json
@@ -973,7 +1009,9 @@ Get details of a specific manual playlist.
     "name": "My Favorites",
     "song_count": 25,
     "created_at": "2026-02-23T12:00:00",
-    "updated_at": "2026-02-23T14:30:00"
+    "updated_at": "2026-02-23T14:30:00",
+    "enable_various_artists_fallback": false,
+    "various_artists_timeout_ms": 5000
   },
   "songs": [
     {
@@ -996,9 +1034,13 @@ Update an existing manual playlist.
   "name": "My Favorites (Updated)",
   "add_song_ids": [789, 1011],
   "remove_song_ids": [123],
-  "sync_to_plex": true
+  "sync_to_plex": true,
+  "enable_various_artists_fallback": true,
+  "various_artists_timeout_ms": 7000
 }
 ```
+
+**Parameters:** Same as POST (all fields optional except playlist_id)
 
 **Response:**
 ```json
@@ -1691,19 +1733,48 @@ Get count of PENDING artists (artists without valid MusicBrainz IDs).
 
 Update an artist's MBID and merge with existing artist if needed.
 
+**Version:** 1.2.8.3+ - **NEW IMPLEMENTATION:**
+
 **Request Body:**
 ```json
 {
-  "artist_name": "PENDING-12345",
-  "mbid": "5bc41f77-cce4-4e76-a3e9-324c0201824f"
+  "artist_name": "Brooks Dunn",
+  "current_mbid": "PENDING-04d427179698d27cb762e3a10bff2a42",
+  "mbid": "f30118c5-f783-4969-8427-f3c096378267"
 }
 ```
+
+**Parameters:**
+- `artist_name` (string): Current artist name for display purposes
+- `current_mbid` (string): **Current MBID** of the artist to update (used for lookup)
+- `mbid` (string): **New MBID** to set (can be existing artist's MBID for merge)
+
+**Behavior:**
+1. Finds artist by `current_mbid` (direct lookup, no fuzzy matching)
+2. If new MBID already exists → **merge** artists (combines play counts, deletes old artist)
+3. If new MBID doesn't exist → **update** artist in-place
+4. Saves to `manual_mbid_overrides` table for future scrapes
+5. Handles foreign key constraints (song_plays_daily references)
+6. Handles unique constraints (duplicate songs)
 
 **Response (Merge into existing artist):**
 ```json
 {
   "success": true,
-  "message": "MBID override saved! Merged 5 song(s) into existing artist \"Billy Joel\".",
+  "message": "MBID override saved! Merged 0 song(s) into existing artist \"Brooks & Dunn\", added play counts to 5 existing song(s). Future scrapes will automatically use the correct MBID.",
+  "old_name": "Brooks Dunn",
+  "new_name": "Brooks & Dunn",
+  "mbid": "f30118c5-f783-4969-8427-f3c096378267",
+  "songs_updated": 0,
+  "songs_skipped": 5
+}
+```
+
+**Response (Update in-place):**
+```json
+{
+  "success": true,
+  "message": "Artist updated successfully! 5 song(s) updated. Future scrapes will automatically use the correct MBID.",
   "old_name": "PENDING-12345",
   "new_name": "Billy Joel",
   "mbid": "5bc41f77-cce4-4e76-a3e9-324c0201824f",
@@ -1711,17 +1782,19 @@ Update an artist's MBID and merge with existing artist if needed.
 }
 ```
 
-**Response (Create new artist):**
+**Error Response:**
 ```json
 {
-  "success": true,
-  "message": "Artist updated successfully! 5 song(s) updated.",
-  "old_name": "PENDING-12345",
-  "new_name": "Billy Joel",
-  "mbid": "5bc41f77-cce4-4e76-a3e9-324c0201824f",
-  "songs_updated": 5
+  "error": "Artist not found with MBID: PENDING-12345"
 }
 ```
+
+**Changes in v1.2.8.3:**
+- Added `current_mbid` parameter (required for direct lookup)
+- Removed fuzzy matching (now uses exact MBID lookup)
+- Handles foreign key constraints (song_plays_daily)
+- Handles unique constraints (duplicate song titles)
+- Automatically saves to manual overrides for future scrapes
 
 ### DELETE `/api/artists/<mbid>`
 
@@ -2265,6 +2338,165 @@ Delete ALL failure records.
 {
   "success": true,
   "deleted": 100
+}
+```
+
+---
+
+## Plex Overrides
+
+### GET `/plex-overrides`
+
+Render Plex manual overrides management page.
+
+### GET `/api/plex-overrides`
+
+Get all Plex manual overrides (JSON API).
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `active_only` | boolean | true | Only return active overrides |
+
+**Response:**
+```json
+{
+  "overrides": [
+    {
+      "id": 1,
+      "song_id": 123,
+      "plex_track_key": "45678",
+      "plex_track_title": "Song Title",
+      "plex_artist_name": "Artist Name",
+      "plex_album_title": "Album Title",
+      "plex_year": 2023,
+      "plex_duration_ms": 180000,
+      "created_at": "2026-04-07 10:00:00",
+      "updated_at": "2026-04-07 10:00:00",
+      "is_active": true,
+      "notes": "Manual match",
+      "song": {
+        "title": "Song Title",
+        "artist": "Artist Name"
+      }
+    }
+  ]
+}
+```
+
+### GET `/api/plex-overrides/<int:song_id>`
+
+Get override for a specific song.
+
+**Response:**
+```json
+{
+  "override": {
+    "id": 1,
+    "song_id": 123,
+    "plex_track_key": "45678",
+    "plex_track_title": "Song Title",
+    "plex_artist_name": "Artist Name",
+    "plex_album_title": "Album Title",
+    "plex_year": 2023,
+    "plex_duration_ms": 180000,
+    "created_at": "2026-04-07 10:00:00",
+    "updated_at": "2026-04-07 10:00:00",
+    "is_active": true,
+    "notes": "Manual match"
+  }
+}
+```
+
+### POST `/api/plex-overrides`
+
+Add a new manual override.
+
+**Request Body:**
+```json
+{
+  "song_id": 123,
+  "plex_track_key": "45678",
+  "plex_track_title": "Song Title",
+  "plex_artist_name": "Artist Name",
+  "plex_album_title": "Album Title",
+  "plex_year": 2023,
+  "plex_duration_ms": 180000,
+  "notes": "Manual match"
+}
+```
+
+**Required Fields:** `song_id`, `plex_track_key`, `plex_track_title`, `plex_artist_name`
+
+**Optional Fields:** `plex_album_title`, `plex_year`, `plex_duration_ms`, `notes`
+
+**Response:**
+```json
+{
+  "success": true,
+  "override_id": 1
+}
+```
+
+### PUT `/api/plex-overrides/<int:override_id>/toggle`
+
+Toggle override active state (enable/disable without deleting).
+
+**Request Body:**
+```json
+{
+  "is_active": false
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "is_active": false
+}
+```
+
+### DELETE `/api/plex-overrides/<int:override_id>`
+
+Delete an override.
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+### GET `/api/plex-search-for-override`
+
+Search Plex library for manual override matching.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `song_title` | string | Yes | Song title to search for |
+| `artist_name` | string | Yes | Artist name to search for |
+
+**Response:**
+```json
+{
+  "search_title": "Song Title",
+  "search_artist": "Artist Name",
+  "results": [
+    {
+      "rating_key": 45678,
+      "title": "Song Title",
+      "artist": "Artist Name",
+      "album": "Album Title",
+      "year": 2023,
+      "duration_ms": 180000,
+      "duration_formatted": "3:00"
+    }
+  ],
+  "total": 1
 }
 ```
 
@@ -2918,6 +3150,9 @@ Common HTTP status codes:
 
 ## Version History
 
+- **1.2.7** (2026-04-07) - Fixed Plex Overrides blueprint and manual matching - 20 blueprints total
+- **1.2.6** (2026-04-07) - Fixed database NULL mbid issues and orphaned artist cleanup - 20 blueprints total  
+- **1.2.3** (2026-03-15) - Added Plex Overrides blueprint - 21 blueprints total
 - **1.2.0** (2026-03-01) - Added Blocklist blueprint - 20 blueprints total
 - **1.1.7** (2026-02-23) - Added Playlist Builder blueprint - 19 blueprints total
 - **1.0.0** (2026-02-17) - Added AI Playlists blueprint (experimental feature) - 18 blueprints total

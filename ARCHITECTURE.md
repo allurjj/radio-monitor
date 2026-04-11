@@ -1,7 +1,7 @@
 # Radio Monitor - Architecture Documentation
 
-**Version:** 1.2.0
-**Database Schema:** v14 (16 tables)
+**Version:** 1.2.8.3
+**Database Schema:** v17 (17 tables)
 **Python:** 3.10+
 **Framework:** Flask 3.0+ with APScheduler
 
@@ -32,7 +32,7 @@ Radio Monitor is a Python-based web application that monitors radio stations, di
 - **Music Discovery:** Automatically identifies artists and songs
 - **MusicBrainz Integration:** Artist metadata lookup with MBID resolution
 - **Lidarr Integration:** One-click artist import with station filtering
-- **Plex Integration:** 7-mode playlist creation with fuzzy matching
+- **Plex Integration:** 7-mode playlist creation with 6-strategy fuzzy matching + Manual Overrides + Various Artists fallback
 - **Auto Playlists:** Scheduled playlists with configurable filters
 - **Notifications:** 17 providers (Discord, Slack, Email, Telegram, etc.)
 - **Web GUI:** Browser-based management with real-time status
@@ -91,6 +91,7 @@ radio_monitor/
 │   ├── exports.py            # Lidarr/Plex export queries
 │   ├── activity.py           # Activity logging
 │   ├── plex_failures.py      # Plex failure tracking
+│   ├── plex_overrides.py     # Plex manual override management
 │   ├── notifications.py      # Notification queries
 │   └── database_backup.py    # Backup/restore
 │
@@ -113,6 +114,7 @@ radio_monitor/
 │       ├── stations.py       # Station list/detail
 │       ├── notifications.py  # Notification config
 │       ├── plex_failures.py # Plex failure management
+│       ├── plex_overrides.py # Plex manual override management
 │       └── wizard.py        # Setup wizard
 │
 ├── scrapers.py              # Radio station scraping (requests + BeautifulSoup)
@@ -163,6 +165,7 @@ templates/                   # Jinja2 HTML templates
 ├── logs.html               # Log viewer
 ├── notifications.html      # Notification config
 ├── plex_failures.html      # Plex failures
+├── plex_overrides.html     # Plex manual overrides
 └── backup.html             # Backup/restore
 
 static/                      # Static assets
@@ -781,13 +784,14 @@ Mark as imported (lidarr_imported_at = now())
 - `DELETE /playlists/{id}` (delete playlist)
 
 **Implementation:** `plex.py`
-- Multi-strategy fuzzy matching (4 strategies)
+- Multi-strategy fuzzy matching (5 strategies)
 - Unicode normalization (apostrophes, accents)
 - 7 playlist modes (merge, replace, append, create, snapshot, recent, random)
+- Various Artists fallback (opt-in compilation album scanning)
 
 **Data Flow:**
 ```
-GUI: Create Playlist
+GUI: Create Playlist (with Various Artists Fallback option)
     │
     ▼
 Get songs from database (filtered)
@@ -798,6 +802,7 @@ For each song:
     2. Strategy 2: Normalized match (Title Case, apostrophes)
     3. Strategy 3: Fuzzy match (Levenshtein >= 90%)
     4. Strategy 4: Partial match (substring)
+    5. Strategy 5: Various Artists fallback (opt-in, timeout-based)
     │
     ├─► Match found → Add to playlist
     └─► No match → Log failure
@@ -811,6 +816,13 @@ Create/Update Playlist in Plex
     ├─► Mode: Create (new playlist)
     └─► Mode: Snapshot (exact copy)
 ```
+
+**Strategy 5: Various Artists Fallback (Opt-in):**
+- Searches 'Various Artists' compilation albums in Plex library
+- Enabled per-playlist via checkbox (default: disabled)
+- Per-song timeout prevents runaway searches (default: 5000ms)
+- Matches by song title (exact/fuzzy) and artist name
+- Useful for songs that only appear on compilation albums
 
 **Fuzzy Matching:**
 - Levenshtein distance algorithm

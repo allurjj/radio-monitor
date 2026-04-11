@@ -1,7 +1,7 @@
 # Radio Monitor Installation Guide
 
-**Version:** 1.2.0
-**Last Updated:** 2026-02-22
+**Version:** 1.2.8.3
+**Last Updated:** 2026-04-08
 
 ---
 

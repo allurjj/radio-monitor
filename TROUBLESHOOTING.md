@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-Quick fixes for common Radio Monitor 1.0.0 issues.
+Quick fixes for common Radio Monitor 1.2.8.3 issues.
 
 ---
 
@@ -169,6 +169,75 @@ python -m radio_monitor.cli --backup-db
 **Solution:**
 - Restart Flask app
 - Fixed in latest version
+
+### Songs Not Found in Plex (Matching Issues)
+
+**Problem:** "Found 0/X songs in Plex" or specific songs not matching
+
+**Use the Plex Matching Debug Tools to diagnose:**
+
+#### Step 1: Test if song exists in your Plex library
+
+```bash
+# Test specific song matching (uses Radio Monitor's production algorithm)
+python test_plex_matching_advanced.py --artist "Tim McGraw" --song "Don't Take the Girl" --debug
+```
+
+**If found:** Song exists in Plex, should match in production
+**If not found:** Song not in your library or metadata mismatch
+
+#### Step 2: Analyze artist catalog for metadata issues
+
+```bash
+# Check for missing years, problematic albums, etc.
+python test_plex_matching_simple.py --artist "Nirvana" --analyze-catalog
+
+# Watch for specific problematic albums (bootlegs, compilations)
+python test_plex_matching_simple.py --artist "Nirvana" --analyze-catalog --watch-album "Greatest Hits"
+```
+
+**Look for:**
+- Albums with "NO YEAR" (missing year metadata)
+- Bootleg/unofficial albums with wrong years
+- Greatest hits compilations (might interfere with studio versions)
+- Live albums (correctly deprioritized but still checked)
+
+#### Step 3: Common matching issues and fixes
+
+**Issue: Apostrophes in song titles**
+- Example: "Don't Take the Girl" vs "Dont Take the Girl"
+- **Fix:** Radio Monitor automatically handles this
+- Use advanced test script to verify
+
+**Issue: Wrong album selected**
+- Example: Matches to "Greatest Hits" instead of original album
+- **Fix:** Check year metadata in Plex
+- Earlier years should win (1991 < 2005)
+- Use manual override if needed (Settings → Plex Overrides)
+
+**Issue: Song not in your library**
+- **Solution:** Add the song to your Plex library first
+- Radio Monitor can only match existing songs
+
+**Issue: Compilation albums interfering**
+- **Solution:** Edit album year in Plex to be later than studio albums
+- Or use manual override for specific songs
+
+#### Step 4: Use manual overrides for persistent issues
+
+If a song consistently matches to the wrong album:
+
+1. Go to Settings → Plex Overrides
+2. Add manual override:
+   - Select the song from database
+   - Search and select correct Plex track
+3. Override will be used on next playlist creation
+
+**Note:** 40-60% match rate is normal - not all songs will match due to:
+- Missing songs in your library
+- Metadata differences (spelling, versions, etc.)
+- Remix/live versions vs studio versions
+- Compilation albums
 
 ---
 
@@ -444,6 +513,83 @@ python -m radio_monitor.cli --backup-db
 3. **Test with "Update Now"**
    - Don't wait for scheduled update
    - Click ↻ button to trigger immediately
+
+---
+
+## MBID Editing Issues (v1.2.8+)
+
+### "MBID editing does nothing"
+
+**Problem:** Click "Edit MBID", paste MBID, click "Save", but nothing happens
+
+**Solutions:**
+1. **Check for confirmation dialog**
+   - You should see 2 warnings about name mismatch and duplicate MBID
+   - **Must click "Continue Anyway" button** to proceed
+   - If you click Cancel, nothing will happen
+
+2. **Check browser console for errors**
+   - Press F12 to open developer tools
+   - Check Console tab for JavaScript errors
+   - Check Network tab for failed requests (red status codes)
+
+3. **Verify artist name matches**
+   - The artist name in the modal must match the artist you're editing
+   - Example: Editing "Brooks Dunn" requires the modal to show "Brooks Dunn"
+
+### "UNIQUE constraint error"
+
+**Error:** `UNIQUE constraint failed: songs.artist_mbid, songs.song_title`
+
+**Problem:** Trying to merge artists that have the same songs
+
+**Solution:** Fixed in v1.2.8.2+
+- System now adds play counts from duplicate songs
+- Skips duplicate entries automatically
+- No data loss
+
+### "FOREIGN KEY constraint error"
+
+**Error:** `FOREIGN KEY constraint failed`
+
+**Problem:** song_plays_daily table references songs being updated
+
+**Solution:** Fixed in v1.2.8.3+
+- System temporarily disables foreign key constraints
+- Allows artist merge to complete successfully
+- Foreign keys re-enabled after merge
+
+### "Artist not found with MBID: PENDING-xxx"
+
+**Problem:** Backend can't find the artist by their current MBID
+
+**Solutions:**
+1. **Check the MBID in the modal**
+   - Click "Edit MBID" button again
+   - Verify "Current MBID" field shows the correct PENDING MBID
+   - If it shows something different, refresh the page and try again
+
+2. **Check if artist was already deleted**
+   - Go to Artists page
+   - Search for the artist name
+   - If not found, the artist was already merged/deleted
+
+3. **Manual database check**
+   ```bash
+   python -c "import sqlite3; conn = sqlite3.connect('radio_songs.db'); cursor = conn.cursor(); cursor.execute('SELECT name, mbid FROM artists WHERE name LIKE \"%Brooks%\"'); print('\\n'.join([f'{name}: {mbid}' for name, mbid in cursor.fetchall()]))"
+   ```
+
+### "Validation error - MBID already exists"
+
+**Message:** "This MBID is already used by 'Brooks & Dunn'"
+
+**This is NORMAL!** It's a warning, not an error.
+
+**Solution:**
+- Click "Continue Anyway" button
+- System will merge the artists
+- Play counts will be combined
+- Old artist will be deleted
 
 ---
 

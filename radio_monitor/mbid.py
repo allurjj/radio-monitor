@@ -21,6 +21,7 @@ import json
 import time
 import logging
 import ssl
+import re
 from difflib import SequenceMatcher
 
 # Get logger (will be configured properly in Phase 8)
@@ -50,6 +51,228 @@ def calculate_similarity(str1, str2):
     str2_norm = str2.lower().strip()
 
     return SequenceMatcher(None, str1_norm, str2_norm).ratio()
+
+
+# ==================== SAFE MATCHING FUNCTIONS ====================
+
+def extract_words(text):
+    """Extract individual words from text, removing punctuation and special chars
+
+    Args:
+        text: Text to extract words from
+
+    Returns:
+        List of lowercase words
+    """
+    if not text:
+        return []
+
+    # Remove special characters but keep spaces
+    cleaned = re.sub(r'[^\w\s]', ' ', text.lower())
+    # Split on whitespace and filter empty strings
+    words = [w for w in cleaned.split() if w and len(w) > 1]
+
+    return words
+
+
+def has_word_overlap(our_artist, their_artist, min_words=1):
+    """Check if our artist name has word overlap with their artist name
+
+    This prevents bad matches like:
+    - "Paul Russell" -> "Paul Smith" (only "Paul" matches)
+    - "Toadies" -> "The Go-Betweens" (no meaningful overlap)
+
+    Args:
+        our_artist: Our artist name (from database/scraper)
+        their_artist: Their artist name (from MusicBrainz)
+        min_words: Minimum number of words that must overlap (default: 1)
+
+    Returns:
+        bool: True if sufficient word overlap exists
+    """
+    our_words = extract_words(our_artist)
+    their_words = extract_words(their_artist)
+
+    if not our_words or not their_words:
+        return False
+
+    # Find matching words (case-insensitive)
+    our_set = set(our_words)
+    their_set = set(their_words)
+
+    # Count meaningful word overlaps (words longer than 2 chars)
+    overlaps = our_set.intersection(their_set)
+    meaningful_overlaps = [w for w in overlaps if len(w) > 2]
+
+    # Require minimum word overlap
+    has_enough = len(meaningful_overlaps) >= min_words
+
+    if has_enough:
+        logger.debug(
+            f"Word overlap found: '{our_artist}' vs '{their_artist}' "
+            f"(matches: {meaningful_overlaps})"
+        )
+
+    return has_enough
+
+
+def safe_artist_match(our_artist, their_artist, threshold=NAME_SIMILARITY_THRESHOLD):
+    """Determine if two artist names match safely
+
+    This combines string similarity with word overlap verification
+    to prevent bad matches while allowing for legitimate variations.
+
+    Args:
+        our_artist: Our artist name (from database/scraper)
+        their_artist: Their artist name (from MusicBrainz)
+        threshold: Minimum similarity threshold (default: 0.80)
+
+    Returns:
+        tuple: (is_match: bool, reason: str)
+    """
+    # Check for exact match (case-insensitive)
+    if our_artist.lower().strip() == their_artist.lower().strip():
+        return True, "exact match"
+
+    # Calculate string similarity
+    similarity = calculate_similarity(our_artist, their_artist)
+
+    # Check word overlap
+    word_overlap = has_word_overlap(our_artist, their_artist, min_words=1)
+
+    # Decision logic
+    if similarity >= 0.95:
+        # Very high similarity - accept even without perfect word overlap
+        # (handles cases like "Mary J Blige" vs "Mary J. Blige")
+        if word_overlap:
+            return True, "excellent match with overlap"
+        else:
+            # Even with high similarity, require some word overlap for safety
+            return False, f"high similarity but no word overlap ({similarity:.1%})"
+
+    elif similarity >= threshold:
+        # Good similarity - require word overlap
+        if word_overlap:
+            return True, "good match with overlap"
+        else:
+            return False, f"good similarity but no word overlap ({similarity:.1%})"
+
+    else:
+        # Below threshold - reject regardless of word overlap
+        return False, f"below similarity threshold ({similarity:.1%})"
+
+
+def split_collaboration_artist(artist_name):
+    """Split a collaboration artist string into individual artists
+
+    This handles cases like "Marshmello Kane Brown Joel Corry" which might be
+    a collaboration or remix that should match individual artists.
+
+    Args:
+        artist_name: Artist name that might be a collaboration
+
+    Returns:
+        list: Individual artist names found
+    """
+    # Try common collaboration separators first
+    separators = [' & ', ' + ', ' x ', ' vs. ', ' ft.', ' feat ', ' with ']
+
+    for sep in separators:
+        if sep in artist_name.lower():
+            # Split by this separator
+            parts = artist_name.split(sep)
+            # Clean up each part
+            artists = [part.strip() for part in parts if part.strip()]
+            if len(artists) > 1:
+                return artists
+
+    # If no explicit separators, try intelligent word grouping
+    words = extract_words(artist_name)
+
+    # Simple heuristic: if we have 4+ words, it's likely a collaboration
+    # Group into 2-word artist names (most common pattern)
+    if len(words) >= 4:
+        artists = []
+        for i in range(0, len(words), 2):
+            # Take 2 words at a time
+            if i + 1 < len(words):
+                artist = f"{words[i].capitalize()} {words[i+1].capitalize()}"
+                artists.append(artist)
+            else:
+                # Odd number of words, take the last one
+                artists.append(words[i].capitalize())
+
+        if len(artists) > 1:
+            return artists
+
+    # No collaboration detected
+    return [artist_name]
+
+
+def safe_collaboration_match(our_collaboration, their_artist, threshold=NAME_SIMILARITY_THRESHOLD):
+    """Check if a collaboration artist matches a single artist
+
+    This handles cases like "Marshmello Kane Brown Joel Corry" vs "Marshmello"
+    by checking if any component of our collaboration matches their artist.
+
+    Args:
+        our_collaboration: Our collaboration artist (e.g., "Marshmello Kane Brown Joel Corry")
+        their_artist: Their single artist (e.g., "Marshmello")
+        threshold: Minimum similarity threshold (default: 0.80)
+
+    Returns:
+        tuple: (is_match: bool, reason: str, matched_component: str or None)
+    """
+    # First, try explicit collaboration splitting
+    our_components = split_collaboration_artist(our_collaboration)
+
+    if len(our_components) > 1:
+        # Check each component against their artist
+        for component in our_components:
+            # Remove any remaining separators from component
+            component_clean = component.strip(' &+x')
+
+            # Try to match this component
+            is_match, reason = safe_artist_match(component_clean, their_artist, threshold)
+
+            if is_match:
+                logger.info(
+                    f"Collaboration match: '{our_collaboration}' matched '{their_artist}' "
+                    f"via component '{component_clean}'"
+                )
+                return True, f"collaboration component match ({reason})", component_clean
+
+    # If explicit splitting didn't work, try word overlap
+    # But be strict to prevent bad matches
+    our_words = extract_words(our_collaboration)
+    their_words = extract_words(their_artist)
+
+    # Check if any significant word overlaps (5+ chars, 40% significance)
+    for our_word in our_words:
+        if len(our_word) < 5:  # Skip short words
+            continue
+
+        if our_word in their_words:
+            # Found a word overlap! Check if it's meaningful
+            our_char_count = len(''.join(our_words))
+            their_char_count = len(''.join(their_words))
+
+            our_ratio = len(our_word) / our_char_count if our_char_count > 0 else 0
+            their_ratio = len(our_word) / their_char_count if their_char_count > 0 else 0
+
+            # Require 40% significance in BOTH names
+            if our_ratio >= 0.4 and their_ratio >= 0.4:
+                logger.info(
+                    f"Collaboration word overlap: '{our_collaboration}' matched '{their_artist}' "
+                    f"via word '{our_word}'"
+                )
+                return True, f"collaboration word overlap ({our_word})", our_word
+
+    # No collaboration match found
+    return False, "no collaboration component matched", None
+
+
+# ==================== END SAFE MATCHING FUNCTIONS ====================
 
 
 def lookup_artist_mbid(artist_name, db, user_agent=None, max_retries=10, auto_retry_pending=True):
@@ -180,33 +403,179 @@ def lookup_artist_mbid(artist_name, db, user_agent=None, max_retries=10, auto_re
                                 best_similarity = similarity
                                 best_match = (result_mbid, result_name)
 
-                        # Validate similarity threshold (unless exact match found)
-                        if exact_match_found or best_similarity >= NAME_SIMILARITY_THRESHOLD:
+                        # ENHANCED: Use safe matching with word overlap verification
+                        if exact_match_found:
+                            # Exact match - accept immediately
                             mbid, matched_name = best_match
-                            logger.info(f"Found MBID for {artist_name}: {mbid} (matched: {matched_name}, {best_similarity:.1%} similarity)")
-
-                            # Warn on borderline matches (70-80%)
-                            if NAME_SIMILARITY_WARNING <= best_similarity < NAME_SIMILARITY_THRESHOLD:
-                                logger.warning(f"Borderline match: {artist_name} -> {matched_name} ({best_similarity:.1%}) - please verify")
+                            logger.info(f"Found MBID for {artist_name}: {mbid} (exact match)")
 
                             # Update database if artist exists with NULL or PENDING MBID
-                            if artist:
+                            if artist and mbid:  # Only update if we found a match
                                 if artist['mbid'] is None or artist['mbid'].startswith('PENDING-'):
+                                    # Check if MBID already exists in database (prevent UNIQUE constraint violation)
+                                    existing_with_mbid = db.get_artist_by_mbid(mbid)
+
+                                    if existing_with_mbid:
+                                        # MBID already exists with different artist name
+                                        # This means we found a duplicate! Merge the PENDING artist into the real one.
+                                        logger.info(
+                                            f"MBID {mbid} already exists for artist '{existing_with_mbid['name']}'. "
+                                            f"Merging '{artist_name}' into '{existing_with_mbid['name']}' to resolve duplicate."
+                                        )
+
+                                        # Import the merge function
+                                        from radio_monitor.database.crud import merge_pending_artist_into_existing
+
+                                        # Perform the merge
+                                        merge_success = merge_pending_artist_into_existing(
+                                            cursor=db.get_cursor(),
+                                            conn=db.conn,
+                                            pending_artist_name=artist_name,
+                                            existing_mbid=existing_with_mbid['mbid'],
+                                            existing_artist_name=existing_with_mbid['name']
+                                        )
+
+                                        if merge_success:
+                                            logger.info(f"Successfully merged {artist_name} into {existing_with_mbid['name']}")
+                                            # Return the existing artist's MBID and name
+                                            return existing_with_mbid['mbid'], existing_with_mbid['name']
+                                        else:
+                                            logger.warning(f"Merge failed for {artist_name}, returning existing artist info")
+                                            # Return the existing artist's MBID and name anyway
+                                            return existing_with_mbid['mbid'], existing_with_mbid['name']
+
+                                    # Safe to update - MBID doesn't exist yet
                                     db.update_artist_mbid_from_pending(artist_name, mbid)
                                     logger.debug(f"Updated MBID in database for {artist_name}")
 
                             return mbid, matched_name
+
+                        elif best_similarity >= NAME_SIMILARITY_THRESHOLD:
+                            # Potential match - verify with safety checks
+                            is_safe, safety_reason = safe_artist_match(artist_name, best_match[1], NAME_SIMILARITY_THRESHOLD)
+
+                            if is_safe:
+                                mbid, matched_name = best_match
+                                logger.info(
+                                    f"Found MBID for {artist_name}: {mbid} "
+                                    f"(matched: {matched_name}, {best_similarity:.1%} similarity, {safety_reason})"
+                                )
+
+                                # Warn on borderline matches (70-80%)
+                                if NAME_SIMILARITY_WARNING <= best_similarity < NAME_SIMILARITY_THRESHOLD:
+                                    logger.warning(f"Borderline match: {artist_name} -> {matched_name} ({best_similarity:.1%}) - please verify")
+
+                                # Update database if artist exists with NULL or PENDING MBID
+                                if artist:
+                                    if artist['mbid'] is None or artist['mbid'].startswith('PENDING-'):
+                                        # Check if MBID already exists in database (prevent UNIQUE constraint violation)
+                                        existing_with_mbid = db.get_artist_by_mbid(mbid)
+
+                                        if existing_with_mbid:
+                                            # MBID already exists with different artist name
+                                            # This means we found a duplicate! Merge the PENDING artist into the real one.
+                                            logger.info(
+                                                f"MBID {mbid} already exists for artist '{existing_with_mbid['name']}'. "
+                                                f"Merging '{artist_name}' into '{existing_with_mbid['name']}' to resolve duplicate."
+                                            )
+
+                                            # Import the merge function
+                                            from radio_monitor.database.crud import merge_pending_artist_into_existing
+
+                                            # Perform the merge
+                                            merge_success = merge_pending_artist_into_existing(
+                                                cursor=db.get_cursor(),
+                                                conn=db.conn,
+                                                pending_artist_name=artist_name,
+                                                existing_mbid=existing_with_mbid['mbid'],
+                                                existing_artist_name=existing_with_mbid['name']
+                                            )
+
+                                            if merge_success:
+                                                logger.info(f"Successfully merged {artist_name} into {existing_with_mbid['name']}")
+                                                # Return the existing artist's MBID and name
+                                                return existing_with_mbid['mbid'], existing_with_mbid['name']
+                                            else:
+                                                logger.warning(f"Merge failed for {artist_name}, returning existing artist info")
+                                                # Return the existing artist's MBID and name anyway
+                                                return existing_with_mbid['mbid'], existing_with_mbid['name']
+
+                                        # Safe to update - MBID doesn't exist yet
+                                        db.update_artist_mbid_from_pending(artist_name, mbid)
+                                        logger.debug(f"Updated MBID in database for {artist_name}")
+
+                                return mbid, matched_name
+
+                            else:
+                                # Failed safety check - try collaboration matching
+                                logger.debug(f"Standard matching failed: {safety_reason}, trying collaboration match...")
+
+                                is_collab_match, collab_reason, matched_component = safe_collaboration_match(
+                                    artist_name, best_match[1], NAME_SIMILARITY_THRESHOLD
+                                )
+
+                                if is_collab_match:
+                                    mbid, matched_name = best_match
+                                    logger.info(
+                                        f"Found MBID for {artist_name}: {mbid} "
+                                        f"(collaboration match: {matched_name}, {best_similarity:.1%} similarity, {collab_reason})"
+                                    )
+
+                                    # Update database if artist exists with NULL or PENDING MBID
+                                    if artist:
+                                        if artist['mbid'] is None or artist['mbid'].startswith('PENDING-'):
+                                            # Check if MBID already exists in database (prevent UNIQUE constraint violation)
+                                            existing_with_mbid = db.get_artist_by_mbid(mbid)
+
+                                            if existing_with_mbid:
+                                                # MBID already exists with different artist name
+                                                # This means we found a duplicate! Merge the PENDING artist into the real one.
+                                                logger.info(
+                                                    f"MBID {mbid} already exists for artist '{existing_with_mbid['name']}'. "
+                                                    f"Merging '{artist_name}' into '{existing_with_mbid['name']}' to resolve duplicate."
+                                                )
+
+                                                # Import the merge function
+                                                from radio_monitor.database.crud import merge_pending_artist_into_existing
+
+                                                # Perform the merge
+                                                merge_success = merge_pending_artist_into_existing(
+                                                    cursor=db.get_cursor(),
+                                                    conn=db.conn,
+                                                    pending_artist_name=artist_name,
+                                                    existing_mbid=existing_with_mbid['mbid'],
+                                                    existing_artist_name=existing_with_mbid['name']
+                                                )
+
+                                                if merge_success:
+                                                    logger.info(f"Successfully merged {artist_name} into {existing_with_mbid['name']}")
+                                                    # Return the existing artist's MBID and name
+                                                    return existing_with_mbid['mbid'], existing_with_mbid['name']
+                                                else:
+                                                    logger.warning(f"Merge failed for {artist_name}, returning existing artist info")
+                                                    # Return the existing artist's MBID and name anyway
+                                                    return existing_with_mbid['mbid'], existing_with_mbid['name']
+
+                                            # Safe to update - MBID doesn't exist yet
+                                            db.update_artist_mbid_from_pending(artist_name, mbid)
+                                            logger.debug(f"Updated MBID in database for {artist_name}")
+
+                                    return mbid, matched_name
+
+                                else:
+                                    # All matching attempts failed
+                                    logger.warning(
+                                        f"No good match found for {artist_name} "
+                                        f"(best: {best_match[1]} at {best_similarity:.1%}) - {safety_reason}, {collab_reason}"
+                                    )
+                                    # Continue to next section (below threshold handling)
                         else:
-                            # Best match is below threshold - reject all results
+                            # Below similarity threshold - reject all results
                             logger.warning(
                                 f"No good match found for {artist_name} "
                                 f"(best: {best_match[1] if best_match else 'N/A'} at {best_similarity:.1%})"
                             )
                             return None, None
-                    else:
-                        # No results found
-                        logger.warning(f"No MBID found for {artist_name} (no results from MusicBrainz)")
-                        return None, None
 
                 elif response.status == 404:
                     # Not found

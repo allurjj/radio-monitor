@@ -1,11 +1,19 @@
 # Radio Monitor
 
-**Version:** 1.2.8.3
+**Version:** 1.2.9
 **License:** GNU General Public License v3.0
 
 ---
 
 ## What's New
+
+**v1.2.9 (2026-04-10) - Enhanced MBID Matching & Automatic Merging**
+- **Enhanced MBID matching with word overlap verification** - Prevents false matches like "Paul Russell" → "Paul Smith"
+- **Collaboration-aware matching** - Handles "Marshmello Kane Brown Joel Corry" → "Marshmello"
+- **Automatic PENDING artist merging** - When duplicates are found, automatically merges songs and play counts
+- **Stricter matching thresholds** - 5+ character words, 40% significance requirement
+- **25% improvement in PENDING resolution** - Reduced from 25 to 16 PENDINGS in test database
+- **No data loss merging** - Preserves all songs, play counts, and history when merging duplicates
 
 **v1.2.8.3 (2026-04-08) - Critical Fix - Foreign Key Constraints**
 - Fixed FOREIGN KEY constraint error when merging artists
