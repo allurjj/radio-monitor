@@ -1,4 +1,4 @@
-# Radio Monitor 1.2.0 - Dockerfile
+# Radio Monitor 1.2.10 - Dockerfile
 # Multi-stage build for optimized image size
 
 # Stage 1: Builder
@@ -28,7 +28,7 @@ FROM python:3.11-slim
 # Metadata
 LABEL maintainer="Radio Monitor"
 LABEL description="Automatically discovers music from radio stations"
-LABEL version="1.2.0"
+LABEL version="1.2.10"
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \

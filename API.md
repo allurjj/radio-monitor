@@ -1,6 +1,6 @@
 # Radio Monitor API Documentation
 
-**Version:** 1.2.8.3
+**Version:** 1.2.10
 **Base URL:**
 - Windows: `http://127.0.0.1:5000`
 - Linux/Mac: `http://localhost:5000`
@@ -29,6 +29,7 @@
 - [Stations](#stations)
 - [Notifications](#notifications)
 - [Plex Failures](#plex-failures)
+  - [SpotiFLAC Integration Endpoints](#spotiflac-integration-endpoints) ✨ **NEW**
 - [Plex Overrides](#plex-overrides) ✨ **NEW**
 - [AI Playlists](#ai-playlists)
 - [Blocklist](#blocklist) ✨ **NEW**
@@ -1733,7 +1734,7 @@ Get count of PENDING artists (artists without valid MusicBrainz IDs).
 
 Update an artist's MBID and merge with existing artist if needed.
 
-**Version:** 1.2.8.3+ - **NEW IMPLEMENTATION:**
+**Version:** 1.2.10+ - **NEW IMPLEMENTATION:**
 
 **Request Body:**
 ```json
@@ -2338,6 +2339,143 @@ Delete ALL failure records.
 {
   "success": true,
   "deleted": 100
+}
+```
+
+---
+
+### SpotiFLAC Integration Endpoints
+
+#### GET `/api/spotiflac/search-spotify`
+
+Search Spotify for tracks matching song_title and artist_name.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `song_title` | string | Yes | Song title to search for |
+| `artist_name` | string | Yes | Artist name to search for |
+
+**Response:**
+```json
+{
+  "results": [
+    {
+      "title": "Blinding Lights",
+      "artist": "The Weeknd",
+      "album": "After Hours",
+      "url": "https://open.spotify.com/track/123456",
+      "duration": "3:20",
+      "isrc": "USUM72002912"
+    }
+  ],
+  "count": 10
+}
+```
+
+#### POST `/api/spotiflac/download`
+
+Start a SpotiFLAC download job (track or album).
+
+**Request Body:**
+```json
+{
+  "plex_failure_id": 123,
+  "spotify_url": "https://open.spotify.com/track/123456",
+  "services": ["tidal", "qobuz", "amazon"]
+}
+```
+
+**Required Fields:** `plex_failure_id`, `spotify_url`
+
+**Optional Fields:** `services` (default: `["tidal", "qobuz", "amazon"]`)
+
+**Response (Track):**
+```json
+{
+  "success": true,
+  "job_id": 123,
+  "file_path": "/temp_downloads/The Weeknd - Blinding Lights.flac",
+  "service_used": "tidal",
+  "url_type": "track"
+}
+```
+
+**Response (Album):**
+```json
+{
+  "success": true,
+  "job_id": 123,
+  "files_downloaded": [
+    "/temp_downloads/album/01 - Track 1.flac",
+    "/temp_downloads/album/02 - Track 2.flac"
+  ],
+  "service_used": "qobuz",
+  "url_type": "album"
+}
+```
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "error": "Download failed: Service unavailable"
+}
+```
+
+#### POST `/api/spotiflac/auto-move`
+
+Automatically move downloaded file to Lidarr artist folder.
+
+**Request Body:**
+```json
+{
+  "source_file": "/temp_downloads/The Weeknd - Blinding Lights.flac",
+  "artist_name": "The Weeknd",
+  "lidarr_path": "/data/music",
+  "url_type": "track"
+}
+```
+
+**Required Fields:** `source_file`, `artist_name`, `lidarr_path`
+
+**Optional Fields:** `url_type` (default: `"track"`)
+
+**Response:**
+```json
+{
+  "success": true,
+  "destination_path": "/data/music/The Weeknd/The Weeknd - Blinding Lights.flac",
+  "message": "File moved to /data/music/The Weeknd/The Weeknd - Blinding Lights.flac"
+}
+```
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "error": "Source file does not exist: /temp_downloads/file.flac"
+}
+```
+
+#### GET `/api/lidarr/artist-path`
+
+Get the Lidarr folder path for an artist.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `artist_name` | string | Yes | Artist name |
+| `url_type` | string | No | 'track' or 'album' (default: 'track') |
+
+**Response:**
+```json
+{
+  "path": "/data/music/The Weeknd",
+  "exists": true,
+  "naming_convention": "{artist} - {album} - {track} - {title}"
 }
 ```
 

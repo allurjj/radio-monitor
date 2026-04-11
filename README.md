@@ -1,11 +1,18 @@
 # Radio Monitor
 
-**Version:** 1.2.9
+**Version:** 1.2.10
 **License:** GNU General Public License v3.0
 
 ---
 
 ## What's New
+
+**v1.2.10 (2026-04-10) - Critical Hotfix - SQL Migration Fix**
+- **Fixed SQL syntax error in Python migration function** - Resolved EXE crash on startup
+- **Fixed Docker build workflow** - Added proper tag handling for semantic versioning
+- **Removed 4-digit versioning** - Changed from 1.2.9.2 to 1.2.10 for proper semver compatibility
+- **Windows EXE now runs correctly** - Database migrations execute without errors
+- **Docker images build successfully** - Container registry pushes work with proper tags
 
 **v1.2.9 (2026-04-10) - Enhanced MBID Matching & Automatic Merging**
 - **Enhanced MBID matching with word overlap verification** - Prevents false matches like "Paul Russell" → "Paul Smith"

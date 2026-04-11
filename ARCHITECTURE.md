@@ -1,7 +1,7 @@
 # Radio Monitor - Architecture Documentation
 
-**Version:** 1.2.8.3
-**Database Schema:** v17 (17 tables)
+**Version:** 1.2.10
+**Database Schema:** v19 (19 tables)
 **Python:** 3.10+
 **Framework:** Flask 3.0+ with APScheduler
 
@@ -33,6 +33,7 @@ Radio Monitor is a Python-based web application that monitors radio stations, di
 - **MusicBrainz Integration:** Artist metadata lookup with MBID resolution
 - **Lidarr Integration:** One-click artist import with station filtering
 - **Plex Integration:** 7-mode playlist creation with 6-strategy fuzzy matching + Manual Overrides + Various Artists fallback
+- **SpotiFLAC Integration:** Download music from premium services (Tidal, Qobuz, Amazon) to fix Plex match failures ✨ **NEW**
 - **Auto Playlists:** Scheduled playlists with configurable filters
 - **Notifications:** 17 providers (Discord, Slack, Email, Telegram, etc.)
 - **Web GUI:** Browser-based management with real-time status
@@ -72,6 +73,7 @@ Radio Monitor is a Python-based web application that monitors radio stations, di
 - **Lidarr API** - Artist import
 - **Plex API** - Playlist management
 - **Apprise** - Multi-provider notifications
+- **SpotiFLAC** - Music downloads from premium services (Tidal, Qobuz, Amazon, Deezer) ✨ **NEW**
 
 ---
 
@@ -141,8 +143,11 @@ radio_monitor/
 │   ├── test_plex_matching.py
 │   └── test_normalization.py
 │
-└── integrations/            # External API integrations (future)
-    └── (planned for other services)
+└── integrations/            # External API integrations
+    ├── spotiflac/           # SpotiFLAC download module
+    │   ├── __init__.py
+    │   └── spotiflac.py     # Core SpotiFLAC implementation
+    └── spotiflac_service.py # SpotiFLAC wrapper for Radio Monitor
 
 templates/                   # Jinja2 HTML templates
 ├── base.html               # Base template (legacy)
@@ -188,7 +193,9 @@ static/                      # Static assets
     ├── confirm.js          # Confirmation dialogs
     ├── keyboard.js         # Keyboard shortcuts
     ├── performance.js      # Performance utilities
-    └── loading.js          # Loading states
+    ├── loading.js          # Loading states
+    ├── spotiflac.js        # SpotiFLAC download integration
+    └── plex-failures.js    # Plex failures page functionality
 
 docs/                        # Documentation
 ├── phases/                 # Phase implementation summaries
@@ -876,6 +883,109 @@ For each matching notification:
   "triggers": ["scrape_complete", "import_complete", "error"]
 }
 ```
+
+### 5. SpotiFLAC (Music Downloads)
+
+**Purpose:** Download music from premium services (Tidal, Qobuz, Amazon, etc.) to fix Plex match failures
+
+**Services Supported:**
+- Tidal (FLAC lossless)
+- Qobuz (FLAC lossless)
+- Amazon Music (M4A high quality)
+- Deezer (FLAC lossless)
+- YouTube (MP3)
+- Spotify (metadata only)
+
+**Implementation:** `integrations/spotiflac_service.py`
+- Spotify search integration
+- Lidarr naming convention detection
+- Automatic file movement to Lidarr library
+- Multi-service fallback (try next service if one fails)
+- Progress tracking and error handling
+
+**Data Flow:**
+```
+User clicks "Download with SpotiFLAC" on Plex failure
+    │
+    ▼
+Modal opens with song/artist info
+    │
+    ▼
+Search Spotify for matching tracks
+    │
+    ├─► User selects track from results
+    │
+    ▼
+Configure download (services, quality, format)
+    │
+    ▼
+Start download to temp folder
+    │
+    ├─► Service 1 fails → Try Service 2
+    ├─► Service 2 fails → Try Service 3
+    └─► All fail → Show error with details
+    │
+    ▼
+Download complete → Auto-move to Lidarr artist folder
+    │
+    ├─► Success → Show destination path
+    └─► Failure → Show temp path + manual instructions
+    │
+    ▼
+User clicks "Retry Match" → Plex finds newly added file
+```
+
+**Lidarr Integration:**
+```python
+# Auto-detect Lidarr naming convention
+naming = get_lidarr_naming_convention(settings, 'track')
+# Returns: "{artist} - {album} - {track} - {title}"
+
+# Download with Lidarr format
+file_path = spotiflac.download_track(
+    url=spotify_url,
+    filename_format=naming,  # Uses Lidarr's format
+    services=['tidal', 'qobuz', 'amazon']
+)
+
+# Auto-move to artist folder
+final_path = spotiflac.auto_move_to_lidarr_folder(
+    source_file=file_path,
+    artist_name="The Weeknd",
+    lidarr_path="/data/music",
+    url_type='track'
+)
+```
+
+**Configuration:**
+```json
+{
+  "spotiflac": {
+    "temp_download_dir": "./temp_downloads",
+    "auto_move_to_lidarr": true,
+    "preferred_quality": "flac",
+    "use_lidarr_naming_convention": true,
+    "default_services": ["tidal", "qobuz", "amazon"]
+  },
+  "lidarr": {
+    "url": "http://localhost:8686",
+    "api_key": "lidarr-api-key",
+    "root_folder_path": "/data/music"
+  }
+}
+```
+
+**Error Handling:**
+- Invalid URL detection (track vs album vs playlist)
+- Service unavailable fallback (try next service)
+- Lidarr path validation (exists + writable)
+- File move failure (show temp path for manual move)
+- Plex scan delay (inform user to wait before retry)
+
+**Activity Logging:**
+- `spotiflac_download_success` - Download completed
+- `spotiflac_album_download_success` - Album download completed
+- `spotiflac_auto_moved` - File moved to Lidarr folder
 
 ---
 
