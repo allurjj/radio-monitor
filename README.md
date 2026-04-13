@@ -1,11 +1,23 @@
 # Radio Monitor
 
-**Version:** 1.2.10
+**Version:** 1.3.0
 **License:** GNU General Public License v3.0
 
 ---
 
 ## What's New
+
+**v1.3.0 (2026-04-12) - Song Verification System - MusicBrainz + Lidarr Integration**
+- **Phase 1 Complete:** Manual song verification with MusicBrainz and Lidarr
+- **Individual song verification** - Click "Verify" button on any song to check if artist actually recorded it
+- **Batch artist verification** - Verify all songs for an artist at once
+- **Visual verification badges** - See which source verified each song (MusicBrainz 🎵 or Lidarr 💿)
+- **85% similarity matching** - Intelligent fuzzy matching handles remixes, live versions, and typos
+- **100 recordings per search** - Increased from 20 to catch all song versions
+- **Verification status tracking** - Database tracks verification date and source
+- **Artist verification breakdown** - Shows how many songs verified by each source
+- **Manual MBID overrides** - Pre-populated with "Kpop Demon Hunters Cast" for difficult-to-match collaborations
+- **Fresh database support** - Verification columns automatically created on new installations
 
 **v1.2.10 (2026-04-10) - Critical Hotfix - SQL Migration Fix**
 - **Fixed SQL syntax error in Python migration function** - Resolved EXE crash on startup

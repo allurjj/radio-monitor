@@ -12,7 +12,7 @@ This package provides a modular database interface with:
 The main RadioDatabase class (below) provides a unified interface
 to all database operations with backward compatibility.
 
-Schema Version: 14 (Blocklist Support)
+Schema Version: 21 (Song Verification Support)
 """
 
 import sqlite3
@@ -34,7 +34,7 @@ from . import exports
 
 
 class RadioDatabase:
-    """SQLite database with 16-table schema
+    """SQLite database with 20-table schema
 
     This is the main database interface that provides backward compatibility
     with the original database.py module while using the refactored submodules.
@@ -56,10 +56,13 @@ class RadioDatabase:
     - manual_playlist_songs: Manual playlist song associations (v12)
     - playlist_builder_state: In-progress playlist builder state (v12)
     - blocklist: Blocked artists and songs (v14)
+    - plex_manual_overrides: Manual Plex track matching overrides (v16)
+    - spotiflac_downloads: SpotiFLAC download job tracking (v19)
+    - artist_song_verification: Song verification tracking (v21)
     """
 
     # Current schema version
-    SCHEMA_VERSION = 17
+    SCHEMA_VERSION = 21
 
     def __init__(self, db_path):
         self.db_path = db_path
@@ -195,6 +198,28 @@ class RadioDatabase:
         cursor = self.conn.cursor()
         try:
             return queries.get_artist_by_mbid(cursor, mbid)
+        finally:
+            cursor.close()
+
+    def merge_pending_artist_into_existing(self, pending_artist_name, existing_mbid, existing_artist_name):
+        """Merge a PENDING artist into an existing artist with a real MBID
+
+        This handles the case where retry finds that a PENDING artist (e.g., "Dan Shay")
+        actually matches an existing artist (e.g., "Dan + Shay") with a real MBID.
+
+        Args:
+            pending_artist_name: Name of the PENDING artist to merge
+            existing_mbid: MBID of the existing real artist
+            existing_artist_name: Name of the existing real artist
+
+        Returns:
+            True if merged successfully, False otherwise
+        """
+        cursor = self.get_cursor()
+        try:
+            return crud.merge_pending_artist_into_existing(
+                cursor, self.conn, pending_artist_name, existing_mbid, existing_artist_name
+            )
         finally:
             cursor.close()
 

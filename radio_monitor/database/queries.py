@@ -561,6 +561,9 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
             a.lidarr_imported_at,
             COALESCE(SUM(s.play_count), 0) as total_plays,
             COUNT(s.id) as song_count,
+            SUM(CASE WHEN COALESCE(s.verification_status, 'UNVERIFIED') IN ('VERIFIED_MB', 'VERIFIED_LIDARR') THEN 1 ELSE 0 END) as verified_count,
+            SUM(CASE WHEN EXISTS(SELECT 1 FROM artist_song_verification v WHERE v.song_id = s.id AND v.verification_source = 'musicbrainz' AND v.is_verified = 1) THEN 1 ELSE 0 END) as verified_mb_count,
+            SUM(CASE WHEN EXISTS(SELECT 1 FROM artist_song_verification v WHERE v.song_id = s.id AND v.verification_source = 'lidarr' AND v.is_verified = 1) THEN 1 ELSE 0 END) as verified_lidarr_count,
             CASE
                 WHEN MAX(bl.id) IS NOT NULL THEN 1
                 ELSE 0
@@ -579,7 +582,8 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
 
     columns = ['mbid', 'name', 'first_seen_station',
                'first_seen_at', 'last_seen_at', 'needs_lidarr_import',
-               'lidarr_imported_at', 'total_plays', 'song_count', 'is_blocked']
+               'lidarr_imported_at', 'total_plays', 'song_count', 'verified_count',
+               'verified_mb_count', 'verified_lidarr_count', 'is_blocked']
     items = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
     # Capitalize artist names properly
@@ -773,6 +777,10 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
             conditions.append("s.last_seen_at <= ?")
             params.append(filters['last_seen_before'])
 
+        if filters.get('verification_status'):
+            conditions.append("COALESCE(s.verification_status, 'UNVERIFIED') = ?")
+            params.append(filters['verification_status'])
+
     # Add blocklist filtering if requested
     if exclude_blocklist:
         conditions.append("""
@@ -824,6 +832,10 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
             s.play_count,
             s.first_seen_at,
             s.last_seen_at,
+            COALESCE(s.verification_status, 'UNVERIFIED') as verification_status,
+            s.verification_date,
+            EXISTS(SELECT 1 FROM artist_song_verification v WHERE v.song_id = s.id AND v.verification_source = 'musicbrainz' AND v.is_verified = 1) as verified_mb,
+            EXISTS(SELECT 1 FROM artist_song_verification v WHERE v.song_id = s.id AND v.verification_source = 'lidarr' AND v.is_verified = 1) as verified_lidarr,
             CASE
                 WHEN bl.id IS NOT NULL THEN 1
                 ELSE 0
@@ -840,7 +852,8 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
     cursor.execute(query, params)
 
     columns = ['id', 'song_title', 'artist_name', 'artist_mbid', 'lidarr_imported_at',
-               'play_count', 'first_seen_at', 'last_seen_at', 'is_blocked']
+               'play_count', 'first_seen_at', 'last_seen_at', 'verification_status', 'verification_date',
+               'verified_mb', 'verified_lidarr', 'is_blocked']
     items = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
     # Capitalize artist names properly

@@ -378,3 +378,173 @@ def api_change_song_artist(song_id):
         return jsonify({'error': str(e)}), 500
     finally:
         cursor.close()
+
+
+@songs_bp.route('/api/songs/<int:song_id>/verify', methods=['POST'])
+@requires_auth
+def verify_song_api(song_id):
+    """Verify a single song using MusicBrainz + Lidarr"""
+    import json
+    from radio_monitor.song_validation import verify_artist_song
+    from radio_monitor.database.crud import (
+        add_song_verification,
+        get_song_verification,
+        update_song_verification_status
+    )
+
+    db = get_db()
+    settings = current_app.config.get('settings')
+
+    # Get song details
+    cursor = db.get_cursor()
+    cursor.execute("""
+        SELECT s.id, s.song_title, s.artist_mbid, a.name as artist_name
+        FROM songs s
+        JOIN artists a ON s.artist_mbid = a.mbid
+        WHERE s.id = ?
+    """, (song_id,))
+    song = cursor.fetchone()
+
+    if not song:
+        cursor.close()
+        return jsonify({'error': 'Song not found'}), 404
+
+    try:
+        # Run verification
+        # song is a tuple: (id, song_title, artist_mbid, artist_name)
+        result = verify_artist_song(
+            artist_name=song[3],  # artist_name
+            song_title=song[1],    # song_title
+            artist_mbid=song[2],   # artist_mbid
+            settings=settings,
+            sources=['musicbrainz', 'lidarr']
+        )
+
+        # Store MusicBrainz verification
+        if 'musicbrainz' in result['sources']:
+            mb_result = result['sources']['musicbrainz']
+            add_song_verification(
+                cursor,
+                song_id,
+                'musicbrainz',
+                mb_result['is_verified'],
+                json.dumps(mb_result)
+            )
+
+        # Store Lidarr verification
+        if 'lidarr' in result['sources']:
+            lidarr_result = result['sources']['lidarr']
+            add_song_verification(
+                cursor,
+                song_id,
+                'lidarr',
+                lidarr_result['is_verified'],
+                json.dumps(lidarr_result)
+            )
+
+        # Update overall status
+        update_song_verification_status(cursor, song_id, result['overall_status'])
+
+        db.conn.commit()
+        cursor.close()
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Song verification error: {e}")
+        cursor.close()
+        return jsonify({'error': str(e)}), 500
+
+
+@songs_bp.route('/api/artists/<artist_mbid>/verify-all', methods=['POST'])
+@requires_auth
+def verify_artist_all_songs(artist_mbid):
+    """Verify all songs for an artist"""
+    import json
+    from radio_monitor.song_validation import verify_artist_song
+    from radio_monitor.database.crud import (
+        add_song_verification,
+        update_song_verification_status
+    )
+
+    db = get_db()
+    settings = current_app.config.get('settings')
+
+    # Get artist's songs
+    cursor = db.get_cursor()
+    cursor.execute("""
+        SELECT s.id, s.song_title, s.artist_mbid, a.name as artist_name
+        FROM songs s
+        JOIN artists a ON s.artist_mbid = a.mbid
+        WHERE a.mbid = ?
+        ORDER BY s.play_count DESC
+    """, (artist_mbid,))
+    songs = cursor.fetchall()
+
+    if not songs:
+        cursor.close()
+        return jsonify({'error': 'No songs found for artist'}), 404
+
+    results = []
+    verified_count = 0
+    not_found_count = 0
+
+    for song in songs:
+        try:
+            # Run verification
+            # song is a tuple: (id, song_title, artist_mbid, artist_name)
+            result = verify_artist_song(
+                artist_name=song[3],  # artist_name
+                song_title=song[1],    # song_title
+                artist_mbid=song[2],   # artist_mbid
+                settings=settings,
+                sources=['musicbrainz', 'lidarr']
+            )
+
+            # Store verification results
+            if 'musicbrainz' in result['sources']:
+                mb_result = result['sources']['musicbrainz']
+                add_song_verification(
+                    cursor,
+                    song[0],  # song id
+                    'musicbrainz',
+                    mb_result['is_verified'],
+                    json.dumps(mb_result)
+                )
+
+            if 'lidarr' in result['sources']:
+                lidarr_result = result['sources']['lidarr']
+                add_song_verification(
+                    cursor,
+                    song[0],  # song id
+                    'lidarr',
+                    lidarr_result['is_verified'],
+                    json.dumps(lidarr_result)
+                )
+
+            # Update overall status
+            update_song_verification_status(cursor, song[0], result['overall_status'])
+
+            if result['overall_status'] in ['VERIFIED_MB', 'VERIFIED_LIDARR']:
+                verified_count += 1
+            elif result['overall_status'] == 'NOT_FOUND':
+                not_found_count += 1
+
+            results.append({
+                'song_id': song[0],
+                'title': song[1],
+                'status': result['overall_status']
+            })
+
+        except Exception as e:
+            logger.error(f"Verification failed for song {song[0]}: {e}")
+
+    db.conn.commit()
+    cursor.close()
+
+    return jsonify({
+        'total': len(songs),
+        'verified': verified_count,
+        'not_found': not_found_count,
+        'results': results
+    })

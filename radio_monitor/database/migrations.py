@@ -33,7 +33,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Import schema functions
-from .schema import create_tables, populate_stations
+from .schema import create_tables, populate_stations, populate_manual_mbid_overrides
 
 
 def _initialize_schema(cursor, conn, db_path, SCHEMA_VERSION):
@@ -149,6 +149,10 @@ def _initialize_schema(cursor, conn, db_path, SCHEMA_VERSION):
             if current_version < 20:
                 _migrate_to_v20(cursor, conn)
 
+            # Migrate to version 21 (add song verification tracking)
+            if current_version < 21:
+                _migrate_to_v21(cursor, conn)
+
 
 def _create_new_schema(cursor, conn, SCHEMA_VERSION):
     """Create new schema (6 tables: stations, artists, songs, song_plays_daily, schema_version, playlists)
@@ -163,6 +167,9 @@ def _create_new_schema(cursor, conn, SCHEMA_VERSION):
 
     # Populate initial stations
     populate_stations(cursor)
+
+    # Populate manual MBID overrides for difficult-to-match artists
+    populate_manual_mbid_overrides(cursor)
 
     # Record schema version
     cursor.execute("""
@@ -1405,3 +1412,62 @@ def _migrate_to_v20(cursor, conn):
 
     conn.commit()
     print("Migration to version 20 complete!")
+
+
+def _migrate_to_v21(cursor, conn):
+    """Migrate database from v20 to v21 (add song verification tracking)
+
+    This migration adds MusicBrainz + Lidarr verification support:
+    - verification_status column to songs table (VERIFIED_MB, VERIFIED_LIDARR, NOT_FOUND, UNVERIFIED)
+    - verification_date column to songs table (timestamp of last verification)
+    - artist_song_verification table for tracking verification details
+    """
+    print("Migrating from schema v20 to v21...")
+    print("  - Adding song verification tracking...")
+
+    # Check if verification_status column already exists (for fresh databases)
+    cursor.execute("PRAGMA table_info(songs)")
+    columns = cursor.fetchall()
+    column_names = [col[1] for col in columns]
+
+    if 'verification_status' not in column_names:
+        # Add the columns for existing v20 databases
+        print("  - Adding verification columns to existing table...")
+        cursor.execute("ALTER TABLE songs ADD COLUMN verification_status TEXT DEFAULT 'UNVERIFIED'")
+        cursor.execute("ALTER TABLE songs ADD COLUMN verification_date TIMESTAMP")
+    else:
+        print("  - verification columns already exist (fresh database)")
+
+    # Create artist_song_verification table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS artist_song_verification (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            song_id INTEGER NOT NULL,
+            verification_source TEXT NOT NULL,
+            is_verified BOOLEAN NOT NULL,
+            metadata_json TEXT,
+            verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
+        )
+    """)
+
+    # Create index for fast lookup
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_verification_song_id ON artist_song_verification(song_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_verification_source ON artist_song_verification(verification_source)")
+
+    # Update schema version
+    cursor.execute("""
+        INSERT INTO schema_version (version, description)
+        VALUES (21, 'Add song verification tracking (MusicBrainz + Lidarr)')
+    """)
+
+    print("  - Added verification columns and artist_song_verification table")
+
+    # Log migration completion
+    cursor.execute("""
+        INSERT INTO activity_log (event_type, title, description, event_severity, source)
+        VALUES ('system', 'success', 'Database Migration', 'Migrated from schema v20 to v21: added song verification tracking for MusicBrainz + Lidarr', 'system')
+    """)
+
+    conn.commit()
+    print("Migration to version 21 complete!")

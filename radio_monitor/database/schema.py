@@ -2,7 +2,7 @@
 Database schema definitions for Radio Monitor 1.0
 
 This module contains all CREATE TABLE statements and indexes for the
-16-table SQLite schema.
+20-table SQLite schema.
 
 Tables:
 - stations: Radio station metadata
@@ -21,8 +21,11 @@ Tables:
 - manual_playlist_songs: Manual playlist song associations (v12)
 - playlist_builder_state: In-progress playlist builder state (v12)
 - blocklist: Blocked artists and songs (v14)
+- plex_manual_overrides: Manual Plex track matching overrides (v16)
+- spotiflac_downloads: SpotiFLAC download job tracking (v19)
+- artist_song_verification: Song verification tracking (v21)
 
-Schema Version: 14
+Schema Version: 21
 """
 
 import logging
@@ -31,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_tables(cursor):
-    """Create all 16 tables and indexes
+    """Create all 20 tables and indexes
 
     Args:
         cursor: SQLite cursor object
@@ -62,6 +65,7 @@ def create_tables(cursor):
         CREATE TABLE IF NOT EXISTS artists (
             mbid TEXT PRIMARY KEY,
             name TEXT NOT NULL UNIQUE,
+            match_key TEXT,
             first_seen_station TEXT,
             first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -72,6 +76,7 @@ def create_tables(cursor):
     """)
 
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_artists_name ON artists(name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_artists_match_key ON artists(match_key)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_artists_needs_import ON artists(needs_lidarr_import) WHERE needs_lidarr_import = 1")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_artists_last_seen ON artists(last_seen_at DESC)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_artists_first_seen ON artists(first_seen_at DESC)")
@@ -86,6 +91,8 @@ def create_tables(cursor):
             first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             play_count INTEGER DEFAULT 1,
+            verification_status TEXT DEFAULT 'UNVERIFIED',
+            verification_date TIMESTAMP,
             FOREIGN KEY (artist_mbid) REFERENCES artists(mbid),
             UNIQUE(artist_mbid, song_title)
         )
@@ -168,7 +175,7 @@ def create_tables(cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_log(event_type)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_activity_severity ON activity_log(event_severity)")
 
-    # 8. plex_match_failures table (v5)
+    # 8. plex_match_failures table (v5, updated v18)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS plex_match_failures (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -180,6 +187,7 @@ def create_tables(cursor):
             search_terms_used TEXT,
             resolved BOOLEAN DEFAULT 0,
             resolved_at DATETIME,
+            retry_match_succeeded BOOLEAN DEFAULT NULL,
             FOREIGN KEY (song_id) REFERENCES songs(id),
             FOREIGN KEY (playlist_id) REFERENCES playlists(id)
         )
@@ -333,6 +341,70 @@ def create_tables(cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_blocklist_artist_mbid ON blocklist(artist_mbid)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_blocklist_song_id ON blocklist(song_id)")
 
+    # 17. plex_manual_overrides table (v16)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS plex_manual_overrides (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            song_id INTEGER NOT NULL,
+            plex_track_key TEXT NOT NULL,
+            plex_track_title TEXT NOT NULL,
+            plex_artist_name TEXT NOT NULL,
+            plex_album_title TEXT,
+            plex_year INTEGER,
+            plex_duration_ms INTEGER,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            is_active INTEGER DEFAULT 1,
+            notes TEXT,
+            FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE,
+            UNIQUE(song_id, plex_track_key)
+        )
+    """)
+
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_plex_overrides_song_id ON plex_manual_overrides(song_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_plex_overrides_plex_key ON plex_manual_overrides(plex_track_key)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_plex_overrides_active ON plex_manual_overrides(is_active)")
+
+    # 18. spotiflac_downloads table (v19)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS spotiflac_downloads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plex_match_failure_id INTEGER,
+            song_title TEXT NOT NULL,
+            artist_name TEXT NOT NULL,
+            album_name TEXT,
+            spotify_url TEXT,
+            download_status TEXT NOT NULL DEFAULT 'starting',
+            service_used TEXT,
+            file_path TEXT,
+            file_size_mb REAL,
+            error_message TEXT,
+            started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP,
+            FOREIGN KEY (plex_match_failure_id) REFERENCES plex_match_failures(id) ON DELETE SET NULL
+        )
+    """)
+
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_spotiflac_downloads_plex_failure_id ON spotiflac_downloads(plex_match_failure_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_spotiflac_downloads_status ON spotiflac_downloads(download_status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_spotiflac_downloads_started_at ON spotiflac_downloads(started_at)")
+
+    # 19. artist_song_verification table (v21)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS artist_song_verification (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            song_id INTEGER NOT NULL,
+            verification_source TEXT NOT NULL,
+            is_verified BOOLEAN NOT NULL,
+            metadata_json TEXT,
+            verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
+        )
+    """)
+
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_verification_song_id ON artist_song_verification(song_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_verification_source ON artist_song_verification(verification_source)")
+
 
 def populate_stations(cursor):
     """Populate stations table with initial 28 stations (alphabetical by name)
@@ -376,3 +448,23 @@ def populate_stations(cursor):
             INSERT OR IGNORE INTO stations (id, name, url, genre, market, has_mbid, scraper_type, wait_time, sort_order)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, station)
+
+
+def populate_manual_mbid_overrides(cursor):
+    """Populate manual_mbid_overrides table with known difficult-to-match artists
+
+    Args:
+        cursor: SQLite cursor object
+    """
+    overrides = [
+        # Kpop Demon Hunters Cast - Complex multi-artist collaboration that fails MusicBrainz search
+        ('Huntrx Ejae Audrey Nuna Rei Ami Kpop Demon Hunters Cast',
+         '7ba8efd8-9cef-49dd-8399-3e90dac43fa6',
+         'K-pop Demon Hunters collaboration - difficult to match via search'),
+    ]
+
+    for artist_name, mbid, notes in overrides:
+        cursor.execute("""
+            INSERT OR IGNORE INTO manual_mbid_overrides (artist_name_original, mbid, notes)
+            VALUES (?, ?, ?)
+        """, (artist_name, mbid, notes))

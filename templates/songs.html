@@ -50,6 +50,28 @@
 .sorted-desc .sort-indicator::after {
     opacity: 1;
 }
+
+.verification-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+}
+
+.verification-badges .badge {
+    font-size: 0.75rem;
+    padding: 0.25em 0.5em;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.verification-breakdown {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+}
 </style>
 {% endblock %}
 
@@ -75,21 +97,31 @@
                         <div class="card-body">
                             <h6 class="card-subtitle mb-3 text-muted">Date & Play Count Filters</h6>
                             <div class="row g-3">
-                                <div class="col-md-3">
+                                <div class="col-md-2">
                                     <label class="form-label">Last Seen After</label>
                                     <input type="date" class="form-control" id="filter-date-after">
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-md-2">
                                     <label class="form-label">Last Seen Before</label>
                                     <input type="date" class="form-control" id="filter-date-before">
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-md-2">
                                     <label class="form-label">Min Plays</label>
                                     <input type="number" class="form-control" id="filter-plays-min" min="0" placeholder="Any">
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-md-2">
                                     <label class="form-label">Max Plays</label>
                                     <input type="number" class="form-control" id="filter-plays-max" min="0" placeholder="Any">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Verification</label>
+                                    <select class="form-select" id="filter-verification">
+                                        <option value="">All</option>
+                                        <option value="UNVERIFIED">Unverified</option>
+                                        <option value="VERIFIED_MB">Verified (MusicBrainz)</option>
+                                        <option value="VERIFIED_LIDARR">Verified (Lidarr)</option>
+                                        <option value="NOT_FOUND">Not Found</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -179,6 +211,7 @@
                                     Last Seen
                                     <span class="sort-indicator"></span>
                                 </th>
+                                <th>Verification</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -215,7 +248,41 @@
                                         {% endif %}
                                     </td>
                                     <td>
+                                        <div class="verification-badges">
+                                            {% if song.get('verified_mb') %}
+                                                <span class="badge bg-success me-1" title="Verified by MusicBrainz">
+                                                    <i class="bi bi-music-note-list"></i> MB
+                                                </span>
+                                            {% endif %}
+                                            {% if song.get('verified_lidarr') %}
+                                                <span class="badge bg-primary me-1" title="Verified by Lidarr">
+                                                    <i class="bi bi-disc"></i> Lidarr
+                                                </span>
+                                            {% endif %}
+                                            {% if not song.get('verified_mb') and not song.get('verified_lidarr') %}
+                                                {% if song.get('verification_status') == 'NOT_FOUND' %}
+                                                    <span class="badge bg-danger" title="Not found in MusicBrainz or Lidarr">
+                                                        <i class="bi bi-x-circle"></i> Not Found
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary" title="Not yet verified">
+                                                        <i class="bi bi-question-circle"></i> Unverified
+                                                    </span>
+                                                {% endif %}
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
                                         <div class="btn-group btn-group-sm">
+                                            {% if song.get('verification_status') in ['UNVERIFIED', None, 'NOT_FOUND'] %}
+                                            <button type="button" class="btn btn-outline-primary btn-verify-song"
+                                                    data-song-id="{{ song.id }}"
+                                                    data-song-title="{{ song.song_title }}"
+                                                    data-artist-name="{{ song.artist_name }}"
+                                                    title="Verify Song">
+                                                <i class="bi bi-check-circle"></i>
+                                            </button>
+                                            {% endif %}
                                             <a href="/songs/{{ song.id }}" class="btn btn-outline-primary" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
@@ -246,7 +313,7 @@
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="6">
+                                    <td colspan="7">
                                         <div class="empty-state">
                                             <i class="bi bi-music-note empty-state-icon"></i>
                                             <h3 class="empty-state-title">No songs found</h3>
@@ -492,6 +559,7 @@ function applyFilters() {
     const dateBefore = document.getElementById('filter-date-before').value;
     const playsMin = document.getElementById('filter-plays-min').value;
     const playsMax = document.getElementById('filter-plays-max').value;
+    const verificationStatus = document.getElementById('filter-verification').value;
 
     const url = new URL(window.location);
     url.searchParams.set('page', '1');
@@ -543,6 +611,12 @@ function applyFilters() {
         url.searchParams.set('plays_max', playsMax);
     } else {
         url.searchParams.delete('plays_max');
+    }
+
+    if (verificationStatus) {
+        url.searchParams.set('verification_status', verificationStatus);
+    } else {
+        url.searchParams.delete('verification_status');
     }
 
     window.location.href = url.toString();
@@ -625,5 +699,144 @@ function exportTableToCSV(pageName) {
 
     Toast.success(`Exported ${dataRows.length} rows to CSV`);
 }
+
+// Verification functionality
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.btn-verify-song')) {
+        const button = e.target.closest('.btn-verify-song');
+        const songId = button.dataset.songId;
+        const songTitle = button.dataset.songTitle;
+        const artistName = button.dataset.artistName;
+
+        // Initialize modal (lazy initialization)
+        let verificationModal = bootstrap.Modal.getInstance(document.getElementById('verificationModal'));
+        if (!verificationModal) {
+            verificationModal = new bootstrap.Modal(document.getElementById('verificationModal'));
+        }
+
+        // Show modal with loading state
+        document.getElementById('modalSongTitle').textContent = songTitle;
+        document.getElementById('modalArtistName').textContent = artistName;
+        document.getElementById('verificationProgress').style.display = 'block';
+        document.getElementById('verificationResult').style.display = 'none';
+        verificationModal.show();
+
+        // Call verification API
+        fetch(`/api/songs/${songId}/verify`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Hide progress, show results
+            document.getElementById('verificationProgress').style.display = 'none';
+            document.getElementById('verificationResult').style.display = 'block';
+
+            // MusicBrainz result
+            const mbResult = data.sources?.musicbrainz;
+            const mbResultDiv = document.getElementById('musicbrainzResult');
+            if (mbResult) {
+                if (mbResult.is_verified) {
+                    mbResultDiv.innerHTML = `<span class="text-success">✓ Found in MusicBrainz</span><br>
+                       <small>Recording: ${mbResult.recording_mbid || 'N/A'}</small><br>
+                       <small>Similarity: ${(mbResult.song_similarity * 100).toFixed(1)}%</small>`;
+                } else {
+                    // If MusicBrainz failed but Lidarr succeeded, show as warning not error
+                    if (data.overall_status === 'VERIFIED_LIDARR') {
+                        mbResultDiv.innerHTML = `<span class="text-warning">⚠ Not found in MusicBrainz</span><br>
+                           <small>${mbResult.reason || 'Artist not in recording credits'}</small><br>
+                           <small class="text-muted">(But verified by Lidarr ✓)</small>`;
+                    } else {
+                        mbResultDiv.innerHTML = `<span class="text-danger">✗ ${mbResult.reason || 'Not found'}</span>`;
+                    }
+                }
+            } else {
+                mbResultDiv.innerHTML = '<span class="text-muted">No MusicBrainz result</span>';
+            }
+
+            // Lidarr result
+            const lidarrResult = data.sources?.lidarr;
+            const lidarrResultDiv = document.getElementById('lidarrResult');
+            if (lidarrResult) {
+                lidarrResultDiv.innerHTML = lidarrResult.is_verified
+                    ? `<span class="text-success">✓ Found in Lidarr</span><br>
+                       <small>Album: ${lidarrResult.album_title || 'N/A'}</small>`
+                    : `<span class="text-secondary">${lidarrResult.reason || 'Not configured'}</span>`;
+            } else {
+                lidarrResultDiv.innerHTML = '<span class="text-muted">No Lidarr result</span>';
+            }
+
+            // Final result
+            const finalResult = document.getElementById('finalResult');
+            if (data.overall_status === 'VERIFIED_MB' || data.overall_status === 'VERIFIED_LIDARR') {
+                const verifiedBy = data.overall_status === 'VERIFIED_MB' ? 'MusicBrainz' : 'Lidarr';
+                finalResult.innerHTML = `<div class="alert alert-success">
+                    <strong>✓ VERIFIED</strong><br>
+                    This song is verified to belong to this artist.<br>
+                    <small class="text-muted">Verified by: ${verifiedBy}</small>
+                </div>`;
+            } else if (data.overall_status === 'NOT_FOUND') {
+                finalResult.innerHTML = `<div class="alert alert-danger">
+                    <strong>✗ NOT FOUND</strong><br>
+                    ${mbResult?.reason || 'Artist not found in recording credits'}<br>
+                    This may indicate an incorrect artist match.
+                </div>`;
+            } else {
+                finalResult.innerHTML = `<div class="alert alert-warning">
+                    <strong>⚠ UNVERIFIED</strong><br>
+                    Unable to verify this song.
+                </div>`;
+            }
+
+            // Reload page after 3 seconds to show updated status
+            setTimeout(() => location.reload(), 3000);
+        })
+        .catch(error => {
+            document.getElementById('verificationProgress').style.display = 'none';
+            document.getElementById('verificationResult').style.display = 'block';
+            document.getElementById('verificationResult').innerHTML =
+                `<div class="alert alert-danger">Error: ${error}</div>`;
+        });
+    }
+});
 </script>
+
+<!-- Verification Modal -->
+<div class="modal" id="verificationModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Verifying Song</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Song:</strong> <span id="modalSongTitle"></span></p>
+                <p><strong>Artist:</strong> <span id="modalArtistName"></span></p>
+
+                <div id="verificationProgress">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Verifying with MusicBrainz...</p>
+                </div>
+
+                <div id="verificationResult" style="display: none;">
+                    <h6>MusicBrainz:</h6>
+                    <div id="musicbrainzResult"></div>
+
+                    <h6 class="mt-3">Lidarr:</h6>
+                    <div id="lidarrResult"></div>
+
+                    <div id="finalResult" class="mt-3"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

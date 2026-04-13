@@ -218,6 +218,7 @@
                                     Last Seen
                                     <span class="sort-indicator"></span>
                                 </th>
+                                <th>Verification</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
@@ -246,6 +247,37 @@
                                             <span class="text-muted">Never</span>
                                         {% endif %}
                                     </td>
+                                    <td>
+                                        {% set verified_mb_count = artist.get('verified_mb_count', 0) %}
+                                        {% set verified_lidarr_count = artist.get('verified_lidarr_count', 0) %}
+                                        {% set verified_count = artist.get('verified_count', 0) %}
+                                        {% set song_count = artist.song_count %}
+                                        {% set verified_pct = (verified_count / song_count * 100) if song_count > 0 else 0 %}
+
+                                        <div class="verification-breakdown">
+                                            <!-- Overall percentage badge -->
+                                            {% if verified_pct >= 80 %}
+                                                <span class="badge bg-success">🟢 {{ verified_pct|round }}%</span>
+                                            {% elif verified_pct >= 50 %}
+                                                <span class="badge bg-warning">🟡 {{ verified_pct|round }}%</span>
+                                            {% elif verified_pct > 0 %}
+                                                <span class="badge bg-danger">🔴 {{ verified_pct|round }}%</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">⚪ 0%</span>
+                                            {% endif %}
+
+                                            <!-- Source breakdown -->
+                                            <small class="text-muted ms-1">
+                                                {% if verified_mb_count > 0 or verified_lidarr_count > 0 %}
+                                                    <i class="bi bi-music-note-list text-success"></i> {{ verified_mb_count }}
+                                                    <i class="bi bi-disc text-primary"></i> {{ verified_lidarr_count }}
+                                                    <span class="text-muted">/ {{ song_count }}</span>
+                                                {% else %}
+                                                    <span class="text-muted">({{ verified_count }}/{{ song_count }})</span>
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    </td>
                                     <td class="status-cell">
                                         {% if artist.lidarr_imported_at %}
                                             <span class="badge bg-success">Imported</span>
@@ -257,6 +289,13 @@
                                     </td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary btn-verify-all-songs"
+                                                    data-artist-mbid="{{ artist.mbid }}"
+                                                    data-artist-name="{{ artist.name }}"
+                                                    data-song-count="{{ artist.song_count }}"
+                                                    title="Verify All Songs">
+                                                <i class="bi bi-check-circle"></i>
+                                            </button>
                                             <a href="/artists/{{ artist.mbid }}" class="btn btn-outline-primary" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
@@ -308,7 +347,7 @@
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="7">
+                                    <td colspan="8">
                                         <div class="empty-state">
                                             {% if filters.mbid_status == 'pending' %}
                                                 <i class="bi bi-check-circle text-success empty-state-icon"></i>
@@ -1317,5 +1356,94 @@ function showRetryError(errorMessage) {
     document.getElementById('retry-pending-error-message').textContent = errorMessage;
     document.getElementById('retry-pending-close-btn').disabled = false;
 }
+
+// Verification functionality
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.btn-verify-all-songs')) {
+        const button = e.target.closest('.btn-verify-all-songs');
+        const artistMbid = button.dataset.artistMbid;
+        const artistName = button.dataset.artistName;
+        const songCount = button.dataset.songCount;
+
+        // Initialize modal (lazy initialization)
+        let artistVerificationModal = bootstrap.Modal.getInstance(document.getElementById('artistVerificationModal'));
+        if (!artistVerificationModal) {
+            artistVerificationModal = new bootstrap.Modal(document.getElementById('artistVerificationModal'));
+        }
+
+        // Show modal with loading state
+        document.getElementById('artistModalName').textContent = artistName;
+        document.getElementById('artistModalSongCount').textContent = songCount;
+        document.getElementById('artistVerificationProgress').style.display = 'block';
+        document.getElementById('artistVerificationResult').style.display = 'none';
+        document.getElementById('artistProgressText').textContent = 'Starting...';
+        artistVerificationModal.show();
+
+        // Call verification API
+        fetch(`/api/artists/${artistMbid}/verify-all`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Hide progress, show results
+            document.getElementById('artistVerificationProgress').style.display = 'none';
+            document.getElementById('artistVerificationResult').style.display = 'block';
+
+            if (data.error) {
+                document.getElementById('artistVerificationResult').innerHTML =
+                    `<div class="alert alert-danger">${data.error}</div>`;
+            } else {
+                const summary = `
+                    <p><strong>Total:</strong> ${data.total}</p>
+                    <p><strong>✓ Verified:</strong> <span class="text-success">${data.verified}</span></p>
+                    <p><strong>✗ Not Found:</strong> <span class="text-danger">${data.not_found}</span></p>
+                `;
+                document.getElementById('artistResultsSummary').innerHTML = summary;
+
+                // Reload page after 3 seconds to show updated status
+                setTimeout(() => location.reload(), 3000);
+            }
+        })
+        .catch(error => {
+            document.getElementById('artistVerificationProgress').style.display = 'none';
+            document.getElementById('artistVerificationResult').style.display = 'block';
+            document.getElementById('artistVerificationResult').innerHTML =
+                `<div class="alert alert-danger">Error: ${error}</div>`;
+        });
+    }
+});
 </script>
+
+<!-- Artist Verification Modal -->
+<div class="modal" id="artistVerificationModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Verifying All Songs</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Verifying all songs for: <strong><span id="artistModalName"></span></strong></p>
+                <p class="text-muted">Total songs: <span id="artistModalSongCount"></span></p>
+
+                <div id="artistVerificationProgress">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2">Verifying songs... <span id="artistProgressText"></span></p>
+                </div>
+
+                <div id="artistVerificationResult" style="display: none;">
+                    <h6>Results:</h6>
+                    <div id="artistResultsSummary"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

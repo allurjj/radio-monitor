@@ -77,10 +77,10 @@ python -m radio_monitor.cli --import-lidarr --min-plays 5
 # Create Plex playlist
 python -m radio_monitor.cli --plex-playlist "Radio Hits" --days 7 --limit 50
 
-Version: 1.2.9.1
+Version: 1.3.0
 """
 
-__version__ = "1.2.10"
+__version__ = "1.3.0"
 __author__ = "Radio Monitor Team"
 __github_url__ = "https://github.com/allurjj/radio-monitor"
 
