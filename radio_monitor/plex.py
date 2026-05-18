@@ -416,10 +416,11 @@ def get_track_year_safe(track):
         int: Year of the track, or None if not available
     """
     try:
-        # Try to get year from the track's parent (album)
-        if hasattr(track, 'parent') and track.parent:
-            if hasattr(track.parent, 'year'):
-                year = track.parent.year
+        # Try to get year from the track's album (correct PlexAPI method)
+        if hasattr(track, 'album') and callable(track.album):
+            album = track.album()
+            if album and hasattr(album, 'year'):
+                year = album.year
                 if year:
                     return int(year)
         # Fallback: try track's year attribute directly
@@ -773,7 +774,101 @@ def get_artist_variations(artist_name):
     return variations
 
 
-def find_song_in_library(music_library, song_title, artist_name, debug=False):
+def various_artists_fallback_search(music_library, song_title, artist_name,
+                                   timeout_ms=5000, debug=False):
+    """
+    Strategy 5: Search 'Various Artists' compilation albums as last resort.
+
+    Args:
+        music_library: Plex music library object
+        song_title: Song title to match
+        artist_name: Artist name to match
+        timeout_ms: Maximum time per search (milliseconds)
+        debug: Enable debug logging
+
+    Returns:
+        Plex Track object if found, None otherwise
+    """
+    import time
+    start_time = time.time()
+
+    try:
+        if debug:
+            logger.debug(f"  Trying Strategy 5: Various Artists fallback (timeout: {timeout_ms}ms)")
+
+        # Search for "Various Artists" in library
+        various_artists_list = music_library.search('Various Artists', libtype='artist')
+
+        if not various_artists_list:
+            if debug:
+                logger.debug(f"    No 'Various Artists' found in library")
+            return None
+
+        total_tracks_scanned = 0
+        matches_found = []
+
+        # Scan each "Various Artists" entry
+        for va in various_artists_list:
+            # Check timeout
+            elapsed_ms = (time.time() - start_time) * 1000
+            if elapsed_ms > timeout_ms:
+                if debug:
+                    logger.debug(f"    Timeout reached after {elapsed_ms:.0f}ms, scanned {total_tracks_scanned} tracks")
+                break
+
+            # Scan each album by this Various Artists
+            for album in va.albums():
+                for track in album.tracks():
+                    total_tracks_scanned += 1
+
+                    # Check timeout periodically
+                    elapsed_ms = (time.time() - start_time) * 1000
+                    if elapsed_ms > timeout_ms:
+                        if debug:
+                            logger.debug(f"    Timeout reached after {elapsed_ms:.0f}ms, scanned {total_tracks_scanned} tracks")
+                        break
+
+                    try:
+                        # Match by song title (exact or fuzzy)
+                        if title_matches(track.title, song_title, fuzzy=False):
+                            # Match by artist name
+                            if artist_matches(track.artist, artist_name):
+                                matches_found.append(track)
+                                if debug:
+                                    logger.debug(f"    Found match: {track.title} by {track.artist} in {album.title}")
+                    except Exception:
+                        continue
+
+                # Break if timeout reached
+                if elapsed_ms > timeout_ms:
+                    break
+
+            # Break if timeout reached
+            if elapsed_ms > timeout_ms:
+                break
+
+        # Return first match if found
+        if matches_found:
+            elapsed_ms = (time.time() - start_time) * 1000
+            if debug:
+                logger.debug(f"  Strategy 5 SUCCESS: Found {len(matches_found)} match(es) in {elapsed_ms:.0f}ms")
+            return matches_found[0]
+
+        # No matches found
+        elapsed_ms = (time.time() - start_time) * 1000
+        if debug:
+            logger.debug(f"  Strategy 5 FAILED: No matches found in {elapsed_ms:.0f}ms (scanned {total_tracks_scanned} tracks)")
+        return None
+
+    except Exception as e:
+        elapsed_ms = (time.time() - start_time) * 1000
+        logger.error(f"  Strategy 5 ERROR: {str(e)} (after {elapsed_ms:.0f}ms)")
+        return None
+
+
+def find_song_in_library(music_library, song_title, artist_name, debug=False,
+                         enable_various_artists_fallback=False, various_artists_timeout_ms=5000,
+                         db=None, song_id=None):
     """Find song in Plex library using multi-strategy fuzzy matching
 
     Args:
@@ -781,6 +876,10 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
         song_title: Song title to find
         artist_name: Artist name to find
         debug: Enable debug logging
+        enable_various_artists_fallback: Enable Various Artists fallback (Strategy 5)
+        various_artists_timeout_ms: Max search time per song in milliseconds for Strategy 5
+        db: Database connection for override checking (optional)
+        song_id: Song ID for override checking (optional)
 
     Returns:
         Plex Track object or None
@@ -788,11 +887,31 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
     if debug:
         logger.debug(f"Searching for: {song_title} - {artist_name}")
 
-    # STRATEGY 0: Artist-first search (bypasses Plex search limitations)
+    # STRATEGY 0: Manual Overrides (checked BEFORE all other strategies)
+    if db and song_id:
+        from radio_monitor.database.plex_overrides import get_plex_override
+
+        override = get_plex_override(db.get_cursor(), song_id, active_only=True)
+
+        if override:
+            if debug:
+                logger.debug(f"  ✓ STRATEGY 0: Using manual override for song {song_id}")
+                logger.debug(f"    Plex track: {override['plex_track_title']} - {override['plex_artist_name']}")
+                if override['plex_album_title']:
+                    logger.debug(f"    Album: {override['plex_album_title']}")
+
+            try:
+                plex_track = music_library.fetchItem(int(override['plex_track_key']))
+                return plex_track
+            except Exception as e:
+                logger.error(f"  Failed to fetch override track: {e}")
+                # Fall through to normal matching if override fails
+
+    # STRATEGY 1: Artist-first search (bypasses Plex search limitations)
     # For common song titles, Plex search doesn't return all tracks
     # So we search by artist first, then within their catalog
     if debug:
-        logger.debug(f"  Trying Strategy 0: Artist-first search")
+        logger.debug(f"  Trying Strategy 1: Artist-first search")
 
     # Get artist variations for matching
     artist_variations = get_artist_variations(artist_name)
@@ -1097,13 +1216,26 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False):
         if partial_matches:
             return break_tie_by_year(partial_matches, debug=debug)
 
+    # STRATEGY 5: Various Artists fallback (LAST RESORT - opt-in only)
+    if enable_various_artists_fallback:
+        va_match = various_artists_fallback_search(
+            music_library,
+            song_title,
+            artist_name,
+            timeout_ms=various_artists_timeout_ms,
+            debug=debug
+        )
+        if va_match:
+            return va_match
+
     # If we get here, no match found with any title variation
     if debug:
         logger.debug(f"  ✗ No match found for: {song_title} - {artist_name}")
 
     return None
 
-def create_playlist(db, plex, playlist_name, mode='merge', filters=None):
+def create_playlist(db, plex, playlist_name, mode='merge', filters=None,
+                   enable_various_artists_fallback=False, various_artists_timeout_ms=5000):
     """Create or update Plex playlist
 
     Args:
@@ -1118,6 +1250,8 @@ def create_playlist(db, plex, playlist_name, mode='merge', filters=None):
             - min_plays: Minimum play count (default: 1)
             - max_plays: Maximum play count (optional, NULL = no maximum)
             - exclude_blocklist: Exclude blocked artists/songs (default: True)
+        enable_various_artists_fallback: Enable Various Artists fallback for Plex matching
+        various_artists_timeout_ms: Max search time per song in milliseconds for Various Artists fallback
 
     Returns:
         dict with:
@@ -1224,7 +1358,10 @@ def create_playlist(db, plex, playlist_name, mode='merge', filters=None):
         if idx % 10 == 0 or idx == len(songs):
             logger.info(f"Processing song {idx}/{len(songs)}: {song_title} - {artist_name}")
 
-        track = find_song_in_library(music_library, song_title, artist_name)
+        track = find_song_in_library(music_library, song_title, artist_name,
+                                    enable_various_artists_fallback=enable_various_artists_fallback,
+                                    various_artists_timeout_ms=various_artists_timeout_ms,
+                                    db=db, song_id=song_id)
 
         if track:
             songs_to_add.append(track)
@@ -1679,7 +1816,8 @@ def get_plex_server(settings):
         return None
 
 
-def create_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, music_library_name='Music'):
+def create_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, music_library_name='Music',
+                                enable_various_artists_fallback=False, various_artists_timeout_ms=5000):
     """Create manual playlist in Plex
 
     Args:
@@ -1688,6 +1826,8 @@ def create_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, musi
         plex_url: Plex server URL
         plex_token: Plex server token
         music_library_name: Name of music library in Plex
+        enable_various_artists_fallback: Enable Various Artists fallback for Plex matching
+        various_artists_timeout_ms: Max search time per song in milliseconds for Various Artists fallback
 
     Returns:
         dict with:
@@ -1732,7 +1872,10 @@ def create_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, musi
             logger.info(f"Processing song {idx}/{len(songs)}: {song_title} - {artist_name}")
 
             # Use existing fuzzy matching function
-            track = find_song_in_library(music_library, song_title, artist_name, debug=False)
+            track = find_song_in_library(music_library, song_title, artist_name, debug=False,
+                                       enable_various_artists_fallback=enable_various_artists_fallback,
+                                       various_artists_timeout_ms=various_artists_timeout_ms,
+                                       db=db, song_id=song.get('id'))
 
             if track:
                 songs_to_add.append(track)
@@ -1782,7 +1925,8 @@ def create_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, musi
         }
 
 
-def update_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, old_playlist_name=None, music_library_name='Music'):
+def update_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, old_playlist_name=None, music_library_name='Music',
+                               enable_various_artists_fallback=False, various_artists_timeout_ms=5000):
     """Update manual playlist in Plex (delete and recreate)
 
     Args:
@@ -1792,6 +1936,8 @@ def update_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, old_
         plex_token: Plex server token
         old_playlist_name: Old playlist name (if different from new name)
         music_library_name: Name of music library in Plex
+        enable_various_artists_fallback: Enable Various Artists fallback for Plex matching
+        various_artists_timeout_ms: Max search time per song in milliseconds for Various Artists fallback
 
     Returns:
         dict with:
@@ -1819,7 +1965,9 @@ def update_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, old_
             logger.info(f"Playlist '{playlist_to_delete}' not found in Plex (will create new)")
 
         # Create new playlist
-        result = create_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, music_library_name)
+        result = create_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, music_library_name,
+                                            enable_various_artists_fallback=enable_various_artists_fallback,
+                                            various_artists_timeout_ms=various_artists_timeout_ms)
 
         return result
 
@@ -1834,7 +1982,8 @@ def update_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, old_
         }
 
 
-def create_or_update_manual_playlist(playlist_name, songs, plex_url, plex_token, music_library_name='Music'):
+def create_or_update_manual_playlist(playlist_name, songs, plex_url, plex_token, music_library_name='Music',
+                                   enable_various_artists_fallback=False, various_artists_timeout_ms=5000):
     """Create or update manual playlist in Plex using replace mode
 
     This uses the same approach as auto playlists - clears existing playlist
@@ -1888,7 +2037,10 @@ def create_or_update_manual_playlist(playlist_name, songs, plex_url, plex_token,
                 continue
 
             # Find track in Plex library
-            track = find_song_in_library(music_library, song_title, artist_name)
+            track = find_song_in_library(music_library, song_title, artist_name,
+                                    enable_various_artists_fallback=enable_various_artists_fallback,
+                                    various_artists_timeout_ms=various_artists_timeout_ms,
+                                    db=db, song_id=song.get('id'))
 
             if track:
                 songs_to_add.append(track)
