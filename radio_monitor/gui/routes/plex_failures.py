@@ -162,9 +162,9 @@ def api_dismiss_failure(failure_id):
 def api_retry_failure(failure_id):
     """Retry matching a failed song in Plex
 
-    Actually attempts to find the song in Plex library.
-    If found: Deletes failure record
-    If not found: Updates last_attempt_at timestamp, increments search_attempts
+    Uses the full matching pipeline with multiple strategies.
+    If found: Sets retry_match_succeeded=TRUE, marks resolved_at, KEEPS record for 7-day history
+    If not found: Sets retry_match_succeeded=FALSE, increments search_attempts
     """
     db = current_app.config.get('db')
     if not db:
@@ -187,6 +187,7 @@ def api_retry_failure(failure_id):
         settings = load_settings() or {}
         plex_url = settings.get('plex_url')
         plex_token = settings.get('plex_token')
+        library_name = settings.get('music_library_name', 'Music')
 
         if not plex_url or not plex_token:
             return jsonify({'error': 'Plex not configured. Please configure Plex in Settings first.'}), 400
@@ -195,35 +196,57 @@ def api_retry_failure(failure_id):
         try:
             from plexapi.server import PlexServer
             plex = PlexServer(plex_url, plex_token)
-            music_library = plex.library.section(settings.get('music_library_name', 'Music'))
+            music_library = plex.library.section(library_name)
         except Exception as e:
             logger.error(f"Plex connection failed during retry: {e}")
             return jsonify({'error': f'Plex connection failed: {str(e)}'}), 500
 
-        # Retry the match
+        # Retry the match using full pipeline
         from radio_monitor.plex import find_song_in_library
         song_title = failure['song']['song_title']
         artist_name = failure['song']['artist_name']
+        album_name = failure.get('album_name')  # May be None
 
-        track = find_song_in_library(music_library, song_title, artist_name)
+        # Use EXACT same matching logic as playlists
+        result = find_song_in_library(
+            plex_url=plex_url,
+            plex_token=plex_token,
+            library_name=library_name,
+            song_title=song_title,
+            artist_name=artist_name,
+            album_name=album_name,
+            enable_various_artists_fallback=settings.get('plex', {}).get('enable_various_artists_fallback', False)
+        )
 
-        if track:
-            # SUCCESS: Song found in Plex - delete failure record
-            cursor.execute("DELETE FROM plex_match_failures WHERE id = ?", (failure_id,))
+        plex_track, confidence_score, confidence_level, strategy_used = result
+
+        if plex_track:
+            # SUCCESS: Mark retry as succeeded but KEEP record (for 7-day history)
+            now = datetime.now()
+            cursor.execute("""
+                UPDATE plex_match_failures
+                SET retry_match_succeeded = TRUE,
+                    resolved = TRUE,
+                    resolved_at = ?
+                WHERE id = ?
+            """, (now, failure_id))
             db.conn.commit()
 
             # Log activity
             from radio_monitor.database import activity
             activity.log_activity(
                 cursor,
-                event_type='plex_failure_retry_success',
+                event_type='plex_match_retry_success',
                 title='Plex Match Retry Successful',
-                description=f'Found: {song_title} - {artist_name}',
+                description=f'Matched: {song_title} by {artist_name}',
                 metadata={
                     'failure_id': failure_id,
                     'song_id': failure['song_id'],
                     'song_title': song_title,
-                    'artist_name': artist_name
+                    'artist_name': artist_name,
+                    'strategy_used': strategy_used,
+                    'confidence_level': confidence_level,
+                    'confidence_score': confidence_score
                 },
                 severity='success',
                 source='user'
@@ -233,15 +256,23 @@ def api_retry_failure(failure_id):
             return jsonify({
                 'success': True,
                 'found': True,
-                'message': f'Found: {song_title} - {artist_name}'
+                'message': f'Matched: {song_title} - {artist_name}',
+                'plex_track': {
+                    'title': plex_track.get('title'),
+                    'artist': plex_track.get('artist'),
+                    'album': plex_track.get('album'),
+                    'year': plex_track.get('year')
+                },
+                'strategy_used': strategy_used,
+                'confidence_level': confidence_level
             })
         else:
-            # FAILURE: Still not found - update timestamp and attempts
-            # Use local time for failure_date timestamp
+            # FAILURE: Mark retry as failed but keep record for later attempts
             now = datetime.now()
             cursor.execute("""
                 UPDATE plex_match_failures
                 SET search_attempts = search_attempts + 1,
+                    retry_match_succeeded = FALSE,
                     failure_date = ?
                 WHERE id = ?
             """, (now, failure_id,))
@@ -250,7 +281,9 @@ def api_retry_failure(failure_id):
             return jsonify({
                 'success': True,
                 'found': False,
-                'message': f'Still not found: {song_title} - {artist_name}. Retry after fixing metadata or adding music to Plex.'
+                'message': f'Still not found: {song_title} - {artist_name}. Retry after fixing metadata or adding music to Plex.',
+                'search_attempts': failure['search_attempts'] + 1,
+                'can_retry': True  # User can try again later
             })
 
     except Exception as e:
@@ -421,3 +454,293 @@ def api_clear_all_failures():
         return jsonify({'error': str(e)}), 500
     finally:
         cursor.close()
+
+
+# ==============================================================================
+# SpotiFLAC Integration Endpoints
+# ==============================================================================
+
+@plex_failures_bp.route('/api/spotiflac/search-spotify', methods=['GET'])
+@requires_auth
+def api_search_spotify():
+    """
+    Search Spotify for tracks matching song_title and artist_name
+
+    Query params:
+        - song_title: Song title to search for
+        - artist_name: Artist name to search for
+
+    Returns:
+        List of Spotify tracks with URLs
+    """
+    song_title = request.args.get('song_title')
+    artist_name = request.args.get('artist_name')
+
+    if not song_title or not artist_name:
+        return jsonify({'error': 'song_title and artist_name are required'}), 400
+
+    try:
+        from radio_monitor.integrations.spotiflac_service import SpotiFLACService
+        from radio_monitor.gui import load_settings
+
+        settings = load_settings() or {}
+        service = SpotiFLACService(settings)
+
+        results = service.search_spotify(song_title, artist_name)
+
+        return jsonify({
+            'results': results,
+            'count': len(results)
+        })
+    except Exception as e:
+        logger.error(f"Error searching Spotify: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@plex_failures_bp.route('/api/spotiflac/download', methods=['POST'])
+@requires_auth
+def api_start_spotiflac_download():
+    """
+    Start a SpotiFLAC download job
+
+    JSON body:
+        - plex_failure_id: ID of the Plex failure record
+        - spotify_url: Spotify track/album URL
+        - services: List of services to try (optional)
+
+    Returns:
+        Job information with status
+    """
+    data = request.json
+    plex_failure_id = data.get('plex_failure_id')
+    spotify_url = data.get('spotify_url')
+    services = data.get('services', ['tidal', 'qobuz', 'amazon'])
+
+    if not plex_failure_id or not spotify_url:
+        return jsonify({'error': 'plex_failure_id and spotify_url are required'}), 400
+
+    db = current_app.config.get('db')
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    cursor = db.get_cursor()
+    try:
+        from radio_monitor.database import plex_failures
+        from radio_monitor.integrations.spotiflac_service import SpotiFLACService
+        from radio_monitor.gui import load_settings
+
+        # Get failure details
+        failure = plex_failures.get_failure_by_id(cursor, plex_failure_id)
+        if not failure:
+            return jsonify({'error': 'Failure not found'}), 404
+
+        # Get song details
+        song = failure.get('song')
+        if not song:
+            return jsonify({'error': 'Song not found'}), 404
+
+        # Initialize service
+        settings = load_settings() or {}
+        spotiflac_service = SpotiFLACService(settings)
+
+        # Determine URL type
+        url_type = spotiflac_service.get_download_url_type(spotify_url)
+
+        # Perform download
+        if url_type == 'track':
+            result = spotiflac_service.download_track(
+                spotify_url=spotify_url,
+                song_title=song['song_title'],
+                artist_name=song['artist_name'],
+                services=services
+            )
+
+            if result['success']:
+                # Log activity
+                from radio_monitor.database import activity
+                activity.log_activity(
+                    cursor,
+                    event_type='spotiflac_download_success',
+                    title='SpotiFLAC Download Complete',
+                    description=f'Downloaded: {song["song_title"]} - {song["artist_name"]}',
+                    metadata={
+                        'failure_id': plex_failure_id,
+                        'song_id': song['id'],
+                        'file_path': result['file_path'],
+                        'service_used': result['service_used']
+                    },
+                    severity='success',
+                    source='user'
+                )
+                db.conn.commit()
+
+                return jsonify({
+                    'success': True,
+                    'job_id': plex_failure_id,
+                    'file_path': result['file_path'],
+                    'service_used': result['service_used'],
+                    'url_type': 'track'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': result.get('error', 'Download failed')
+                }), 500
+
+        elif url_type == 'album':
+            result = spotiflac_service.download_album(
+                spotify_url=spotify_url,
+                artist_name=song['artist_name'],
+                album_name=song.get('album_name', 'Unknown Album'),
+                services=services
+            )
+
+            if result['success']:
+                # Log activity
+                from radio_monitor.database import activity
+                activity.log_activity(
+                    cursor,
+                    event_type='spotiflac_album_download_success',
+                    title='SpotiFLAC Album Download Complete',
+                    description=f'Downloaded album: {song["artist_name"]}',
+                    metadata={
+                        'failure_id': plex_failure_id,
+                        'song_id': song['id'],
+                        'files_count': len(result['files_downloaded']),
+                        'service_used': result['service_used']
+                    },
+                    severity='success',
+                    source='user'
+                )
+                db.conn.commit()
+
+                return jsonify({
+                    'success': True,
+                    'job_id': plex_failure_id,
+                    'files_downloaded': result['files_downloaded'],
+                    'service_used': result['service_used'],
+                    'url_type': 'album'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': result.get('errors', ['Download failed'])[0]
+                }), 500
+
+        else:
+            return jsonify({'error': f'Unsupported URL type: {url_type}'}), 400
+
+    except Exception as e:
+        logger.error(f"Error starting SpotiFLAC download: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cursor.close()
+
+
+@plex_failures_bp.route('/api/spotiflac/auto-move', methods=['POST'])
+@requires_auth
+def api_auto_move_to_lidarr():
+    """
+    Automatically move downloaded file to Lidarr artist folder
+
+    JSON body:
+        - source_file: Path to downloaded file
+        - artist_name: Artist name
+        - lidarr_path: Lidarr root folder path
+        - url_type: 'track' or 'album' (optional)
+
+    Returns:
+        Success/failure with destination path
+    """
+    data = request.json
+    source_file = data.get('source_file')
+    artist_name = data.get('artist_name')
+    lidarr_path = data.get('lidarr_path')
+    url_type = data.get('url_type', 'track')
+
+    if not source_file or not artist_name or not lidarr_path:
+        return jsonify({'error': 'source_file, artist_name, and lidarr_path are required'}), 400
+
+    try:
+        from radio_monitor.integrations.spotiflac_service import SpotiFLACService
+        from radio_monitor.gui import load_settings
+
+        settings = load_settings() or {}
+        service = SpotiFLACService(settings)
+
+        # Auto-move with configured filename format
+        final_path = service.auto_move_to_lidarr_folder(
+            source_file=source_file,
+            artist_name=artist_name,
+            lidarr_path=lidarr_path,
+            url_type=url_type
+        )
+
+        # Log activity
+        db = current_app.config.get('db')
+        if db:
+            cursor = db.get_cursor()
+            try:
+                from radio_monitor.database import activity
+                activity.log_activity(
+                    cursor,
+                    event_type='spotiflac_auto_moved',
+                    title='SpotiFLAC File Auto-Moved',
+                    description=f'Auto-moved downloaded file for {artist_name} to {final_path}',
+                    metadata={
+                        'source_file': source_file,
+                        'destination_path': final_path,
+                        'artist_name': artist_name
+                    },
+                    severity='success',
+                    source='system'
+                )
+                db.conn.commit()
+            finally:
+                cursor.close()
+
+        return jsonify({
+            'success': True,
+            'destination_path': final_path,
+            'message': f'File moved to {final_path}'
+        })
+    except Exception as e:
+        logger.error(f"Error auto-moving file: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@plex_failures_bp.route('/api/lidarr/artist-path', methods=['GET'])
+@requires_auth
+def api_get_lidarr_artist_path():
+    """
+    Get the Lidarr folder path for an artist
+
+    Query params:
+        - artist_name: Artist name
+        - url_type: 'track' or 'album' (default: 'track')
+
+    Returns:
+        Path information with existence check and naming convention
+    """
+    artist_name = request.args.get('artist_name')
+    url_type = request.args.get('url_type', 'track')
+
+    if not artist_name:
+        return jsonify({'error': 'artist_name is required'}), 400
+
+    try:
+        from radio_monitor.integrations.spotiflac_service import SpotiFLACService
+        from radio_monitor.gui import load_settings
+
+        settings = load_settings() or {}
+        service = SpotiFLACService(settings)
+
+        result = service.get_lidarr_artist_path(artist_name)
+
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error getting Lidarr artist path: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500

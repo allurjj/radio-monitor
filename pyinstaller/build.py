@@ -144,6 +144,18 @@ options = [
     '--hidden-import=rapidfuzz.fuzz',
     '--hidden-import=rapidfuzz.process',
     '--hidden-import=rapidfuzz.utils',
+
+    # SpotiFLAC integration (for future real implementation - currently using mock)
+    # These won't hurt anything if not used - PyInstaller ignores unused modules
+    '--hidden-import=yt_dlp',              # YouTube downloader
+    '--hidden-import=mutagen',             # Audio metadata handling
+    '--hidden-import=mutagen.id3',         # ID3 tag support
+    '--hidden-import=mutagen.flac',        # FLAC tag support
+    '--hidden-import=Crypto',              # Encryption (pycryptodome)
+    '--hidden-import=Crypto.Cipher',       # Encryption ciphers
+    '--hidden-import=spotipy',             # Spotify API client
+    '--hidden-import=spotipy.oauth2',      # Spotify OAuth2
+
     '--hidden-import=email',
     '--hidden-import=email.mime',
     '--hidden-import=email.mime.text',

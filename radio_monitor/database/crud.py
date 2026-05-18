@@ -16,7 +16,12 @@ import sqlite3
 import threading
 from datetime import datetime, timedelta
 
-from radio_monitor.normalization import normalize_artist_name, normalize_song_title
+from radio_monitor.normalization import (
+    normalize_artist_name,
+    normalize_song_title,
+    normalize_for_matching,
+    generate_match_key_for_db
+)
 
 logger = logging.getLogger(__name__)
 
@@ -279,10 +284,13 @@ def add_artist(cursor, conn, mbid, name, first_seen_station):
     else:
         # Insert new artist
         now = datetime.now()
+        # Generate match_key for new artist
+        match_key = generate_match_key_for_db(normalized_name)
+
         cursor.execute("""
-            INSERT INTO artists (mbid, name, first_seen_station, first_seen_at, last_seen_at)
-            VALUES (?, ?, ?, ?, ?)
-        """, (mbid, normalized_name, first_seen_station, now, now))
+            INSERT INTO artists (mbid, name, match_key, first_seen_station, first_seen_at, last_seen_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (mbid, normalized_name, match_key, first_seen_station, now, now))
         conn.commit()
         return True
 
@@ -494,6 +502,169 @@ def reset_all_lidarr_import_status(cursor, conn):
         logger.error(f"Error resetting import status: {e}")
         conn.rollback()
         raise
+
+def merge_pending_artist_into_existing(cursor, conn, pending_artist_name, existing_mbid, existing_artist_name):
+    """Merge a PENDING artist into an existing artist with a real MBID
+
+    This handles the case where retry finds that a PENDING artist (e.g., "Dan Shay")
+    actually matches an existing artist (e.g., "Dan + Shay") with a real MBID.
+
+    The function:
+    1. Migrates all songs from PENDING artist to existing artist (preserving play counts)
+    2. Migrates song play history
+    3. Deletes the PENDING artist entry
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        pending_artist_name: Name of the PENDING artist to merge
+        existing_mbid: MBID of the existing real artist
+        existing_artist_name: Name of the existing real artist
+
+    Returns:
+        True if merged successfully, False otherwise
+    """
+    with _mbid_update_lock:
+        logger.debug(f"Acquired merge lock for {pending_artist_name} -> {existing_artist_name}")
+
+        try:
+            # Step 1: Get the PENDING artist's MBID
+            cursor.execute("""
+                SELECT mbid FROM artists WHERE name = ? AND mbid LIKE 'PENDING-%'
+            """, (pending_artist_name,))
+            result = cursor.fetchone()
+
+            if not result:
+                logger.warning(f"PENDING artist {pending_artist_name} not found - may have been already merged")
+                return False
+
+            pending_mbid = result[0]
+
+            logger.info(
+                f"Merging PENDING artist '{pending_artist_name}' ({pending_mbid}) "
+                f"into existing artist '{existing_artist_name}' ({existing_mbid})"
+            )
+
+            # Disable foreign keys to allow FK manipulation
+            cursor.execute("PRAGMA foreign_keys = OFF")
+            cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+
+            try:
+                # Step 2: Migrate songs from PENDING artist to existing artist
+                # We need to handle duplicates - a song might exist for both artists
+                logger.debug(f"Step 1: Migrating songs from {pending_artist_name} to {existing_artist_name}")
+
+                # Update songs that don't exist in the target artist yet
+                cursor.execute("""
+                    UPDATE songs
+                    SET artist_mbid = ?, artist_name = ?
+                    WHERE artist_mbid = ?
+                      AND NOT EXISTS (
+                        SELECT 1 FROM songs s2
+                        WHERE s2.artist_mbid = ?
+                          AND s2.song_title = songs.song_title
+                      )
+                """, (existing_mbid, existing_artist_name, pending_mbid, existing_mbid))
+
+                migrated_songs = cursor.rowcount
+                logger.debug(f"Migrated {migrated_songs} unique songs to {existing_artist_name}")
+
+                # For duplicate songs, we need to merge play counts
+                cursor.execute("""
+                    SELECT s1.id, s2.id, s1.song_title
+                    FROM songs s1
+                    INNER JOIN songs s2 ON s1.song_title = s2.song_title
+                    WHERE s1.artist_mbid = ? AND s2.artist_mbid = ?
+                """, (pending_mbid, existing_mbid))
+
+                duplicate_pairs = cursor.fetchall()
+                merged_play_counts = 0
+
+                for pending_song_id, existing_song_id, song_title in duplicate_pairs:
+                    # Get play counts
+                    cursor.execute("SELECT play_count FROM songs WHERE id = ?", (pending_song_id,))
+                    pending_count = cursor.fetchone()[0]
+
+                    cursor.execute("SELECT play_count FROM songs WHERE id = ?", (existing_song_id,))
+                    existing_count = cursor.fetchone()[0]
+
+                    # Add pending count to existing song
+                    new_count = existing_count + pending_count
+                    cursor.execute("UPDATE songs SET play_count = ? WHERE id = ?", (new_count, existing_song_id))
+
+                    logger.debug(f"Merged play counts for '{song_title}': {existing_count} + {pending_count} = {new_count}")
+                    merged_play_counts += 1
+
+                    # Delete the duplicate PENDING song
+                    cursor.execute("DELETE FROM songs WHERE id = ?", (pending_song_id,))
+
+                logger.debug(f"Merged play counts for {merged_play_counts} duplicate songs")
+
+                # Step 3: Migrate song play history (song_plays_daily)
+                logger.debug(f"Step 2: Migrating play history for {pending_artist_name}")
+
+                # Check if there's any play history to migrate
+                cursor.execute("""
+                    SELECT COUNT(*) FROM song_plays_daily
+                    WHERE song_id IN (SELECT id FROM songs WHERE artist_mbid = ?)
+                """, (pending_mbid,))
+
+                pending_history_count = cursor.fetchone()[0]
+
+                if pending_history_count > 0:
+                    # Note: After song migration, song_ids have changed
+                    # We need to migrate play history using song titles as the key
+                    cursor.execute("""
+                        UPDATE song_plays_daily
+                        SET song_id = (
+                            SELECT s2.id FROM songs s2
+                            WHERE s2.artist_mbid = ?
+                              AND s2.song_title = (
+                                  SELECT s.song_title FROM songs s WHERE s.id = song_plays_daily.song_id
+                              )
+                        )
+                        WHERE song_id IN (
+                            SELECT s.id FROM songs s WHERE s.artist_mbid = ?
+                        )
+                    """, (existing_mbid, pending_mbid))
+
+                    logger.debug(f"Migrated {pending_history_count} play history records")
+                else:
+                    logger.debug(f"No play history to migrate for {pending_artist_name}")
+
+                # Step 4: Delete the PENDING artist
+                logger.debug(f"Step 3: Deleting PENDING artist {pending_artist_name}")
+                cursor.execute("""
+                    DELETE FROM artists WHERE mbid = ?
+                """, (pending_mbid,))
+
+                # Re-enable foreign keys
+                cursor.execute("PRAGMA foreign_keys = ON")
+
+                conn.commit()
+                logger.info(
+                    f"Successfully merged '{pending_artist_name}' into '{existing_artist_name}' "
+                    f"({migrated_songs} songs migrated, {merged_play_counts} play counts merged)"
+                )
+                return True
+
+            except sqlite3.IntegrityError as e:
+                # Race condition or FK constraint issue
+                logger.warning(f"Database integrity error during merge: {e}")
+                conn.rollback()
+                cursor.execute("PRAGMA foreign_keys = ON")  # Ensure FKs are re-enabled
+                return False
+
+            except Exception as e:
+                logger.error(f"Error during merge transaction: {e}")
+                conn.rollback()
+                cursor.execute("PRAGMA foreign_keys = ON")  # Ensure FKs are re-enabled
+                raise e
+
+        except Exception as e:
+            logger.error(f"Error merging {pending_artist_name} into {existing_artist_name}: {e}")
+            return False
+
 
 def update_artist_mbid_from_pending(cursor, conn, artist_name, mbid):
     """Update artist MBID (for resolving NULL or PENDING MBIDs)
@@ -1579,6 +1750,11 @@ def add_artist_and_song_if_new(cursor, conn, artist_mbid, artist_name, song_titl
         cursor.execute("SELECT mbid, name FROM artists WHERE name = ?", (normalized_artist_name,))
         existing_by_name = cursor.fetchone()
 
+        # Check 1c: Does an artist with this match_key already exist? (NEW - aggressive matching)
+        match_key = generate_match_key_for_db(normalized_artist_name)
+        cursor.execute("SELECT mbid, name FROM artists WHERE match_key = ?", (match_key,))
+        existing_by_match_key = cursor.fetchone()
+
         # Determine which artist to use (if any)
         artist_to_use = None
 
@@ -1620,14 +1796,47 @@ def add_artist_and_song_if_new(cursor, conn, artist_mbid, artist_name, song_titl
                     f"Keeping existing artist (ignoring new MBID {artist_mbid})"
                 )
 
+        elif existing_by_match_key:  # NEW - aggressive matching via match_key
+            # Case 2c: Match key already exists with DIFFERENT name (aggressive duplicate detection)
+            # This catches variations like "Brooks Dunn" when "Brooks & Dunn" exists
+            #
+            # Subcase 2c-i: Existing artist has PENDING MBID and we have a real MBID
+            if existing_by_match_key[0] and existing_by_match_key[0].startswith('PENDING-') and not artist_mbid.startswith('PENDING-'):
+                # Update existing artist with real MBID (promote PENDING to real)
+                logger.info(
+                    f"Match key '{match_key}' found: '{existing_by_match_key[1]}' (PENDING) matches '{normalized_artist_name}'. "
+                    f"Updating with real MBID: {artist_mbid}"
+                )
+                cursor.execute("UPDATE artists SET mbid = ? WHERE match_key = ?", (artist_mbid, match_key))
+                artist_to_use = {
+                    'mbid': artist_mbid,
+                    'name': existing_by_match_key[1],  # Use existing name (display version)
+                    'reason': 'match_key_pending_to_real'
+                }
+
+            # Subcase 2c-ii: Existing artist has real MBID or same MBID (keep existing)
+            else:
+                logger.info(
+                    f"Match key '{match_key}' found: '{existing_by_match_key[1]}' matches '{normalized_artist_name}'. "
+                    f"Keeping existing artist (reason: {existing_by_match_key[0][:20]}...)"
+                )
+                artist_to_use = {
+                    'mbid': existing_by_match_key[0],
+                    'name': existing_by_match_key[1],  # Use existing name (display version)
+                    'reason': 'existing_match_key'
+                }
+
         else:
-            # Case 3: Neither MBID nor name exists - safe to insert new artist
+            # Case 3: Neither MBID nor name/match_key exists - safe to insert new artist
             try:
                 now = datetime.now()
+                # Generate match_key for new artist
+                new_match_key = generate_match_key_for_db(normalized_artist_name)
+
                 cursor.execute("""
-                    INSERT INTO artists (mbid, name, first_seen_at, last_seen_at, needs_lidarr_import)
-                    VALUES (?, ?, ?, ?, 1)
-                """, (artist_mbid, normalized_artist_name, now, now))
+                    INSERT INTO artists (mbid, name, match_key, first_seen_at, last_seen_at, needs_lidarr_import)
+                    VALUES (?, ?, ?, ?, ?, 1)
+                """, (artist_mbid, normalized_artist_name, new_match_key, now, now))
                 artist_added = True
                 artist_to_use = {
                     'mbid': artist_mbid,
@@ -2588,3 +2797,91 @@ def import_blocklist(cursor, conn, data):
         'skipped': skipped,
         'errors': errors
     }
+
+
+# ==================== VERIFICATION CRUD ====================
+
+def add_song_verification(cursor, song_id, source, is_verified, metadata_json=None):
+    """Add or update verification record for a song
+
+    Args:
+        cursor: SQLite cursor object
+        song_id: Song ID
+        source: Verification source ('musicbrainz', 'lidarr')
+        is_verified: Whether verification passed
+        metadata_json: JSON string with verification details
+    """
+    cursor.execute("""
+        INSERT OR REPLACE INTO artist_song_verification
+        (song_id, verification_source, is_verified, verified_at, metadata_json)
+        VALUES (?, ?, ?, ?, ?)
+    """, (song_id, source, 1 if is_verified else 0, datetime.now().isoformat(), metadata_json))
+
+
+def get_song_verification(cursor, song_id, source):
+    """Get verification record for a song
+
+    Args:
+        cursor: SQLite cursor object
+        song_id: Song ID
+        source: Verification source ('musicbrainz', 'lidarr')
+
+    Returns:
+        Tuple of (is_verified, verified_at, metadata_json) or None
+    """
+    cursor.execute("""
+        SELECT is_verified, verified_at, metadata_json
+        FROM artist_song_verification
+        WHERE song_id = ? AND verification_source = ?
+    """, (song_id, source))
+    return cursor.fetchone()
+
+
+def update_song_verification_status(cursor, song_id, status):
+    """Update verification status on songs table
+
+    Args:
+        cursor: SQLite cursor object
+        song_id: Song ID
+        status: New verification status
+    """
+    cursor.execute("""
+        UPDATE songs
+        SET verification_status = ?, verification_date = ?
+        WHERE id = ?
+    """, (status, datetime.now().isoformat(), song_id))
+
+
+def get_songs_by_verification_status(cursor, status, limit=100):
+    """Get songs by verification status
+
+    Args:
+        cursor: SQLite cursor object
+        status: Verification status to filter by
+        limit: Maximum number of songs to return
+
+    Returns:
+        List of song dicts with verification details
+    """
+    cursor.execute("""
+        SELECT s.id, s.title, s.verification_status, s.play_count,
+               a.mbid as artist_mbid, a.name as artist_name
+        FROM songs s
+        JOIN artists a ON s.artist_mbid = a.mbid
+        WHERE s.verification_status = ?
+        ORDER BY s.play_count DESC
+        LIMIT ?
+    """, (status, limit))
+
+    songs = []
+    for row in cursor.fetchall():
+        songs.append({
+            'id': row[0],
+            'title': row[1],
+            'verification_status': row[2],
+            'play_count': row[3],
+            'artist_mbid': row[4],
+            'artist_name': row[5]
+        })
+
+    return songs

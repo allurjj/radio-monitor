@@ -422,3 +422,101 @@ def get_lidarr_metadata_profiles(settings):
     except Exception as e:
         logger.error(f"Error getting metadata profiles: {e}")
         return None
+
+
+def lookup_artist_by_name(artist_name, settings):
+    """Lookup artist in Lidarr by name (not MBID)
+
+    This searches Lidarr for an artist by name and returns their metadata,
+    including the actual folder path on disk (with proper accents, etc.)
+
+    Args:
+        artist_name: Artist name to search for
+        settings: Settings dict with lidarr configuration
+
+    Returns:
+        Dict with keys:
+        - found: bool - whether artist was found
+        - artist: dict - artist metadata if found (includes 'path' field with actual folder path)
+        - message: str - error message if not found
+    """
+    # Load API key
+    api_key = load_api_key(settings)
+    if not api_key:
+        return {
+            'found': False,
+            'artist': None,
+            'message': 'API key not found'
+        }
+
+    # Get Lidarr URL
+    lidarr_url = settings.get('lidarr', {}).get('url', 'http://localhost:8686')
+
+    # Search for artist by name (not MBID)
+    search_url = f"{lidarr_url}/api/v1/artist/lookup?term={artist_name}"
+
+    try:
+        response = requests.get(
+            search_url,
+            headers={"X-Api-Key": api_key},
+            timeout=30
+        )
+
+        if response.status_code != 200:
+            logger.warning(f"Lidarr artist lookup failed for {artist_name}: HTTP {response.status_code}")
+            return {
+                'found': False,
+                'artist': None,
+                'message': f'Lookup failed: HTTP {response.status_code}'
+            }
+
+        artists = response.json()
+
+        if not artists:
+            logger.info(f"Artist '{artist_name}' not found in Lidarr")
+            return {
+                'found': False,
+                'artist': None,
+                'message': f'Artist not found in Lidarr'
+            }
+
+        # Return first matching artist
+        # Note: Lidarr may return multiple matches, we use the first one
+        artist_data = artists[0]
+
+        logger.info(f"Found artist '{artist_name}' in Lidarr: {artist_data.get('artistName', 'Unknown')}")
+
+        return {
+            'found': True,
+            'artist': artist_data,
+            'message': 'Artist found'
+        }
+
+    except requests.exceptions.Timeout:
+        logger.warning(f"Lidarr timeout for {artist_name}")
+        return {
+            'found': False,
+            'artist': None,
+            'message': 'Timeout'
+        }
+    except requests.exceptions.ConnectionError:
+        logger.warning(f"Lidarr connection error for {artist_name}")
+        return {
+            'found': False,
+            'artist': None,
+            'message': 'Connection error'
+        }
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Lidarr request failed for {artist_name}: {e}")
+        return {
+            'found': False,
+            'artist': None,
+            'message': f'Request error: {e}'
+        }
+    except Exception as e:
+        logger.error(f"Unexpected error looking up artist {artist_name}: {e}")
+        return {
+            'found': False,
+            'artist': None,
+            'message': f'Unexpected error: {e}'
+        }

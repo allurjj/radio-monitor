@@ -272,6 +272,49 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Advanced Options Section -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-secondary text-white">
+                            <i class="bi bi-gear"></i> Advanced Options
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox"
+                                       id="enable-various-artists-fallback"
+                                       name="enable_various_artists_fallback">
+                                <label class="form-check-label" for="enable-various-artists-fallback">
+                                    <strong>Include Various Artists compilations</strong>
+                                </label>
+                                <div class="form-text">
+                                    Search 'Various Artists' compilation albums when standard matching fails
+                                </div>
+                            </div>
+
+                            <div class="alert alert-warning d-none" id="va-warning" role="alert">
+                                <strong><i class="bi bi-exclamation-triangle"></i> Performance Warning:</strong>
+                                This may add significant time for large playlists (up to <span id="va-timeout-display">5000</span>ms per failed song).
+                                You may get unexpected results from compilation albums.
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="various-artists-timeout-ms" class="form-label fw-bold">
+                                        Max search time per song (milliseconds):
+                                    </label>
+                                    <input type="number" class="form-control"
+                                           id="various-artists-timeout-ms"
+                                           name="various_artists_timeout_ms"
+                                           min="1000" max="30000" step="500"
+                                           value="5000"
+                                           disabled>
+                                    <div class="form-text">
+                                        Recommended: 5000ms (5 seconds). Min: 1000ms, Max: 30000ms.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -599,6 +642,30 @@ function setupPlaylistModal() {
         }
     });
 
+    // Various Artists Fallback toggle
+    const vaFallbackCheckbox = document.getElementById('enable-various-artists-fallback');
+    const vaWarning = document.getElementById('va-warning');
+    const vaTimeoutInput = document.getElementById('various-artists-timeout-ms');
+
+    vaFallbackCheckbox.addEventListener('change', function() {
+        const isChecked = this.checked;
+
+        // Show/hide warning and enable/disable timeout input
+        if (isChecked) {
+            vaWarning.classList.remove('d-none');
+            vaTimeoutInput.disabled = false;
+        } else {
+            vaWarning.classList.add('d-none');
+            vaTimeoutInput.disabled = true;
+        }
+    });
+
+    // Update timeout display when input changes
+    vaTimeoutInput.addEventListener('input', function() {
+        const timeout = this.value;
+        document.getElementById('va-timeout-display').textContent = timeout;
+    });
+
     // Station checkbox handlers
     const checkboxes = document.querySelectorAll('.station-checkbox');
 
@@ -676,6 +743,17 @@ function editPlaylist(id) {
         document.getElementById('playlist-interval').required = false;
     }
 
+    // Set Various Artists fallback fields
+    const vaFallbackCheckbox = document.getElementById('enable-various-artists-fallback');
+    const vaTimeoutInput = document.getElementById('various-artists-timeout-ms');
+    const vaWarning = document.getElementById('va-warning');
+
+    vaFallbackCheckbox.checked = playlist.enable_various_artists_fallback || false;
+    vaTimeoutInput.value = playlist.various_artists_timeout_ms || 5000;
+
+    // Trigger change event to show/hide warning and enable/disable timeout input
+    vaFallbackCheckbox.dispatchEvent(new Event('change'));
+
     // Set stations
     document.querySelectorAll('.station-checkbox').forEach(cb => {
         cb.checked = playlist.station_ids.includes(cb.value);
@@ -713,6 +791,16 @@ function savePlaylist() {
     const stationIds = Array.from(document.querySelectorAll('.station-checkbox:checked'))
         .map(cb => cb.value);
 
+    // Various Artists fallback settings
+    const enableVaFallback = document.getElementById('enable-various-artists-fallback').checked;
+    const vaTimeoutMs = parseInt(document.getElementById('various-artists-timeout-ms').value) || 5000;
+
+    // Validate Various Artists timeout
+    if (enableVaFallback && (vaTimeoutMs < 1000 || vaTimeoutMs > 30000)) {
+        Toast.warning('Various Artists timeout must be between 1000 and 30000 milliseconds');
+        return;
+    }
+
     // Validate
     if (!name) {
         Toast.warning('Please enter a playlist name');
@@ -737,7 +825,9 @@ function savePlaylist() {
         days: days,
         is_auto: isAuto,
         interval_minutes: intervalMinutes,
-        enabled: true
+        enabled: true,
+        enable_various_artists_fallback: enableVaFallback,
+        various_artists_timeout_ms: vaTimeoutMs
     };
 
     const url = id ? `/api/plex/playlists/${id}` : '/api/plex/playlists';

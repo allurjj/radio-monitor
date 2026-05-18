@@ -207,13 +207,14 @@
                                     Attempts
                                     <span class="sort-indicator"></span>
                                 </th>
+                                <th>Retry Status</th>
                                 <th>Resolved</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="failuresTableBody">
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">Loading failures...</td>
+                                <td colspan="8" class="text-center text-muted py-4">Loading failures...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -287,9 +288,225 @@
         </div>
     </div>
 </div>
+
+<!-- Manual Match Modal -->
+<div class="modal fade" id="matchModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-link-45deg"></i>
+                    Manual Match: <span id="matchSongTitle"></span> by <span id="matchArtistName"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="matchSongId" class="d-none"></div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-search"></i> Search Results from Plex:
+                    </label>
+                    <div id="plexSearchResults" class="list-group">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Searching Plex library...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="overrideNotes" class="form-label">
+                        <i class="bi bi-sticky"></i> Notes (optional)
+                    </label>
+                    <textarea class="form-control" id="overrideNotes" rows="2"
+                              placeholder="e.g., Correct version from 2003 album..."></textarea>
+                    <div class="form-text">Add any notes about why this track was selected</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="saveOverrideBtn" disabled
+                        onclick="plexFailures.saveOverride()">
+                    <i class="bi bi-check-lg"></i> Save Override
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SpotiFLAC Download Modal -->
+<div class="modal fade" id="spotiflacDownloadModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-cloud-download"></i>
+                    Download Song with SpotiFLAC
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Step 1: Spotify URL Selection -->
+                <div id="step-spotify-url">
+                    <h6>Step 1: Select Spotify Track</h6>
+
+                    <!-- Option A: Manual URL Entry -->
+                    <div class="mb-3">
+                        <label class="form-label">Spotify URL</label>
+                        <input type="text" id="spotify-url-input"
+                               placeholder="https://open.spotify.com/track/..."
+                               class="form-control">
+                    </div>
+
+                    <!-- Option B: Auto-Search -->
+                    <button id="search-spotify-btn" class="btn btn-outline-primary">
+                        <i class="bi bi-search"></i> Search Spotify
+                    </button>
+
+                    <!-- Search Results (hidden by default) -->
+                    <div id="spotify-search-results" class="mt-3" style="display:none;">
+                        <div id="search-results-list" class="list-group">
+                            <!-- Dynamic results -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Download Configuration -->
+                <div id="step-download-config" style="display:none;">
+                    <h6>Step 2: Configure Download</h6>
+
+                    <!-- Selected Track Info -->
+                    <div class="alert alert-info">
+                        <strong>Selected:</strong> <span id="selected-track-info"></span>
+                    </div>
+
+                    <!-- Service Selection -->
+                    <label class="form-label">Download Sources (in order):</label>
+                    <div id="service-selection">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="tidal" checked>
+                            <label class="form-check-label">Tidal (FLAC - Recommended)</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="youtube">
+                            <label class="form-check-label">YouTube (MP3 - Fallback)</label>
+                        </div>
+                    </div>
+
+                    <!-- Lidarr Path (Pre-populated) -->
+                    <div class="mb-3 mt-3">
+                        <label class="form-label">Lidarr Artist Folder:</label>
+                        <input type="text" id="lidarr-path-input"
+                               class="form-control" readonly>
+                        <small class="text-muted">
+                            File will automatically download to temp folder, then move here.
+                        </small>
+                    </div>
+
+                    <!-- Filename Format (Auto-detected from Lidarr) -->
+                    <div class="mb-3">
+                        <label class="form-label">Filename Format:</label>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Auto-detected from Lidarr:</strong>
+                            <code id="detected-format-code">Loading...</code>
+                            <br><small>Using your Lidarr naming convention ensures consistency with your library.</small>
+                        </div>
+                        <details>
+                            <summary class="mb-2">Override with custom format</summary>
+                            <input type="text" id="custom-format-input" class="form-control"
+                                   placeholder="{title} - {artist}"
+                                   value="{title} - {artist}">
+                            <small class="text-muted">
+                                SpotiFLAC format tags: {title}, {artist}, {album}, {track}, {year}, {date}, {isrc}, {duration}
+                            </small>
+                        </details>
+                    </div>
+
+                    <!-- Quality Preference (Optional) -->
+                    <div class="mb-3">
+                        <label class="form-label">Audio Quality:</label>
+                        <select id="quality-preference-select" class="form-select">
+                            <option value="flac">FLAC (Lossless - Best Quality)</option>
+                            <option value="m4a">M4A (High Quality - Amazon)</option>
+                            <option value="mp3">MP3 (Good Quality - YouTube)</option>
+                            <option value="auto">Auto (Best Available)</option>
+                        </select>
+                        <small class="text-muted">
+                            Preferred audio format. Service will be selected based on quality.
+                        </small>
+                    </div>
+
+                    <!-- Download Button -->
+                    <button id="start-download-btn" class="btn btn-primary">
+                        <i class="bi bi-download"></i> Start Download
+                    </button>
+                </div>
+
+                <!-- Step 3: Download Progress -->
+                <div id="step-download-progress" style="display:none;">
+                    <h6>Step 3: Downloading...</h6>
+
+                    <!-- Progress Bar -->
+                    <div class="progress mb-3" style="height: 25px;">
+                        <div id="download-progress-bar" class="progress-bar"
+                             role="progressbar" style="width: 0%">
+                            0%
+                        </div>
+                    </div>
+
+                    <!-- Progress Details -->
+                    <div id="download-progress-details">
+                        <p><strong>Status:</strong> <span id="download-status">Initializing...</span></p>
+                        <p><strong>Service:</strong> <span id="download-service">-</span></p>
+                        <p><strong>Downloaded:</strong> <span id="download-size">0 MB</span></p>
+                        <p><strong>Speed:</strong> <span id="download-speed">0 MB/s</span></p>
+                    </div>
+
+                    <!-- Step 4: Auto-Move File (shown after success) -->
+                    <div id="step-move-file" style="display:none;" class="mt-4">
+                        <hr>
+                        <h6>Step 4: Moving to Lidarr Library</h6>
+                        <p class="text-success">
+                            <i class="bi bi-check-circle"></i> Download completed successfully!
+                        </p>
+
+                        <div class="mb-3">
+                            <label>Downloaded to:</label>
+                            <input type="text" id="temp-file-path" class="form-control" readonly>
+                        </div>
+
+                        <div class="mb-3">
+                            <label>Automatically moving to:</label>
+                            <input type="text" id="final-destination-path" class="form-control" readonly>
+                        </div>
+
+                        <div id="move-progress" class="alert alert-info" style="display:none;">
+                            <i class="bi bi-arrow-repeat spin"></i> Moving file...
+                        </div>
+
+                        <div id="move-result" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block custom_js %}
+<script src="{{ url_for('static', filename='js/spotiflac.js') }}"></script>
+<script src="{{ url_for('static', filename='js/plex-failures.js') }}"></script>
 <script>
 class PlexFailuresView {
     constructor() {
@@ -376,7 +593,7 @@ class PlexFailuresView {
         if (this.failures.length === 0) {
             this.tableBody.innerHTML = `
                 <tr>
-                    <td colspan="7">
+                    <td colspan="8">
                         <div class="empty-state">
                             <i class="bi bi-check-circle empty-state-icon"></i>
                             <h5 class="empty-state-title">No Plex failures found</h5>
@@ -391,6 +608,14 @@ class PlexFailuresView {
         this.tableBody.innerHTML = this.failures.map(failure => {
             const song = failure.song || { song_title: 'Unknown', artist_name: 'Unknown' };
 
+            // Format retry status badge
+            let retryStatusBadge = '<span class="text-muted"><i class="bi bi-dash"></i></span>';
+            if (failure.retry_match_succeeded === true) {
+                retryStatusBadge = '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Matched</span>';
+            } else if (failure.retry_match_succeeded === false) {
+                retryStatusBadge = '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> Failed</span>';
+            }
+
             return `
                 <tr>
                     <td>${this.escapeHtml(song.song_title)}</td>
@@ -398,10 +623,14 @@ class PlexFailuresView {
                     <td><span class="failure-badge ${failure.failure_reason}">${this.formatReason(failure.failure_reason)}</span></td>
                     <td>${this.formatDate(failure.failure_date)}</td>
                     <td>${failure.search_attempts}</td>
+                    <td>${retryStatusBadge}</td>
                     <td><span class="resolved-badge ${failure.resolved}">${failure.resolved ? 'Yes' : 'No'}</span></td>
                     <td>
                         ${!failure.resolved ? `
                             <div class="btn-group btn-group-sm">
+                                <button class="btn btn-primary" onclick="spotiFLAC.openDownloadModal(${failure.id}, '${this.escapeHtml(song.song_title)}', '${this.escapeHtml(song.artist_name)}')" title="Download with SpotiFLAC">
+                                    <i class="bi bi-cloud-download"></i>
+                                </button>
                                 <button class="btn btn-outline-primary" onclick="plexFailures.retryOne(${failure.id})" title="Retry Match">
                                     <i class="bi bi-arrow-clockwise"></i>
                                 </button>
@@ -505,8 +734,27 @@ class PlexFailuresView {
 
             if (data.success) {
                 if (data.found) {
-                    Toast.success(data.message);
-                    // Reload to remove from list
+                    // SUCCESS: Show detailed match information
+                    let message = data.message;
+                    if (data.plex_track) {
+                        message += `\n\nMatched Track:\n`;
+                        message += `  Title: ${data.plex_track.title}\n`;
+                        message += `  Artist: ${data.plex_track.artist}\n`;
+                        if (data.plex_track.album) {
+                            message += `  Album: ${data.plex_track.album}\n`;
+                        }
+                        if (data.plex_track.year) {
+                            message += `  Year: ${data.plex_track.year}\n`;
+                        }
+                        if (data.strategy_used) {
+                            message += `  Strategy: ${data.strategy_used}\n`;
+                        }
+                        if (data.confidence_level) {
+                            message += `  Confidence: ${data.confidence_level}`;
+                        }
+                    }
+                    Toast.success(message);
+                    // Reload to show updated retry status
                     this.loadFailures();
                     this.loadStats();
                 } else {
@@ -624,6 +872,191 @@ class PlexFailuresView {
             'plex_error': 'Plex Error'
         };
         return reasons[reason] || reason;
+    }
+
+    openMatchModal(songId, songTitle, artistName) {
+        this.selectedTrack = null;
+        this.currentSongId = songId;
+
+        document.getElementById('matchSongId').textContent = songId;
+        document.getElementById('matchSongTitle').textContent = songTitle;
+        document.getElementById('matchArtistName').textContent = artistName;
+        document.getElementById('overrideNotes').value = '';
+        document.getElementById('saveOverrideBtn').disabled = true;
+
+        // Show modal
+        this.matchModal = new bootstrap.Modal(document.getElementById('matchModal'));
+        this.matchModal.show();
+
+        // Search Plex
+        this.searchPlex(songTitle, artistName);
+    }
+
+    async searchPlex(songTitle, artistName) {
+        const resultsDiv = document.getElementById('plexSearchResults');
+        resultsDiv.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Searching...</span>
+                </div>
+                <p class="mt-2 text-muted">Searching Plex library...</p>
+            </div>
+        `;
+
+        const params = new URLSearchParams({
+            song_title: songTitle,
+            artist_name: artistName
+        });
+
+        try {
+            const response = await fetch(`/api/plex-search-for-override?${params}`);
+            const data = await response.json();
+
+            if (data.error) {
+                resultsDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <strong>Error:</strong> ${data.error}
+                    </div>
+                `;
+                return;
+            }
+
+            if (data.results.length === 0) {
+                resultsDiv.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="bi bi-search"></i>
+                        <strong>No tracks found</strong> in Plex library matching "${data.search_title}" by "${data.search_artist}"
+                    </div>
+                    <div class="text-muted text-center">
+                        <small>Try searching for just the song title or check if the track exists in your library</small>
+                    </div>
+                `;
+                return;
+            }
+
+            // Display results
+            let html = `<div class="list-group">`;
+            data.results.forEach((track, index) => {
+                const albumInfo = track.album
+                    ? `${track.album}${track.year ? ` (${track.year})` : ''}`
+                    : 'Unknown Album';
+
+                html += `
+                    <button type="button" class="list-group-item list-group-item-action d-flex gap-3 py-3"
+                            onclick="plexFailures.selectTrack(${index})">
+                        <div class="d-flex gap-2 w-100 justify-content-between">
+                            <div>
+                                <h6 class="mb-0">${this.escapeHtml(track.title)}</h6>
+                                <p class="mb-0 opacity-75">${this.escapeHtml(track.artist)}</p>
+                                <small class="text-muted">${this.escapeHtml(albumInfo)}</small>
+                            </div>
+                            <small class="opacity-50 text-nowrap">${track.duration_formatted}</small>
+                        </div>
+                        <input type="hidden" id="track${index}"
+                               data-key='${track.rating_key}'
+                               data-title='${this.escapeHtml(track.title).replace(/'/g, "\\'")}'
+                               data-artist='${this.escapeHtml(track.artist).replace(/'/g, "\\'")}'
+                               data-album='${track.album ? this.escapeHtml(track.album).replace(/'/g, "\\'") : ""}'
+                               data-year='${track.year || ""}'
+                               data-duration='${track.duration_ms || ""}'>
+                    </button>
+                `;
+            });
+            html += `</div>`;
+            html += `
+                <div class="text-center mt-3">
+                    <small class="text-muted">Found ${data.total} track${data.total !== 1 ? 's' : ''} in Plex library</small>
+                </div>
+            `;
+            resultsDiv.innerHTML = html;
+        } catch (error) {
+            console.error('Error searching Plex:', error);
+            resultsDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Failed to search Plex:</strong> ${error.message}
+                </div>
+            `;
+        }
+    }
+
+    selectTrack(index) {
+        const trackData = document.getElementById(`track${index}`);
+        this.selectedTrack = {
+            rating_key: trackData.dataset.key,
+            title: trackData.dataset.title,
+            artist: trackData.dataset.artist,
+            album: trackData.dataset.album,
+            year: trackData.dataset.year,
+            duration_ms: trackData.dataset.duration
+        };
+
+        // Enable save button
+        document.getElementById('saveOverrideBtn').disabled = false;
+
+        // Highlight selected
+        document.querySelectorAll('#plexSearchResults .list-group-item').forEach((item, i) => {
+            if (i === index) {
+                item.classList.add('active', 'list-group-item-primary');
+            } else {
+                item.classList.remove('active', 'list-group-item-primary');
+            }
+        });
+    }
+
+    async saveOverride() {
+        if (!this.selectedTrack || !this.currentSongId) {
+            alert('Please select a track first');
+            return;
+        }
+
+        const notes = document.getElementById('overrideNotes').value;
+
+        const payload = {
+            song_id: parseInt(this.currentSongId),
+            plex_track_key: this.selectedTrack.rating_key,
+            plex_track_title: this.selectedTrack.title,
+            plex_artist_name: this.selectedTrack.artist,
+            plex_album_title: this.selectedTrack.album || null,
+            plex_year: this.selectedTrack.year ? parseInt(this.selectedTrack.year) : null,
+            plex_duration_ms: this.selectedTrack.duration_ms ? parseInt(this.selectedTrack.duration_ms) : null,
+            notes: notes || null
+        };
+
+        // Show loading state
+        const saveBtn = document.getElementById('saveOverrideBtn');
+        const originalText = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Saving...';
+
+        try {
+            const response = await fetch('/api/plex-overrides', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                // Close modal and reload page
+                this.matchModal.hide();
+                Toast.success('Override saved successfully!');
+                this.loadFailures();
+                this.loadStats();
+            } else {
+                Toast.error('Failed to save override: ' + (data.error || 'Unknown error'));
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalText;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            Toast.error('Failed to save override: ' + error.message);
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalText;
+        }
     }
 }
 

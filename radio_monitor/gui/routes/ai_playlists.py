@@ -123,6 +123,8 @@ def api_generate_ai_playlist():
         last_seen = data.get('last_seen')
         max_songs = data.get('max_songs', 50)
         exclude_blocklist = data.get('exclude_blocklist', True)  # Default: True
+        enable_va_fallback = data.get('enable_various_artists_fallback', False)
+        va_timeout_ms = data.get('various_artists_timeout_ms', 5000)
 
     except Exception as e:
         logger.error(f"Error parsing request data: {e}")
@@ -176,6 +178,22 @@ def api_generate_ai_playlist():
         return jsonify({
             'status': 'error',
             'message': 'min_plays must be a number',
+            'error_code': 'INVALID_INPUT'
+        }), 400
+
+    # Validate Various Artists fallback timeout
+    try:
+        va_timeout_ms = int(va_timeout_ms)
+        if va_timeout_ms < 1000 or va_timeout_ms > 30000:
+            return jsonify({
+                'status': 'error',
+                'message': 'various_artists_timeout_ms must be between 1000 and 30000',
+                'error_code': 'INVALID_INPUT'
+            }), 400
+    except (ValueError, TypeError):
+        return jsonify({
+            'status': 'error',
+            'message': 'Invalid various_artists_timeout_ms value',
             'error_code': 'INVALID_INPUT'
         }), 400
 
@@ -387,7 +405,9 @@ def api_generate_ai_playlist():
                     logger.info(f"Matching song {idx}/{len(ai_songs)}: {song} - {artist}")
                     sys.stdout.flush()
 
-                track = find_song_in_library(music_library, song, artist)
+                track = find_song_in_library(music_library, song, artist,
+                                            enable_various_artists_fallback=enable_va_fallback,
+                                            various_artists_timeout_ms=va_timeout_ms)
 
                 if track:
                     songs_to_add.append(track)

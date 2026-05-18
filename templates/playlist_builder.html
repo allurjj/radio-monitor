@@ -438,6 +438,45 @@
                     <label for="playlistNotes" class="form-label">Notes (optional)</label>
                     <textarea class="form-control" id="playlistNotes" rows="3" placeholder="Add notes about this playlist..."></textarea>
                 </div>
+
+                <!-- Various Artists Fallback Section -->
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox"
+                               id="enable-various-artists-fallback"
+                               name="enable_various_artists_fallback">
+                        <label class="form-check-label" for="enable-various-artists-fallback">
+                            <strong>Include Various Artists compilations</strong>
+                        </label>
+                        <small class="form-text text-muted d-block">
+                            Search 'Various Artists' compilation albums when standard matching fails
+                        </small>
+                    </div>
+
+                    <div class="alert alert-warning d-none mt-2" id="va-warning" role="alert">
+                        <strong><i class="bi bi-exclamation-triangle"></i> Performance Warning:</strong>
+                        This may add significant time for large playlists (up to <span id="va-timeout-display">5000</span>ms per failed song).
+                        You may get unexpected results from compilation albums.
+                    </div>
+
+                    <div class="row mt-2">
+                        <div class="col-md-6">
+                            <label for="various-artists-timeout-ms" class="form-label">
+                                Max search time per song (milliseconds):
+                            </label>
+                            <input type="number" class="form-control"
+                                   id="various-artists-timeout-ms"
+                                   name="various_artists_timeout_ms"
+                                   min="1000" max="30000" step="500"
+                                   value="5000"
+                                   disabled>
+                            <small class="form-text text-muted">
+                                Recommended: 5000ms (5 seconds). Min: 1000ms, Max: 30000ms.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="playlistSummary" class="alert alert-info">
                     <strong>Summary:</strong>
                     <ul class="mb-0 mt-2" id="playlistSummaryList"></ul>

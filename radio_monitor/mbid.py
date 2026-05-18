@@ -36,6 +36,45 @@ NAME_SIMILARITY_THRESHOLD = 0.80
 NAME_SIMILARITY_WARNING = 0.70
 
 
+# Common artist name variations for MusicBrainz lookup
+# Maps scraped variations to canonical MusicBrainz names
+# These are common mismatches where scraper produces different formatting than MusicBrainz
+ARTIST_NAME_VARIATIONS = {
+    # Space vs hyphen variations
+    'all 4 one': 'All-4-One',
+    'all-4-one': 'All-4-One',
+
+    # Missing apostrophes
+    'desree': 'Des\'ree',
+
+    # "The" prefix variations (scraped with "The", MusicBrainz without)
+    'the paradox': 'Paradox',
+    'the toadies': 'Toadies',
+
+    # Common truncations
+    'jessie j': 'Jessie J',
+    'ariana grande': 'Ariana Grande',
+    'nicki minaj': 'Nicki Minaj',
+
+    # Punctuation variations
+    'a ha': 'a-ha',
+    'ne yo': 'Ne-Yo',
+    'j holiday': 'J-Holiday',
+    'jay z': 'Jay-Z',
+    'dr dre': 'Dr. Dre',
+    'ice t': 'Ice-T',
+
+    # Multiple artist separators (& vs + vs spaces)
+    'brooks dunn': 'Brooks & Dunn',
+    'dan shay': 'Dan + Shay',
+    'daryl hall john oates': 'Daryl Hall & John Oates',
+    'hall oates': 'Daryl Hall & John Oates',
+    'hootie the blowfish': 'Hootie & The Blowfish',
+    'k ci jojo': 'K-Ci & JoJo',
+    'sonny cher': 'Sonny & Cher',
+}
+
+
 def calculate_similarity(str1, str2):
     """Calculate string similarity using SequenceMatcher
 
@@ -335,13 +374,22 @@ def lookup_artist_mbid(artist_name, db, user_agent=None, max_retries=10, auto_re
         # New artist - will be added after MBID lookup
         logger.debug(f"New artist: {artist_name} - looking up MBID")
 
+    # Check for common artist name variations before querying MusicBrainz
+    # This handles cases where scraper produces different formatting than MusicBrainz
+    artist_name_lower = artist_name.lower().strip()
+    canonical_name = ARTIST_NAME_VARIATIONS.get(artist_name_lower, artist_name)
+    if canonical_name != artist_name:
+        logger.info(f"Using canonical name for MusicBrainz lookup: {artist_name} → {canonical_name}")
+        artist_name = canonical_name
+
     # Query MusicBrainz API with retry logic
     from urllib.parse import quote
     encoded_artist = quote(artist_name, safe='')
 
     # Increase limit to get more results for exact matching
+    # Use limit=50 because exact matches can appear beyond position 10 (e.g., Paul Russell at pos 14)
     # (Don't filter by type because some artists are bands/groups)
-    url = f"https://musicbrainz.org/ws/2/artist/?query=artist:{encoded_artist}&fmt=json&limit=10"
+    url = f"https://musicbrainz.org/ws/2/artist/?query=artist:{encoded_artist}&fmt=json&limit=50"
 
     # Set User-Agent (MusicBrainz requirement: must include app name and contact)
     # Using proper format to avoid rate limiting (Usage limit: 1 request/second)
@@ -387,8 +435,13 @@ def lookup_artist_mbid(artist_name, db, user_agent=None, max_retries=10, auto_re
                             result_mbid = result['id']
                             result_name = result.get('name', '')
 
+                            # Normalize result name to handle unicode characters
+                            # This fixes: a‐ha (U+2010) → a-ha (U+002D) for exact matching
+                            from radio_monitor.normalization import normalize_artist_name
+                            result_name_normalized = normalize_artist_name(result_name)
+
                             # Check for exact match first (case-insensitive)
-                            if result_name.lower() == artist_name.lower():
+                            if result_name_normalized.lower() == artist_name.lower():
                                 best_match = (result_mbid, result_name)
                                 best_similarity = 1.0
                                 exact_match_found = True
@@ -396,12 +449,12 @@ def lookup_artist_mbid(artist_name, db, user_agent=None, max_retries=10, auto_re
                                 break  # Stop searching, we found an exact match!
 
                             # No exact match, calculate similarity
-                            similarity = calculate_similarity(artist_name, result_name)
-                            logger.debug(f"Checking {artist_name} vs {result_name}: {similarity:.2%} similarity")
+                            similarity = calculate_similarity(artist_name, result_name_normalized)
+                            logger.debug(f"Checking {artist_name} vs {result_name_normalized}: {similarity:.2%} similarity")
 
                             if similarity > best_similarity:
                                 best_similarity = similarity
-                                best_match = (result_mbid, result_name)
+                                best_match = (result_mbid, result_name_normalized)
 
                         # ENHANCED: Use safe matching with word overlap verification
                         if exact_match_found:

@@ -1,4 +1,4 @@
-RADIO MONITOR v1.2.0 - Windows Edition
+RADIO MONITOR v1.2.3 - Windows Edition
 =======================================
 
 Thank you for using Radio Monitor!
@@ -12,6 +12,11 @@ QUICK START
 
 WHAT'S NEW
 -----------
+
+Version 1.2.3 (March 31, 2026)
+- Fixed "no module named email.mime" error in Windows EXE
+- Email notifications now work correctly
+- Updated PyInstaller build configuration
 
 Version 1.2.0 (March 1, 2026)
 - Removed Selenium dependency (reduced EXE size by 20-30 MB)

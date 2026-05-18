@@ -153,6 +153,49 @@ def _initialize_schema(cursor, conn, db_path, SCHEMA_VERSION):
             if current_version < 21:
                 _migrate_to_v21(cursor, conn)
 
+            # REPAIR: Ensure all expected columns exist (defensive check for corrupted migrations)
+            _repair_missing_columns(cursor, conn)
+
+
+def _repair_missing_columns(cursor, conn):
+    """Repair any missing columns that should exist in current schema.
+
+    This is a defensive check to handle cases where schema_version was updated
+    but migrations were not properly applied (e.g., interrupted migrations,
+    manual schema_version updates, etc.).
+
+    Ensures v15+ columns exist in playlists and manual_playlists tables.
+    """
+    try:
+        # Check playlists table for v15 columns (Various Artists fallback)
+        cursor.execute("PRAGMA table_info(playlists)")
+        playlists_columns = {row[1] for row in cursor.fetchall()}
+
+        if 'enable_various_artists_fallback' not in playlists_columns:
+            logger.warning("Missing enable_various_artists_fallback in playlists table - adding it")
+            cursor.execute("ALTER TABLE playlists ADD COLUMN enable_various_artists_fallback BOOLEAN DEFAULT 0")
+
+        if 'various_artists_timeout_ms' not in playlists_columns:
+            logger.warning("Missing various_artists_timeout_ms in playlists table - adding it")
+            cursor.execute("ALTER TABLE playlists ADD COLUMN various_artists_timeout_ms INTEGER DEFAULT 5000")
+
+        # Check manual_playlists table for v15 columns (Various Artists fallback)
+        cursor.execute("PRAGMA table_info(manual_playlists)")
+        manual_playlists_columns = {row[1] for row in cursor.fetchall()}
+
+        if 'enable_various_artists_fallback' not in manual_playlists_columns:
+            logger.warning("Missing enable_various_artists_fallback in manual_playlists table - adding it")
+            cursor.execute("ALTER TABLE manual_playlists ADD COLUMN enable_various_artists_fallback BOOLEAN DEFAULT 0")
+
+        if 'various_artists_timeout_ms' not in manual_playlists_columns:
+            logger.warning("Missing various_artists_timeout_ms in manual_playlists table - adding it")
+            cursor.execute("ALTER TABLE manual_playlists ADD COLUMN various_artists_timeout_ms INTEGER DEFAULT 5000")
+
+        conn.commit()
+
+    except Exception as e:
+        logger.error(f"Error repairing missing columns: {e}")
+
 
 def _create_new_schema(cursor, conn, SCHEMA_VERSION):
     """Create new schema (6 tables: stations, artists, songs, song_plays_daily, schema_version, playlists)

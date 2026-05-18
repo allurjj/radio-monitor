@@ -1406,6 +1406,10 @@ async function handleSavePlaylist() {
     const plexName = document.getElementById('plexPlaylistName').value.trim();
     const notes = document.getElementById('playlistNotes').value.trim();
 
+    // Various Artists fallback settings
+    const enableVaFallback = document.getElementById('enable-various-artists-fallback').checked;
+    const vaTimeoutMs = parseInt(document.getElementById('various-artists-timeout-ms').value) || 5000;
+
     // Validate
     if (!name) {
         showError('Please enter a playlist name');
@@ -1417,13 +1421,21 @@ async function handleSavePlaylist() {
         return;
     }
 
+    // Validate Various Artists timeout
+    if (enableVaFallback && (vaTimeoutMs < 1000 || vaTimeoutMs > 30000)) {
+        showError('Various Artists timeout must be between 1000 and 30000 milliseconds');
+        return;
+    }
+
     try {
         showLoading('Saving playlist...');
 
         const payload = {
             name: name,
             plex_playlist_name: plexName || name,
-            notes: notes
+            notes: notes,
+            enable_various_artists_fallback: enableVaFallback,
+            various_artists_timeout_ms: vaTimeoutMs
         };
 
         let response;
@@ -1828,6 +1840,30 @@ function attachEventListeners() {
 
     // Playlist name input validation
     document.getElementById('playlistName').addEventListener('input', validatePlaylistForm);
+
+    // Various Artists Fallback toggle
+    const vaFallbackCheckbox = document.getElementById('enable-various-artists-fallback');
+    const vaWarning = document.getElementById('va-warning');
+    const vaTimeoutInput = document.getElementById('various-artists-timeout-ms');
+
+    vaFallbackCheckbox.addEventListener('change', function() {
+        const isChecked = this.checked;
+
+        // Show/hide warning and enable/disable timeout input
+        if (isChecked) {
+            vaWarning.classList.remove('d-none');
+            vaTimeoutInput.disabled = false;
+        } else {
+            vaWarning.classList.add('d-none');
+            vaTimeoutInput.disabled = true;
+        }
+    });
+
+    // Update timeout display when input changes
+    vaTimeoutInput.addEventListener('input', function() {
+        const timeout = this.value;
+        document.getElementById('va-timeout-display').textContent = timeout;
+    });
 }
 
 // Initialize when DOM is ready

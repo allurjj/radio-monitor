@@ -86,7 +86,9 @@ def api_create_playlist():
             "min_plays": 5,
             "max_plays": 100,  // optional
             "days": 30,
-            "enabled": true
+            "enabled": true,
+            "enable_various_artists_fallback": false,  // optional
+            "various_artists_timeout_ms": 5000  // optional
         }
 
     Returns JSON:
@@ -132,6 +134,15 @@ def api_create_playlist():
             if interval < 10:
                 return jsonify({'error': 'interval_minutes must be at least 10'}), 400
 
+        # Validate Various Artists fallback timeout
+        va_timeout_ms = data.get('various_artists_timeout_ms', 5000)
+        try:
+            va_timeout_ms = int(va_timeout_ms)
+            if va_timeout_ms < 1000 or va_timeout_ms > 30000:
+                return jsonify({'error': 'various_artists_timeout_ms must be between 1000 and 30000'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid various_artists_timeout_ms value'}), 400
+
         # Import auto playlist manager
         from radio_monitor.auto_playlists import AutoPlaylistManager
 
@@ -151,7 +162,9 @@ def api_create_playlist():
             min_plays=min_plays,
             max_plays=max_plays,
             days=data.get('days'),
-            enabled=data.get('enabled', True)
+            enabled=data.get('enabled', True),
+            enable_various_artists_fallback=data.get('enable_various_artists_fallback', False),
+            various_artists_timeout_ms=va_timeout_ms
         )
 
         # If auto playlist, schedule it
@@ -285,6 +298,16 @@ def api_update_playlist(playlist_id):
             if min_plays is not None and max_plays is not None and min_plays > max_plays:
                 return jsonify({'error': 'min_plays cannot be greater than max_plays'}), 400
 
+        # Validate Various Artists fallback timeout if provided
+        if 'various_artists_timeout_ms' in data:
+            va_timeout_ms = data.get('various_artists_timeout_ms')
+            try:
+                va_timeout_ms = int(va_timeout_ms)
+                if va_timeout_ms < 1000 or va_timeout_ms > 30000:
+                    return jsonify({'error': 'various_artists_timeout_ms must be between 1000 and 30000'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid various_artists_timeout_ms value'}), 400
+
         # Import auto playlist manager
         from radio_monitor.auto_playlists import AutoPlaylistManager
 
@@ -307,7 +330,9 @@ def api_update_playlist(playlist_id):
             mode=data.get('mode'),
             min_plays=data.get('min_plays'),
             max_plays=data.get('max_plays'),
-            days=data.get('days')
+            days=data.get('days'),
+            enable_various_artists_fallback=data.get('enable_various_artists_fallback'),
+            various_artists_timeout_ms=data.get('various_artists_timeout_ms')
         )
 
         # If toggling is_auto, need to add/remove from scheduler
@@ -581,6 +606,10 @@ def api_execute_playlist(playlist_id):
             'exclude_blocklist': request.json.get('exclude_blocklist', True) if request.json else True  # Default: True
         }
 
+        # Get Various Artists fallback settings from playlist
+        enable_va_fallback = playlist.get('enable_various_artists_fallback', False)
+        va_timeout_ms = playlist.get('various_artists_timeout_ms', 5000)
+
         # Create/update playlist
         logger.info(f"Calling create_playlist for '{playlist['name']}' with mode={playlist['mode']}, max_songs={playlist['max_songs']}")
         result = create_playlist(
@@ -588,7 +617,9 @@ def api_execute_playlist(playlist_id):
             plex=plex,
             playlist_name=playlist['name'],
             mode=playlist['mode'],
-            filters=filters
+            filters=filters,
+            enable_various_artists_fallback=enable_va_fallback,
+            various_artists_timeout_ms=va_timeout_ms
         )
         logger.info(f"create_playlist returned: added={result.get('added', 0)}, not_found={result.get('not_found', 0)}, error={result.get('error', 'None')}")
 
@@ -716,13 +747,19 @@ def _execute_playlist_immediate(playlist_id, db_path, plex_config):
             'exclude_blocklist': True  # Default: True (blocklist filtering enabled)
         }
 
+        # Get Various Artists fallback settings from playlist
+        enable_va_fallback = playlist.get('enable_various_artists_fallback', False)
+        va_timeout_ms = playlist.get('various_artists_timeout_ms', 5000)
+
         # Create/update playlist in Plex
         result = create_playlist(
             db=db,
             plex=plex,
             playlist_name=playlist['name'],
             mode=playlist['mode'],
-            filters=filters
+            filters=filters,
+            enable_various_artists_fallback=enable_va_fallback,
+            various_artists_timeout_ms=va_timeout_ms
         )
 
         # Update last_updated if successful

@@ -73,7 +73,7 @@ def get_failures(cursor, limit: int = 100, offset: int = 0,
         SELECT
             f.id, f.song_id, f.playlist_id, f.failure_date,
             f.failure_reason, f.search_attempts, f.search_terms_used,
-            f.resolved, f.resolved_at,
+            f.resolved, f.resolved_at, f.retry_match_succeeded,
             s.id, s.artist_name, s.song_title,
             p.id as playlist_id_val, p.name as playlist_name
         FROM plex_match_failures f
@@ -119,7 +119,7 @@ def get_failures(cursor, limit: int = 100, offset: int = 0,
     failures = []
     for row in cursor.fetchall():
         (failure_id, song_id, playlist_id, failure_date, failure_reason,
-         search_attempts, search_terms_json, resolved, resolved_at,
+         search_attempts, search_terms_json, resolved, resolved_at, retry_match_succeeded,
          sid, artist_name, song_title, pid_val, playlist_name) = row
 
         search_terms = json.loads(search_terms_json) if search_terms_json else None
@@ -134,6 +134,7 @@ def get_failures(cursor, limit: int = 100, offset: int = 0,
             'search_terms': search_terms,
             'resolved': bool(resolved),
             'resolved_at': resolved_at,
+            'retry_match_succeeded': retry_match_succeeded,
             'song': {
                 'id': sid,
                 'artist_name': artist_name,
@@ -189,7 +190,7 @@ def get_failure_by_id(cursor, failure_id: int) -> Optional[Dict[str, Any]]:
         SELECT
             f.id, f.song_id, f.playlist_id, f.failure_date,
             f.failure_reason, f.search_attempts, f.search_terms_used,
-            f.resolved, f.resolved_at,
+            f.resolved, f.resolved_at, f.retry_match_succeeded,
             s.id, s.artist_name, s.song_title,
             p.id as playlist_id_val, p.name as playlist_name
         FROM plex_match_failures f
@@ -203,7 +204,7 @@ def get_failure_by_id(cursor, failure_id: int) -> Optional[Dict[str, Any]]:
         return None
 
     (failure_id, song_id, playlist_id, failure_date, failure_reason,
-     search_attempts, search_terms_json, resolved, resolved_at,
+     search_attempts, search_terms_json, resolved, resolved_at, retry_match_succeeded,
      sid, artist_name, song_title, pid_val, playlist_name) = row
 
     search_terms = json.loads(search_terms_json) if search_terms_json else None
@@ -218,6 +219,7 @@ def get_failure_by_id(cursor, failure_id: int) -> Optional[Dict[str, Any]]:
         'search_terms': search_terms,
         'resolved': bool(resolved),
         'resolved_at': resolved_at,
+        'retry_match_succeeded': retry_match_succeeded,
         'song': {
             'id': sid,
             'artist_name': artist_name,

@@ -221,6 +221,146 @@
             </div>
         </div>
 
+        <!-- SpotiFLAC Section -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-download text-success"></i> SpotiFLAC Music Downloads</h5>
+                <p class="text-muted small mb-2">
+                    Download missing songs from Spotify using multiple streaming services (Tidal, Qobuz, Amazon, Deezer, YouTube, Spotify).
+                    <strong>Note:</strong> You are responsible for ensuring you have the right to download this content.
+                </p>
+
+                <!-- Enable SpotiFLAC -->
+                <div class="row g-2 mb-2">
+                    <div class="col-md-12">
+                        <div class="form-check form-check-sm">
+                            <input class="form-check-input" type="checkbox" id="spotiflac-enabled">
+                            <label class="form-check-label" for="spotiflac-enabled">
+                                Enable SpotiFLAC Integration <span class="badge bg-secondary">Required for Plex Failures downloads</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Health Check -->
+                <div class="row g-2 mb-2">
+                    <div class="col-md-12">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label form-label-sm mb-0">External API Status</label>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-check-api-health">
+                                <i class="bi bi-activity"></i> Check APIs
+                            </button>
+                        </div>
+                        <div id="api-health-status" class="card bg-light">
+                            <div class="card-body p-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle"></i>
+                                    Click "Check APIs" to verify external service availability
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Download Services & Order -->
+                <div class="row g-2 mb-2">
+                    <div class="col-md-12">
+                        <label class="form-label form-label-sm">Download Services (drag to reorder priority)</label>
+                        <div class="card bg-light">
+                            <div class="card-body p-2">
+                                <div id="service-priority-list" class="list-group list-group-flush">
+                                    <!-- Services will be loaded here via JavaScript -->
+                                </div>
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle"></i>
+                                    Higher priority services are tried first. Drag items to reorder.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quality Preference -->
+                <div class="row g-2 mb-2">
+                    <div class="col-md-4">
+                        <label for="spotiflac-quality" class="form-label form-label-sm">Preferred Quality</label>
+                        <select class="form-select form-select-sm" id="spotiflac-quality">
+                            <option value="flac">FLAC (Lossless - Best)</option>
+                            <option value="m4a">M4A (High Quality)</option>
+                            <option value="mp3">MP3 (Compatible)</option>
+                            <option value="auto">Auto (Best Available)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="spotiflac-timeout" class="form-label form-label-sm">Download Timeout (seconds)</label>
+                        <input type="number" class="form-control form-control-sm" id="spotiflac-timeout" min="30" max="1800" value="300">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="form-check form-check-sm mt-3">
+                            <input class="form-check-input" type="checkbox" id="spotiflac-auto-move" checked>
+                            <label class="form-check-label" for="spotiflac-auto-move">
+                                Auto-move to Lidarr
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- File Naming -->
+                <div class="row g-2 mb-2">
+                    <div class="col-md-12">
+                        <div class="form-check form-check-sm mb-2">
+                            <input class="form-check-input" type="checkbox" id="spotiflac-use-lidarr-naming" checked>
+                            <label class="form-check-label" for="spotiflac-use-lidarr-naming">
+                                Use Lidarr Naming Convention
+                            </label>
+                        </div>
+                        <div id="custom-naming-group" style="display: none;">
+                            <label for="spotiflac-custom-format" class="form-label form-label-sm">Custom Filename Format</label>
+                            <input type="text" class="form-control form-control-sm" id="spotiflac-custom-format"
+                                   placeholder="{title} - {artist}" value="{title} - {artist}">
+                            <small class="text-muted">
+                                Available tokens: {title}, {artist}, {album}, {track}, {year}, {isrc}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Temp Directory -->
+                <div class="row g-2 mb-2">
+                    <div class="col-md-8">
+                        <label for="spotiflac-temp-dir" class="form-label form-label-sm">Temporary Download Directory</label>
+                        <input type="text" class="form-control form-control-sm" id="spotiflac-temp-dir"
+                               placeholder="./temp_downloads" value="./temp_downloads">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100" id="btn-validate-temp-dir">
+                            <i class="bi bi-check-circle"></i> Validate
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Docker Path Mappings -->
+                <div class="row g-2 mb-0">
+                    <div class="col-md-12">
+                        <label for="spotiflac-docker-mappings" class="form-label form-label-sm">
+                            Docker Path Mappings
+                            <span class="text-muted" data-bs-toggle="tooltip" data-bs-placement="top"
+                                  title="Map Linux Docker paths to Windows paths when running Windows .exe with Docker Lidarr">
+                                <i class="bi bi-info-circle"></i>
+                            </span>
+                        </label>
+                        <textarea class="form-control form-control-sm" id="spotiflac-docker-mappings" rows="4"
+                                  placeholder="/data/music,M:\music&#10;/volume1/music,Z:\music&#10;/music,\\NAS\music"></textarea>
+                        <div class="alert alert-info py-2 px-2 mt-1 mb-0 small">
+                            <strong>Example:</strong> <code>/data/music,M:\music</code><br>
+                            Maps Docker Lidarr path <code>/data/music</code> to Windows path <code>M:\music</code><br>
+                            <small class="text-muted">Format: <code>linux_path,windows_path</code> (one per line, comma-separated)</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- GUI Section -->
         <div class="card card-standard settings-card">
             <div class="card-body">
@@ -692,13 +832,46 @@ function populateForm(settings) {
     // OpenRouter
     if (settings.openrouter) {
         document.getElementById('openrouter-api-key').value = settings.openrouter.api_key || '';
-        document.getElementById('openrouter-model').value = settings.openrouter.model || 'qwen/qwen3-next-80b-a3b-instruct:free';
+        document.getElementById('openrouter-model').value = settings.openrouter.model || 'qwen/qwen3-next-80g-a3b-instruct:free';
         document.getElementById('openrouter-timeout').value = settings.openrouter.timeout_seconds || 120;
         document.getElementById('openrouter-max-retries').value = settings.openrouter.max_retries || 3;
         document.getElementById('openrouter-rate-limit').value = settings.openrouter.rate_limit_per_minute || 1;
         document.getElementById('openrouter-max-tokens').value = settings.openrouter.max_tokens || 100000;
         document.getElementById('openrouter-max-songs-input').value = settings.openrouter.max_songs_input || 5000;
     }
+
+    // SpotiFLAC
+    if (settings.spotiflac) {
+        document.getElementById('spotiflac-enabled').checked = settings.spotiflac.enabled !== false;
+        document.getElementById('spotiflac-temp-dir').value = settings.spotiflac.temp_download_dir || './temp_downloads';
+        document.getElementById('spotiflac-auto-move').checked = settings.spotiflac.auto_move_to_lidarr !== false;
+        document.getElementById('spotiflac-use-lidarr-naming').checked = settings.spotiflac.use_lidarr_naming_convention !== false;
+        document.getElementById('spotiflac-custom-format').value = settings.spotiflac.custom_filename_format || '{title} - {artist}';
+        document.getElementById('spotiflac-quality').value = settings.spotiflac.preferred_quality || 'flac';
+        document.getElementById('spotiflac-timeout').value = settings.spotiflac.download_timeout || 300;
+
+        // Load Docker path mappings
+        if (settings.spotiflac.docker_path_mappings) {
+            const mappings = settings.spotiflac.docker_path_mappings;
+            const mappingsText = Object.entries(mappings)
+                .map(([linux, windows]) => `${linux},${windows}`)
+                .join('\n');
+            document.getElementById('spotiflac-docker-mappings').value = mappingsText;
+        }
+
+        // Load service priority list
+        const services = settings.spotiflac.default_services || ['tidal', 'qobuz', 'amazon', 'deezer', 'youtube', 'spoti'];
+        renderServicePriorityList(services);
+    } else {
+        // Default SpotiFLAC settings
+        renderServicePriorityList(['tidal', 'qobuz', 'amazon', 'deezer', 'youtube', 'spoti']);
+    }
+
+    // Toggle custom naming format visibility
+    document.getElementById('spotiflac-use-lidarr-naming').addEventListener('change', function() {
+        const customGroup = document.getElementById('custom-naming-group');
+        customGroup.style.display = this.checked ? 'none' : 'block';
+    });
 }
 
 // Test Lidarr connection
@@ -1021,6 +1194,17 @@ function getFormSettings() {
             rate_limit_per_minute: parseInt(document.getElementById('openrouter-rate-limit').value) || 1,
             max_tokens: parseInt(document.getElementById('openrouter-max-tokens').value) || 100000,
             max_songs_input: parseInt(document.getElementById('openrouter-max-songs-input').value) || 5000
+        },
+        spotiflac: {
+            enabled: document.getElementById('spotiflac-enabled').checked,
+            temp_download_dir: document.getElementById('spotiflac-temp-dir').value,
+            auto_move_to_lidarr: document.getElementById('spotiflac-auto-move').checked,
+            use_lidarr_naming_convention: document.getElementById('spotiflac-use-lidarr-naming').checked,
+            custom_filename_format: document.getElementById('spotiflac-custom-format').value,
+            preferred_quality: document.getElementById('spotiflac-quality').value,
+            download_timeout: parseInt(document.getElementById('spotiflac-timeout').value) || 300,
+            default_services: getServicePriority(),
+            docker_path_mappings: parseDockerMappings()
         }
     };
 }
@@ -1563,6 +1747,279 @@ document.getElementById('btn-import-db').addEventListener('click', async functio
         })
         .catch(error => {
             resultDiv.innerHTML = `<div class="alert alert-danger">✗ Error: ${error.message}</div>`;
+        });
+    }
+});
+
+// SpotiFLAC Service Priority Management
+const ALL_SERVICES = [
+    { id: 'tidal', name: 'Tidal', icon: 'bi-water', quality: 'FLAC' },
+    { id: 'qobuz', name: 'Qobuz', icon: 'bi-disc', quality: 'FLAC' },
+    { id: 'deezer', name: 'Deezer', icon: 'bi-sound-wave', quality: 'FLAC' },
+    { id: 'amazon', name: 'Amazon Music', icon: 'bi-cart', quality: 'M4A' },
+    { id: 'youtube', name: 'YouTube', icon: 'bi-play-btn', quality: 'MP3' },
+    { id: 'spoti', name: 'Spotify', icon: 'bi-spotify', quality: 'OGG' }
+];
+
+function renderServicePriorityList(selectedServices) {
+    const listContainer = document.getElementById('service-priority-list');
+    listContainer.innerHTML = '';
+
+    // Create service cards for enabled services
+    selectedServices.forEach((serviceId, index) => {
+        const service = ALL_SERVICES.find(s => s.id === serviceId);
+        if (!service) return;
+
+        const item = document.createElement('div');
+        item.className = 'list-group-item service-priority-item';
+        item.dataset.serviceId = service.id;
+        item.draggable = true;
+        item.innerHTML = `
+            <div class="d-flex align-items-center">
+                <span class="me-2 text-muted">
+                    <i class="bi bi-grip-vertical"></i>
+                </span>
+                <span class="badge bg-secondary me-2">${index + 1}</span>
+                <i class="bi ${service.icon} me-2"></i>
+                <span class="flex-grow-1">${service.name}</span>
+                <span class="badge bg-light text-dark me-2">${service.quality}</span>
+                <button class="btn btn-sm btn-outline-danger" onclick="removeService('${service.id}')">
+                    <i class="bi bi-dash"></i>
+                </button>
+            </div>
+        `;
+
+        // Add drag events
+        item.addEventListener('dragstart', handleDragStart);
+        item.addEventListener('dragover', handleDragOver);
+        item.addEventListener('drop', handleDrop);
+        item.addEventListener('dragend', handleDragEnd);
+
+        listContainer.appendChild(item);
+    });
+
+    // Add "Add Service" button
+    const addButton = document.createElement('button');
+    addButton.className = 'btn btn-sm btn-outline-primary mt-2 w-100';
+    addButton.innerHTML = '<i class="bi bi-plus"></i> Add Service';
+    addButton.onclick = showAddServiceDialog;
+    listContainer.appendChild(addButton);
+}
+
+function showAddServiceDialog() {
+    const currentServices = getServicePriority();
+    const availableServices = ALL_SERVICES.filter(s => !currentServices.includes(s.id));
+
+    if (availableServices.length === 0) {
+        Toast.info('All services are already enabled');
+        return;
+    }
+
+    // Create a simple dropdown to select service
+    const select = document.createElement('select');
+    select.className = 'form-select form-select-sm mb-2';
+    select.innerHTML = '<option value="">Select a service to add...</option>' +
+        availableServices.map(s => `<option value="${s.id}">${s.name} (${s.quality})</option>`).join('');
+
+    // Add input to existing list or show modal
+    const listContainer = document.getElementById('service-priority-list');
+
+    // Replace add button with select
+    const addButton = listContainer.querySelector('button[onclick="showAddServiceDialog()"]');
+    if (addButton) {
+        addButton.style.display = 'none';
+
+        const confirmButton = document.createElement('button');
+        confirmButton.className = 'btn btn-sm btn-success me-1';
+        confirmButton.innerHTML = '<i class="bi bi-check"></i> Add';
+        confirmButton.onclick = () => {
+            if (select.value) {
+                const services = getServicePriority();
+                services.push(select.value);
+                renderServicePriorityList(services);
+            }
+        };
+
+        const cancelButton = document.createElement('button');
+        cancelButton.className = 'btn btn-sm btn-secondary';
+        cancelButton.innerHTML = '<i class="bi bi-x"></i> Cancel';
+        cancelButton.onclick = () => {
+            select.remove();
+            confirmButton.remove();
+            cancelButton.remove();
+            addButton.style.display = '';
+        };
+
+        addButton.parentNode.insertBefore(select, addButton.nextSibling);
+        addButton.parentNode.insertBefore(confirmButton, addButton.nextSibling);
+        addButton.parentNode.insertBefore(cancelButton, addButton.nextSibling);
+    }
+}
+
+function removeService(serviceId) {
+    const services = getServicePriority().filter(s => s !== serviceId);
+    renderServicePriorityList(services);
+}
+
+function getServicePriority() {
+    const items = document.querySelectorAll('.service-priority-item');
+    return Array.from(items).map(item => item.dataset.serviceId);
+}
+
+// Parse Docker path mappings from textarea format
+function parseDockerMappings() {
+    const mappingsText = document.getElementById('spotiflac-docker-mappings').value;
+    const mappings = {};
+
+    // Parse each line
+    mappingsText.split('\n').forEach(line => {
+        line = line.trim();
+        if (!line) return;
+
+        // Split by comma
+        const parts = line.split(',');
+        if (parts.length !== 2) {
+            console.warn('Invalid Docker path mapping:', line);
+            return;
+        }
+
+        const [linuxPath, windowsPath] = parts.map(p => p.trim());
+        if (linuxPath && windowsPath) {
+            mappings[linuxPath] = windowsPath;
+        }
+    });
+
+    return mappings;
+}
+
+// Drag and drop handlers
+let draggedItem = null;
+
+function handleDragStart(e) {
+    draggedItem = this;
+    this.style.opacity = '0.4';
+}
+
+function handleDragOver(e) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    e.dataTransfer.dropEffect = 'move';
+    return false;
+}
+
+function handleDrop(e) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+
+    if (draggedItem !== this) {
+        const items = Array.from(document.querySelectorAll('.service-priority-item'));
+        const fromIndex = items.indexOf(draggedItem);
+        const toIndex = items.indexOf(this);
+
+        if (fromIndex < toIndex) {
+            this.parentNode.insertBefore(draggedItem, this.nextSibling);
+        } else {
+            this.parentNode.insertBefore(draggedItem, this);
+        }
+
+        // Update badge numbers
+        updateBadgeNumbers();
+    }
+
+    return false;
+}
+
+function handleDragEnd(e) {
+    this.style.opacity = '1';
+}
+
+function updateBadgeNumbers() {
+    const items = document.querySelectorAll('.service-priority-item');
+    items.forEach((item, index) => {
+        const badge = item.querySelector('.badge-secondary');
+        if (badge) {
+            badge.textContent = index + 1;
+        }
+    });
+}
+
+// Validate temp directory button
+document.addEventListener('DOMContentLoaded', function() {
+    const validateBtn = document.getElementById('btn-validate-temp-dir');
+    if (validateBtn) {
+        validateBtn.addEventListener('click', function() {
+            const tempDir = document.getElementById('spotiflac-temp-dir').value;
+
+            fetch('/api/spotiflac/validate-path', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ path: tempDir })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.valid) {
+                    Toast.success(`✓ Temp directory is valid: ${data.path}`);
+                } else {
+                    Toast.error(`✗ Invalid path: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                Toast.error('Error validating path: ' + error.message);
+            });
+        });
+    }
+
+    // API Health Check button
+    const apiHealthBtn = document.getElementById('btn-check-api-health');
+    if (apiHealthBtn) {
+        apiHealthBtn.addEventListener('click', function() {
+            const statusDiv = document.getElementById('api-health-status');
+            statusDiv.innerHTML = '<div class="card-body p-2"><small class="text-muted"><i class="bi bi-spinner fa-spin"></i> Checking API status...</small></div>';
+
+            fetch('/api/spotiflac/check-api-health')
+                .then(response => response.json())
+                .then(data => {
+                    let html = '<div class="card-body p-2">';
+
+                    if (data.all_healthy) {
+                        html += '<div class="alert alert-success mb-1 py-1"><i class="bi bi-check-circle"></i> All external APIs are operational</div>';
+                    } else {
+                        html += '<div class="alert alert-warning mb-1 py-1"><i class="bi bi-exclamation-triangle"></i> Some APIs are having issues</div>';
+                    }
+
+                    // Service status
+                    html += '<div class="mt-2">';
+                    for (const [service, status] of Object.entries(data.services)) {
+                        const icon = status.healthy ? '<i class="bi bi-check-circle text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>';
+                        const badgeClass = status.healthy ? 'bg-success' : 'bg-danger';
+                        html += `
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="small">${icon} ${service.charAt(0).toUpperCase() + service.slice(1)}</span>
+                                <span class="badge ${badgeClass}">${status.message}</span>
+                            </div>
+                        `;
+                    }
+                    html += '</div>';
+
+                    // Issues list
+                    if (data.issues && data.issues.length > 0) {
+                        html += '<div class="mt-2"><small class="text-muted"><strong>Issues:</strong><ul class="mb-0 ps-3">';
+                        data.issues.forEach(issue => {
+                            html += `<li>${issue}</li>`;
+                        });
+                        html += '</ul></small></div>';
+                    }
+
+                    html += '</div>';
+                    statusDiv.innerHTML = html;
+                })
+                .catch(error => {
+                    statusDiv.innerHTML = '<div class="card-body p-2"><small class="text-danger"><i class="bi bi-x-circle"></i> Failed to check API status: ' + error.message + '</small></div>';
+                });
         });
     }
 });

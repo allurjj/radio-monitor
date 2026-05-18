@@ -341,7 +341,7 @@
                     </div>
 
                     <!-- Blocklist Settings Section -->
-                    <div class="card mb-0">
+                    <div class="card mb-3">
                         <div class="card-header bg-warning text-dark">
                             <i class="bi bi-shield-check"></i> Blocklist Settings
                         </div>
@@ -353,6 +353,49 @@
                                 </label>
                                 <div class="form-text">
                                     Songs or artists on your <a href="/blocklist" target="_blank">blocklist</a> will be excluded from this playlist.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Options Section -->
+                    <div class="card mb-0">
+                        <div class="card-header bg-secondary text-white">
+                            <i class="bi bi-gear"></i> Advanced Options
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox"
+                                       id="ai-enable-various-artists-fallback"
+                                       name="enable_various_artists_fallback">
+                                <label class="form-check-label" for="ai-enable-various-artists-fallback">
+                                    <strong>Include Various Artists compilations</strong>
+                                </label>
+                                <div class="form-text">
+                                    Search 'Various Artists' compilation albums when standard matching fails
+                                </div>
+                            </div>
+
+                            <div class="alert alert-warning d-none" id="ai-va-warning" role="alert">
+                                <strong><i class="bi bi-exclamation-triangle"></i> Performance Warning:</strong>
+                                This may add significant time for large playlists (up to <span id="ai-va-timeout-display">5000</span>ms per failed song).
+                                You may get unexpected results from compilation albums.
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="ai-various-artists-timeout-ms" class="form-label fw-bold">
+                                        Max search time per song (milliseconds):
+                                    </label>
+                                    <input type="number" class="form-control"
+                                           id="ai-various-artists-timeout-ms"
+                                           name="various_artists_timeout_ms"
+                                           min="1000" max="30000" step="500"
+                                           value="5000"
+                                           disabled>
+                                    <div class="form-text">
+                                        Recommended: 5000ms (5 seconds). Min: 1000ms, Max: 30000ms.
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -495,6 +538,30 @@ document.getElementById('stations-container').addEventListener('change', functio
     }
 });
 
+// AI Playlists: Various Artists Fallback toggle
+const aiVaFallbackCheckbox = document.getElementById('ai-enable-various-artists-fallback');
+const aiVaWarning = document.getElementById('ai-va-warning');
+const aiVaTimeoutInput = document.getElementById('ai-various-artists-timeout-ms');
+
+aiVaFallbackCheckbox.addEventListener('change', function() {
+    const isChecked = this.checked;
+
+    // Show/hide warning and enable/disable timeout input
+    if (isChecked) {
+        aiVaWarning.classList.remove('d-none');
+        aiVaTimeoutInput.disabled = false;
+    } else {
+        aiVaWarning.classList.add('d-none');
+        aiVaTimeoutInput.disabled = true;
+    }
+});
+
+// Update timeout display when input changes
+aiVaTimeoutInput.addEventListener('input', function() {
+    const timeout = this.value;
+    document.getElementById('ai-va-timeout-display').textContent = timeout;
+});
+
 // Form submission
 document.getElementById('ai-playlist-form').addEventListener('submit', async function(e) {
     e.preventDefault();
@@ -521,7 +588,9 @@ document.getElementById('ai-playlist-form').addEventListener('submit', async fun
         last_seen: document.getElementById('last-seen').value || null,
         max_songs: parseInt(document.getElementById('max-songs').value) || 50,
         days: document.getElementById('time-period').value ? parseInt(document.getElementById('time-period').value) : null,
-        exclude_blocklist: document.getElementById('ai-exclude-blocklist')?.checked ?? true
+        exclude_blocklist: document.getElementById('ai-exclude-blocklist')?.checked ?? true,
+        enable_various_artists_fallback: document.getElementById('ai-enable-various-artists-fallback')?.checked ?? false,
+        various_artists_timeout_ms: parseInt(document.getElementById('ai-various-artists-timeout-ms')?.value) || 5000
     };
 
     // Validate max_songs

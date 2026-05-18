@@ -647,7 +647,9 @@ def api_create_manual_playlist():
     Expects JSON:
         {
             "name": "Road Trip",
-            "plex_playlist_name": "Road Trip 2026"  // optional
+            "plex_playlist_name": "Road Trip 2026",  // optional
+            "enable_various_artists_fallback": false,  // optional
+            "various_artists_timeout_ms": 5000  // optional
         }
 
     Returns JSON:
@@ -671,15 +673,29 @@ def api_create_manual_playlist():
 
         name = data.get('name')
         plex_playlist_name = data.get('plex_playlist_name')
+        enable_va_fallback = data.get('enable_various_artists_fallback', False)
+        va_timeout_ms = data.get('various_artists_timeout_ms', 5000)
 
         if not name:
             return jsonify({'error': 'name is required'}), 400
+
+        # Validate Various Artists fallback timeout
+        try:
+            va_timeout_ms = int(va_timeout_ms)
+            if va_timeout_ms < 1000 or va_timeout_ms > 30000:
+                return jsonify({'error': 'various_artists_timeout_ms must be between 1000 and 30000'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid various_artists_timeout_ms value'}), 400
 
         cursor = db.get_cursor()
 
         try:
             # Create playlist
-            playlist_id = create_manual_playlist(cursor, db.conn, name, plex_playlist_name)
+            playlist_id = create_manual_playlist(
+                cursor, db.conn, name, plex_playlist_name,
+                enable_various_artists_fallback=enable_va_fallback,
+                various_artists_timeout_ms=va_timeout_ms
+            )
 
             # Add current selections to playlist
             session_id = get_session_id()
@@ -913,13 +929,19 @@ def api_create_playlist_in_plex(playlist_id):
             playlist_name = playlist.get('plex_playlist_name') or playlist['name']
             music_library_name = settings.get('plex', {}).get('music_library_name') or 'Music'
 
+            # Get Various Artists fallback settings from playlist
+            enable_va_fallback = playlist.get('enable_various_artists_fallback', False)
+            va_timeout_ms = playlist.get('various_artists_timeout_ms', 5000)
+
             # Use the same approach as auto playlists - replace mode
             result = create_or_update_manual_playlist(
                 playlist_name=playlist_name,
                 songs=songs,
                 plex_url=plex_url,
                 plex_token=plex_token,
-                music_library_name=music_library_name
+                music_library_name=music_library_name,
+                enable_various_artists_fallback=enable_va_fallback,
+                various_artists_timeout_ms=va_timeout_ms
             )
 
             if result.get('success'):
@@ -984,13 +1006,19 @@ def api_update_playlist_in_plex(playlist_id):
             playlist_name = playlist.get('plex_playlist_name') or playlist['name']
             music_library_name = settings.get('plex', {}).get('music_library_name') or 'Music'
 
+            # Get Various Artists fallback settings from playlist
+            enable_va_fallback = playlist.get('enable_various_artists_fallback', False)
+            va_timeout_ms = playlist.get('various_artists_timeout_ms', 5000)
+
             result = update_plex_manual_playlist(
                 playlist_name=playlist_name,
                 songs=songs,
                 plex_url=plex_url,
                 plex_token=plex_token,
                 old_playlist_name=None,  # Will use playlist_name
-                music_library_name=music_library_name
+                music_library_name=music_library_name,
+                enable_various_artists_fallback=enable_va_fallback,
+                various_artists_timeout_ms=va_timeout_ms
             )
 
             if result.get('success'):

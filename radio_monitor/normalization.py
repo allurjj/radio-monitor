@@ -25,6 +25,7 @@ Purpose: Test normalization impact on Lidarr and Plex matching
 
 import re
 import logging
+import unicodedata
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,45 @@ def fix_encoding_corruption(text):
     text = re.sub(r'\xe2[\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f]', "'", text)
 
     return text
+
+
+def strip_accents(text):
+    """Remove accent marks from text for matching purposes
+
+    This uses Unicode NFKD normalization to convert accented characters
+    to their base form + combining accent, then removes the combining marks.
+
+    This is critical for matching artists like:
+    - Beyoncé → Beyonce
+    - Ne-Yo → Neo-Yo (then hyphen normalization makes it Ne-Yo again)
+
+    Args:
+        text: Text that may contain accented characters
+
+    Returns:
+        Text with accent marks removed
+
+    Examples:
+        >>> strip_accents("Beyoncé")
+        "Beyonce"
+        >>> strip_accents("Ne-Yo")
+        "Ne-Yo"  # hyphen preserved
+        >>> strip_accents("café")
+        "cafe"
+    """
+    if not text:
+        return text
+
+    # Normalize to NFKD form: decomposes accented chars into base + combining accent
+    # Example: "é" → "e" + combining acute accent
+    normalized = unicodedata.normalize('NFKD', text)
+
+    # Remove combining diacritical marks (Unicode category Mn)
+    # This keeps the base character but removes the accent
+    return ''.join(
+        c for c in normalized
+        if not unicodedata.combining(c)
+    )
 
 
 # Known acronyms and stylized names that should stay ALL CAPS
@@ -225,6 +265,11 @@ def normalize_text(text, preserve_caps=False):
     # This fixes corrupted UTF-8 bytes before any other processing
     text = fix_encoding_corruption(text)
 
+    # Rule 0.5: Strip accent marks for matching
+    # This fixes: Beyoncé → Beyonce (allows matching across accents)
+    # Critical for MusicBrainz matching where accents may vary
+    text = strip_accents(text)
+
     # Rule 1: Trim whitespace
     text = text.strip()
 
@@ -290,6 +335,8 @@ def normalize_text(text, preserve_caps=False):
         text = "P!NK"
     elif text == "Acdc":
         text = "ACDC"
+    elif text == "Ac/dc":
+        text = "AC/DC"  # Fix AC/DC after title case conversion
 
     return text
 
@@ -388,6 +435,128 @@ def normalize_song_title(song_title):
         'Perfect'
     """
     return normalize_text(song_title)
+
+
+def normalize_for_matching(artist_name):
+    """Aggressive normalization for duplicate detection and matching.
+
+    This function creates a match key that ignores punctuation, spacing,
+    and capitalization variations to find duplicate artists.
+
+    Transformations applied (in order):
+    1. Apply conservative normalization (fix encoding, title case, etc.)
+    2. Convert to lowercase
+    3. Remove all spaces
+    4. Remove ampersands (&)
+    5. Remove plus signs (+)
+    6. Remove commas (,)
+    7. Remove periods (.)
+    8. Remove apostrophes (')
+    9. Remove hyphens (-)
+    10. Remove "the" prefix (for band names)
+
+    NOT for storage or display - only for duplicate detection!
+
+    Examples:
+        >>> normalize_for_matching("Brooks & Dunn")
+        'brooksdunn'
+        >>> normalize_for_matching("Brooks Dunn")
+        'brooksdunn'  # Same as above - matches!
+        >>> normalize_for_matching("Dan + Shay")
+        'danshay'
+        >>> normalize_for_matching("Dan Shay")
+        'danshay'  # Same as above - matches!
+        >>> normalize_for_matching("The B-52's")
+        'b52s'
+        >>> normalize_for_matching("The B 52S")
+        'b52s'  # Same as above - matches!
+        >>> normalize_for_matching("Mary J. Blige")
+        'maryjblige'
+        >>> normalize_for_matching("Mary J Blige")
+        'maryjblige'  # Same as above - matches!
+
+    Args:
+        artist_name: Artist name to normalize for matching
+
+    Returns:
+        Aggressively normalized match key (lowercase, no punctuation/spaces)
+    """
+    if not artist_name:
+        return ""
+
+    # Step 1: Apply conservative normalization first
+    # This fixes encoding, title case, apostrophes, etc.
+    text = normalize_artist_name(artist_name)
+
+    # Step 2: Convert to lowercase
+    text = text.lower()
+
+    # Step 3: Remove spaces
+    text = text.replace(' ', '')
+
+    # Step 4: Remove ampersands (&)
+    text = text.replace('&', '')
+
+    # Step 5: Remove plus signs (+)
+    text = text.replace('+', '')
+
+    # Step 6: Remove commas (,)
+    text = text.replace(',', '')
+
+    # Step 7: Remove periods (.)
+    text = text.replace('.', '')
+
+    # Step 8: Remove apostrophes and backticks
+    # Use regex to handle all apostrophe variants (ASCII, Unicode, backtick)
+    text = re.sub(r"[''''´`]", '', text)
+
+    # Step 9: Remove hyphens (-)
+    text = text.replace('-', '')
+
+    # Step 9.5: Remove other common special characters (!, @, #, $, %, *, etc.)
+    # This handles cases like "P!NK" vs "PINK"
+    for char in ['!', '@', '#', '$', '%', '^', '*', '~', '`']:
+        text = text.replace(char, '')
+
+    # Step 10: Remove "the" prefix (for band names like "The Beatles")
+    if text.startswith('the'):
+        text = text[3:]
+
+    # Final cleanup: ensure not empty
+    if not text:
+        # Fallback: use lowercase version with spaces only
+        text = artist_name.lower().replace(' ', '')
+
+    return text
+
+
+def generate_match_key_for_db(artist_name):
+    """Generate match key for database storage.
+
+    This is a wrapper around normalize_for_matching() that includes
+    additional safety checks for database operations.
+
+    Args:
+        artist_name: Artist name to generate match key for
+
+    Returns:
+        Match key suitable for database storage
+    """
+    match_key = normalize_for_matching(artist_name)
+
+    # Safety check: ensure match_key is not empty
+    if not match_key or match_key.strip() == '':
+        # Fallback: use artist name (shouldn't happen, but safety net)
+        logger.warning(f"Empty match_key generated for '{artist_name}', using fallback")
+        match_key = artist_name.lower().replace(' ', '')
+
+    # Safety check: ensure match_key is not too long
+    if len(match_key) > 500:
+        # Truncate extremely long names (shouldn't happen)
+        logger.warning(f"match_key too long ({len(match_key)} chars) for '{artist_name}', truncating")
+        match_key = match_key[:500]
+
+    return match_key
 
 
 # Edge case handlers for specific known issues
@@ -580,20 +749,24 @@ def split_collaboration_artists(artist_name):
 
     # Try different splitting strategies in order
     strategies = [
-        # Strategy 1: Feat/ft/featuring
-        (r'\s+(?:feat|ft\.|featuring)\s+', 'feat'),
+        # Strategy 1: Feat/ft/featuring (period is optional for "ft")
+        (r'\s+(?:feat\.?|ft\.?|featuring)\s+', 'feat'),
 
-        # Strategy 2: & (ampersand)
-        (r'\s+\&\s+', '&'),
+        # Strategy 2: & (ampersand) - RELAXED: allow no spaces
+        (r'\s*\&\s*', '&'),
 
-        # Strategy 3: + (plus)
-        (r'\s+\+\s+', '+'),
+        # Strategy 3: + (plus) - RELAXED: allow no spaces
+        (r'\s*\+\s*', '+'),
 
-        # Strategy 4: X (collaboration marker)
+        # Strategy 4: X (collaboration marker) - Must have spaces on both sides
         (r'\s+x\s+', 'x'),
 
         # Strategy 5: And (only lowercase "and" in artist names)
         (r'\s+and\s+', 'and'),
+
+        # NEW: Strategy 6: Commas (multiple artists like "Artist1, Artist2, Artist3")
+        # Simple: split on comma with optional whitespace
+        (r',\s*', ','),
     ]
 
     import re
@@ -606,12 +779,32 @@ def split_collaboration_artists(artist_name):
             artists = []
             for part in parts:
                 part = part.strip()
-                if part and len(part) >= 2:  # Minimum length check
-                    # Remove common trailing markers like "feat." or "ft."
-                    part = re.sub(r'\s+(?:feat|ft\.?|featuring).*$', '', part, flags=re.IGNORECASE)
-                    part = part.strip()
-                    if part and len(part) >= 2:
-                        artists.append(part)
+
+                # NEW: Validate minimum name length (corruption detection)
+                if not part or len(part) < 2:
+                    logger.debug(f"Skipping invalid artist name from split: '{part}' (too short)")
+                    continue
+
+                # NEW: Check for suspicious patterns (corruption detection)
+                # More than 5 words likely indicates a corruption issue
+                word_count = len(part.split())
+                if word_count > 5:
+                    logger.warning(
+                        f"Suspicious artist name from split: '{part}' ({word_count} words). "
+                        f"Likely corruption from timeout, skipping this part."
+                    )
+                    continue
+
+                # Remove common trailing markers like "feat." or "ft."
+                part = re.sub(r'\s+(?:feat|ft\.?|featuring).*$', '', part, flags=re.IGNORECASE)
+                part = part.strip()
+
+                # Final validation
+                if part and len(part) >= 2:
+                    artists.append(part)
+                    logger.debug(f"Split collaboration part: '{part}'")
+                else:
+                    logger.debug(f"Skipping empty/short part after cleaning: '{part}'")
 
             if artists:
                 logger.debug(f"Split collaboration '{artist_name}' into {len(artists)} artists using '{marker}' marker: {artists}")
@@ -623,11 +816,13 @@ def split_collaboration_artists(artist_name):
 
 
 def handle_collaboration(artist_name, song_title, mbid=None):
-    """Handle collaboration artists by splitting into individual artists
+    """Handle collaboration artists by extracting only the PRIMARY artist
 
-    This function takes an artist collaboration (e.g., "Miranda Lambert & Chris Stapleton")
-    and splits it into individual artists. Each artist will be stored separately
-    in the database with their own MBID.
+    This function takes an artist collaboration (e.g., "Garth Brooks feat. Brooks & Dunn")
+    and extracts ONLY the primary artist. Featured artists are ignored for database storage.
+
+    This prevents issues where featured artists are credited with songs they don't own,
+    which breaks Lidarr imports and Plex playlist creation.
 
     Args:
         artist_name: Artist name (may be collaboration)
@@ -635,12 +830,12 @@ def handle_collaboration(artist_name, song_title, mbid=None):
         mbid: MusicBrainz ID (optional, usually None for collaborations)
 
     Returns:
-        list: Tuples of (artist, song, mbid) for each individual artist
+        list: Single tuple of (primary_artist, song, mbid)
               If not a collaboration, returns [(artist, song, mbid)]
 
     Examples:
-        >>> handle_collaboration("Miranda Lambert & Chris Stapleton", "Palomino", None)
-        [('Miranda Lambert', 'Palomino', None), ('Chris Stapleton', 'Palomino', None)]
+        >>> handle_collaboration("Garth Brooks feat. Brooks & Dunn", "This is our song", None)
+        [('Garth Brooks', 'This is our song', None)]
 
         >>> handle_collaboration("Taylor Swift", "Love Story", "abc123")
         [('Taylor Swift', 'Love Story', 'abc123')]
@@ -659,18 +854,13 @@ def handle_collaboration(artist_name, song_title, mbid=None):
         logger.debug(f"'{artist_name}' is not a collaboration (single artist)")
         return [(normalized_artist, song_title, mbid)]
 
-    # Collaboration detected - split into individual artists
-    logger.info(f"Collaboration detected: '{artist_name}' split into {len(split_artists)} artists")
+    # Collaboration detected - extract PRIMARY artist only
+    # The primary artist is the first one before any collaboration markers
+    primary_artist = split_artists[0]
+    primary_artist = normalize_with_edge_cases(primary_artist)
 
-    results = []
-    for individual_artist in split_artists:
-        # Normalize each individual artist
-        individual_artist = normalize_with_edge_cases(individual_artist)
+    logger.info(f"Collaboration detected: '{artist_name}' -> Primary artist: '{primary_artist}' (ignoring featured artists)")
 
-        # Each artist gets the same song, but their own MBID (looked up later)
-        # We pass None as mbid because each artist needs their own lookup
-        results.append((individual_artist, song_title, None))
-
-        logger.debug(f"  - Individual artist: {individual_artist}")
-
-    return results
+    # Return only the primary artist with the song
+    # Featured artists are ignored to prevent Lidarr/Plex workflow issues
+    return [(primary_artist, song_title, mbid)]

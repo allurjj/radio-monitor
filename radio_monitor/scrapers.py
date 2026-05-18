@@ -406,6 +406,14 @@ def scrape_station_iheart_fast(config, max_retries=7, initial_wait=4):
             response = requests.get(config['url'], headers=headers, timeout=15)
             response.raise_for_status()
 
+            # CRITICAL FIX: Force UTF-8 encoding to prevent character corruption
+            # Some servers send wrong encoding headers (e.g., ISO-8859-1)
+            # which causes response.text to decode UTF-8 bytes incorrectly
+            # Example: 'Blink' (0x42) becomes 'Link' (0x4C) due to encoding mismatch
+            if response.encoding != 'utf-8':
+                logger.debug(f"Response encoding is {response.encoding}, forcing UTF-8")
+                response.encoding = 'utf-8'
+
             # Parse HTML
             soup = BeautifulSoup(response.text, "html.parser")
 
@@ -444,10 +452,38 @@ def scrape_station_iheart_fast(config, max_retries=7, initial_wait=4):
                         parts = href.strip("/").split("/")
                         if len(parts) > 1:
                             artist_slug = parts[1]
-                            # Strip trailing numeric ID (e.g. '-35764910')
+                            # Strip trailing numeric ID (e.g., '-35764910', '-6573')
+                            # This is always the last dash-number in the URL slug
+                            # "blink-182-6573" → "blink-182"
+                            # "maroon-5-40523" → "maroon-5"
                             artist_slug = re.sub(r"-\d+$", "", artist_slug)
-                            # Convert slug to title case
-                            artist_name = artist_slug.replace("-", " ").title()
+
+                            # CRITICAL FIX: URL slugs replace ALL special chars with dashes
+                            # "jay-sean-feat-lil-wayne" → "Jay Sean Feat Lil Wayne"
+                            # "blink-182" → "Blink 182"
+                            # "acdc" → "ACDC"
+                            # "sum-41" → "Sum 41"
+                            #
+                            # NOTE: This may incorrectly split some legitimate hyphenated names
+                            # like "killswitch-engage" → "Killswitch Engage", but this is
+                            # preferable to keeping everything dashed (which breaks MusicBrainz)
+
+                            # Special cases: URL slug → correct artist name
+                            # These are artists where the URL slug loses important punctuation
+                            special_cases = {
+                                'acdc': 'AC/DC',
+                                'a-ha': 'a-ha',
+                                'ne-yo': 'Ne-Yo',
+                                'tpau': "T'Pau",
+                                'kflay': 'K.Flay',
+                            }
+
+                            if artist_slug.lower() in special_cases:
+                                # Use special case mapping
+                                artist_name = special_cases[artist_slug.lower()]
+                            else:
+                                # Default: convert all dashes to spaces
+                                artist_name = artist_slug.replace("-", " ").title()
                         else:
                             logger.debug(f"Cannot extract artist from URL: {href}")
                             continue
@@ -760,95 +796,94 @@ def scrape_all_stations(db=None, station_ids=None):
                         logger.warning(f"BLOCKED: Song title appears to be advertisement/website content: '{song_title}' (skipping)")
                         continue
 
-                    # Handle collaborations: Use comprehensive collaboration detection
+                    # Handle collaborations: Extract PRIMARY artist only
+                    # Featured artists are ignored to prevent Lidarr/Plex workflow issues
                     from radio_monitor.normalization import handle_collaboration
 
-                    # Split collaboration into individual artists
-                    # Returns list of (artist, song, mbid) tuples
+                    # Extract primary artist from collaboration (returns single artist)
+                    # Returns list of (artist, song, mbid) tuples with exactly one element
                     collaboration_results = handle_collaboration(artist_name, song_title, artist_mbid)
 
-                    # Extract just the artist names for processing
-                    artists_to_process = [result[0] for result in collaboration_results]
+                    # Extract the primary artist (first and only result)
+                    primary_artist, processed_song_title, primary_artist_mbid = collaboration_results[0]
 
-                    # Log collaboration splits
-                    if len(artists_to_process) > 1:
-                        logger.info(f"Collaboration detected: '{artist_name}' split into {len(artists_to_process)} artists: {artists_to_process}")
+                    # Log if collaboration was detected
+                    if artist_name.lower() != primary_artist.lower():
+                        logger.info(f"Collaboration processed: '{artist_name}' -> Primary artist: '{primary_artist}'")
 
-                    # Process each primary artist from the collaboration
-                    for primary_artist in artists_to_process:
-                        # Get MBID with manual override support
-                        # Priority: Station MBID > Manual override > MusicBrainz API > PENDING
-                        primary_artist_mbid = artist_mbid if len(artists_to_process) == 1 else None
-                        primary_artist_verified_name = None  # Will be set by MusicBrainz lookup
+                    # Initialize verified name (will be set by MusicBrainz lookup)
+                    primary_artist_verified_name = None
 
-                        if not primary_artist_mbid:
-                            # Check for manual override first
-                            cursor = db.get_cursor()
-                            try:
-                                mbid_with_source, source = get_artist_mbid_with_override(
-                                    cursor,
-                                    primary_artist,
-                                    None  # No station MBID at this point
+                    # Get MBID with manual override support
+                    # Priority: Station MBID > Manual override > MusicBrainz API > PENDING
+                    if not primary_artist_mbid:
+                        # Check for manual override first
+                        cursor = db.get_cursor()
+                        try:
+                            mbid_with_source, source = get_artist_mbid_with_override(
+                                cursor,
+                                primary_artist,
+                                None  # No station MBID at this point
+                            )
+
+                            # Log source for debugging
+                            logger.debug(f"MBID for '{primary_artist}': source={source}, mbid={mbid_with_source}")
+
+                            if mbid_with_source:
+                                primary_artist_mbid = mbid_with_source
+                                primary_artist_verified_name = None  # Override doesn't provide verified name
+                            elif source == 'musicbrainz_needed':
+                                # No override found, try MusicBrainz lookup
+                                try:
+                                    from radio_monitor.mbid import lookup_artist_mbid
+                                    # Get user_agent from settings for MusicBrainz API
+                                    user_agent = settings.get('musicbrainz', {}).get('user_agent') if settings else None
+                                    primary_artist_mbid, primary_artist_verified_name = lookup_artist_mbid(primary_artist, db, user_agent=user_agent)
+                                    if primary_artist_mbid:
+                                        logger.debug(f"MBID from MusicBrainz for '{primary_artist}': {primary_artist_mbid} (verified: {primary_artist_verified_name})")
+                                except Exception as e:
+                                    logger.warning(f"MBID lookup failed for '{primary_artist}': {e}")
+                                    primary_artist_verified_name = None
+                        finally:
+                            cursor.close()
+
+                    # If still no MBID, try multi-artist resolution (ONE-TIME attempt)
+                    # Note: This only returns the MBID - no database updates during scraping
+                    # Database updates happen only during manual CLI command to avoid transaction conflicts
+                    if not primary_artist_mbid:
+                        try:
+                            from radio_monitor.multi_artist_resolver import try_split_and_validate
+
+                            # Try to resolve as multi-artist collaboration
+                            logger.info(f"No MBID found for '{primary_artist}', trying multi-artist resolution...")
+
+                            # Use the smart grouping resolver to find the primary MBID
+                            validated_artists = try_split_and_validate(primary_artist, db, user_agent, artist_cache)
+
+                            if validated_artists:
+                                # Get the MBID of the first (primary) artist
+                                from radio_monitor.mbid import lookup_artist_mbid
+                                primary_name = validated_artists[0]
+                                primary_artist_mbid, primary_artist_verified_name = lookup_artist_mbid(
+                                    artist_name=primary_name,
+                                    db=db,
+                                    user_agent=user_agent
                                 )
 
-                                # Log source for debugging
-                                logger.debug(f"MBID for '{primary_artist}': source={source}, mbid={mbid_with_source}")
+                            if primary_artist_mbid and not primary_artist_mbid.startswith('PENDING'):
+                                logger.info(f"Multi-artist resolution successful for '{primary_artist}' -> '{primary_name}': {primary_artist_mbid} (verified: {primary_artist_verified_name})")
+                            else:
+                                logger.debug(f"Multi-artist resolution failed for '{primary_artist}'")
+                        except Exception as e:
+                            logger.warning(f"Multi-artist resolution error for '{primary_artist}': {e}")
 
-                                if mbid_with_source:
-                                    primary_artist_mbid = mbid_with_source
-                                    primary_artist_verified_name = None  # Override doesn't provide verified name
-                                elif source == 'musicbrainz_needed':
-                                    # No override found, try MusicBrainz lookup
-                                    try:
-                                        from radio_monitor.mbid import lookup_artist_mbid
-                                        # Get user_agent from settings for MusicBrainz API
-                                        user_agent = settings.get('musicbrainz', {}).get('user_agent') if settings else None
-                                        primary_artist_mbid, primary_artist_verified_name = lookup_artist_mbid(primary_artist, db, user_agent=user_agent)
-                                        if primary_artist_mbid:
-                                            logger.debug(f"MBID from MusicBrainz for '{primary_artist}': {primary_artist_mbid} (verified: {primary_artist_verified_name})")
-                                    except Exception as e:
-                                        logger.warning(f"MBID lookup failed for '{primary_artist}': {e}")
-                                        primary_artist_verified_name = None
-                            finally:
-                                cursor.close()
-
-                        # If still no MBID, try multi-artist resolution (ONE-TIME attempt)
-                        # Note: This only returns the MBID - no database updates during scraping
-                        # Database updates happen only during manual CLI command to avoid transaction conflicts
-                        if not primary_artist_mbid:
-                            try:
-                                from radio_monitor.multi_artist_resolver import try_split_and_validate
-
-                                # Try to resolve as multi-artist collaboration
-                                logger.info(f"No MBID found for '{primary_artist}', trying multi-artist resolution...")
-
-                                # Use the smart grouping resolver to find the primary MBID
-                                validated_artists = try_split_and_validate(primary_artist, db, user_agent, artist_cache)
-
-                                if validated_artists:
-                                    # Get the MBID of the first (primary) artist
-                                    from radio_monitor.mbid import lookup_artist_mbid
-                                    primary_name = validated_artists[0]
-                                    primary_artist_mbid, primary_artist_verified_name = lookup_artist_mbid(
-                                        artist_name=primary_name,
-                                        db=db,
-                                        user_agent=user_agent
-                                    )
-
-                                if primary_artist_mbid and not primary_artist_mbid.startswith('PENDING'):
-                                    logger.info(f"Multi-artist resolution successful for '{primary_artist}' -> '{primary_name}': {primary_artist_mbid} (verified: {primary_artist_verified_name})")
-                                else:
-                                    logger.debug(f"Multi-artist resolution failed for '{primary_artist}'")
-                            except Exception as e:
-                                logger.warning(f"Multi-artist resolution error for '{primary_artist}': {e}")
-
-                        # If still no MBID, use a placeholder (PENDING)
-                        if not primary_artist_mbid:
-                            # Create temporary MBID placeholder
-                            import hashlib
-                            artist_hash = hashlib.md5(primary_artist.encode()).hexdigest()[:32]
-                            primary_artist_mbid = f"PENDING-{artist_hash}"
-                            logger.debug(f"Using placeholder MBID for {primary_artist}: {primary_artist_mbid}")
+                    # If still no MBID, use a placeholder (PENDING)
+                    if not primary_artist_mbid:
+                        # Create temporary MBID placeholder
+                        import hashlib
+                        artist_hash = hashlib.md5(primary_artist.encode()).hexdigest()[:32]
+                        primary_artist_mbid = f"PENDING-{artist_hash}"
+                        logger.debug(f"Using placeholder MBID for {primary_artist}: {primary_artist_mbid}")
 
                     # Add artist and song to database atomically (prevents orphaned artists)
                     # Use MusicBrainz's canonical name if available, otherwise fall back to scraped name
