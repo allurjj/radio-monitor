@@ -941,7 +941,8 @@ def api_create_playlist_in_plex(playlist_id):
                 plex_token=plex_token,
                 music_library_name=music_library_name,
                 enable_various_artists_fallback=enable_va_fallback,
-                various_artists_timeout_ms=va_timeout_ms
+                various_artists_timeout_ms=va_timeout_ms,
+                db=db
             )
 
             if result.get('success'):

@@ -1983,7 +1983,8 @@ def update_plex_manual_playlist(playlist_name, songs, plex_url, plex_token, old_
 
 
 def create_or_update_manual_playlist(playlist_name, songs, plex_url, plex_token, music_library_name='Music',
-                                   enable_various_artists_fallback=False, various_artists_timeout_ms=5000):
+                                   enable_various_artists_fallback=False, various_artists_timeout_ms=5000,
+                                   db=None):
     """Create or update manual playlist in Plex using replace mode
 
     This uses the same approach as auto playlists - clears existing playlist
