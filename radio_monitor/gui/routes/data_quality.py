@@ -204,18 +204,18 @@ def api_validate_batch():
             continue
 
         try:
-            # Validate recording
-            result = validate_recording_with_fallback(
+            # Validate recording - returns tuple (found: bool, method: str)
+            found, method = validate_recording_with_fallback(
                 artist_name=song['artist_name'],
                 song_title=song['song_title'],
                 artist_mbid=song['artist_mbid']
             )
 
-            if result['match_found']:
-                # Update song if new MBID found
-                if result.get('recording_mbid'):
-                    updated += 1
+            if found:
+                # Successfully validated
+                updated += 1
                 mark_song_validated(db, song['id'], success=True)
+                logger.debug(f"Validated song {song['id']} using method: {method}")
             else:
                 mark_song_validated(db, song['id'], success=False, error_message='No match found')
 
