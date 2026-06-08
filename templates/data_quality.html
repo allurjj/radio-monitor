@@ -105,21 +105,14 @@
                     </button>
                     {% endif %}
                     <button id="btn-validate-batch" class="btn btn-outline-info">
-                        <i class="bi bi-check-circle"></i> Validate 50 Songs
+                        <i class="bi bi-check-circle"></i> Validate 10 Songs
                     </button>
                 </div>
                 <div id="validation-progress" class="validation-progress">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center">
-                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-                            <span id="validation-status">Validating recordings...</span>
-                        </div>
-                        <small id="validation-count" class="text-muted">0/50</small>
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        <span id="validation-status">Validating recordings... This may take a minute...</span>
                     </div>
-                    <div class="progress mt-2" style="height: 6px;">
-                        <div id="validation-bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
-                    </div>
-                    <div id="validation-current" class="small text-muted mt-1" style="height: 16px;"></div>
                 </div>
             </div>
         </div>
@@ -420,10 +413,8 @@ document.getElementById('btn-validate-batch')?.addEventListener('click', functio
     const btn = this;
     const progressDiv = document.getElementById('validation-progress');
     const statusText = document.getElementById('validation-status');
-    const progressBar = document.getElementById('validation-bar');
-    const countText = document.getElementById('validation-count');
 
-    if (!confirm('Validate 50 songs with MusicBrainz?\n\nThis will check recording-level metadata and may take a few minutes.')) {
+    if (!confirm('Validate 10 songs with MusicBrainz?\n\nThis will check recording-level metadata and may take a minute.')) {
         return;
     }
 
@@ -432,29 +423,15 @@ document.getElementById('btn-validate-batch')?.addEventListener('click', functio
     btn.disabled = true;
     progressDiv.classList.add('show');
 
-    // Simulate progress animation
-    let progress = 0;
-    const totalSongs = 50;
-    const progressInterval = setInterval(() => {
-        if (progress < 90) {
-            progress += 2;
-            progressBar.style.width = progress + '%';
-            const current = Math.floor(progress/100 * totalSongs);
-            statusText.textContent = `Validating recordings...`;
-            if (countText) countText.textContent = `${current}/${totalSongs}`;
-        }
-    }, 500);
-
     fetch('/api/data-quality/validate-batch', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ count: 50 })
+        body: JSON.stringify({ count: 10 })
     })
         .then(response => response.json())
         .then(data => {
-            clearInterval(progressInterval);
             progressDiv.classList.remove('show');
             btn.disabled = false;
 
@@ -466,7 +443,6 @@ document.getElementById('btn-validate-batch')?.addEventListener('click', functio
             }
         })
         .catch(error => {
-            clearInterval(progressInterval);
             console.error('Error:', error);
             progressDiv.classList.remove('show');
             btn.disabled = false;
