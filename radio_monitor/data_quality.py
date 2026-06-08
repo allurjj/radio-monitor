@@ -6,10 +6,11 @@ All checks are performed without API calls to MusicBrainz.
 
 Key Functions:
 - run_health_check(): Comprehensive health check
-- get_pending_mbid_count(): Count songs with PENDING MBIDs
+- get_pending_mbid_songs(): Get songs with PENDING MBIDs
 - get_known_bad_artists(): Find artists needing correction
 - get_messy_titles(): Find songs with messy titles
 - detect_potential_duplicates(): Find possible duplicate songs
+- get_validated_count(): Count validated songs
 
 Usage:
     from radio_monitor.data_quality import run_health_check
@@ -21,6 +22,7 @@ Usage:
 import logging
 import re
 from typing import Dict, List, Any
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -41,13 +43,14 @@ def run_health_check(db) -> Dict[str, Any]:
         'summary': {}
     }
 
-    # Check 1: PENDING MBIDs
-    pending = get_pending_mbid_count(db)
-    if pending > 0:
+    # Check 1: PENDING MBIDs - with song details
+    pending_songs = get_pending_mbid_songs(db, limit=100)
+    if pending_songs:
         issues['warning'].append({
             'type': 'pending_mbid',
-            'count': pending,
-            'message': f'{pending} songs with PENDING MBIDs'
+            'count': len(pending_songs),
+            'songs': pending_songs,
+            'message': f'{len(pending_songs)} songs with PENDING MBIDs'
         })
 
     # Check 2: Known bad artist names
@@ -60,23 +63,28 @@ def run_health_check(db) -> Dict[str, Any]:
             'message': f'{len(bad_artists)} songs with known artist name issues'
         })
 
-    # Check 3: Messy song titles
-    messy = get_messy_titles(db)
+    # Check 3: Messy song titles - with details
+    messy = get_messy_titles(db, limit=100)
     if messy:
         issues['info'].append({
             'type': 'song_titles',
             'count': len(messy),
+            'titles': messy,
             'message': f'{len(messy)} songs with messy titles (parentheticals, etc.)'
         })
 
-    # Check 4: Potential duplicates
-    dupes = detect_potential_duplicates(db)
+    # Check 4: Potential duplicates - with details
+    dupes = detect_potential_duplicates(db, limit=100)
     if dupes:
         issues['warning'].append({
             'type': 'duplicates',
             'count': len(dupes),
-            'message': f'{len(dupes)} potential duplicate songs'
+            'duplicates': dupes,
+            'message': f'{len(dupes)} potential duplicate song pairs'
         })
+
+    # Get validation stats
+    validated_count = get_validated_count(db)
 
     # Summary
     stats = db.get_stats()
@@ -84,32 +92,81 @@ def run_health_check(db) -> Dict[str, Any]:
     issues['summary'] = {
         'total_songs': total_songs,
         'total_issues': sum(len(issues[k]) for k in ['critical', 'warning', 'info']),
-        'health_score': calculate_health_score(total_songs, issues)
+        'health_score': calculate_health_score(total_songs, issues),
+        'validated_count': validated_count
     }
 
     return issues
 
 
-def get_pending_mbid_count(db) -> int:
-    """Count songs with PENDING MBIDs
+def get_validated_count(db) -> int:
+    """Count songs that have been validated with MusicBrainz recording checks
 
     Args:
         db: RadioDatabase instance
 
     Returns:
-        Number of songs with PENDING MBIDs
+        Number of validated songs
     """
     cursor = db.get_cursor()
     try:
-        cursor.execute("""
-            SELECT COUNT(*) as count
-            FROM songs s
-            WHERE s.artist_mbid LIKE 'PENDING-%'
-        """)
-        result = cursor.fetchone()
-        return result[0] if result else 0
+        # Check if validation_status column exists
+        cursor.execute("PRAGMA table_info(songs)")
+        columns = [row[1] for row in cursor.fetchall()]
+
+        if 'validation_status' in columns:
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM songs
+                WHERE validation_status = 'valid'
+            """)
+            result = cursor.fetchone()
+            return result[0] if result else 0
+        else:
+            # Column doesn't exist yet (schema not migrated)
+            return 0
+    except Exception as e:
+        logger.error(f"Error getting validated count: {e}")
+        return 0
     finally:
         cursor.close()
+
+
+def get_pending_mbid_songs(db, limit: int = 100) -> List[Dict]:
+    """Get songs with PENDING MBIDs with details
+
+    Args:
+        db: RadioDatabase instance
+        limit: Maximum number of results (default: 100)
+
+    Returns:
+        List of dicts with song info
+    """
+    pending_songs = []
+    cursor = db.get_cursor()
+
+    try:
+        cursor.execute("""
+            SELECT id, artist_name, song_title, artist_mbid, play_count
+            FROM songs
+            WHERE artist_mbid LIKE 'PENDING-%'
+            ORDER BY play_count DESC
+            LIMIT ?
+        """, (limit,))
+
+        results = cursor.fetchall()
+        for row in results:
+            pending_songs.append({
+                'song_id': row[0],
+                'artist_name': row[1],
+                'song_title': row[2],
+                'artist_mbid': row[3],
+                'play_count': row[4]
+            })
+    finally:
+        cursor.close()
+
+    return pending_songs
 
 
 def get_known_bad_artists(db) -> List[Dict]:
@@ -175,6 +232,7 @@ def get_messy_titles(db, limit: int = 100) -> List[Dict]:
                OR song_title LIKE '%feat%'
                OR song_title LIKE '%ft.%'
                OR song_title LIKE '%featuring%'
+            ORDER BY play_count DESC
             LIMIT ?
         """, (limit,))
 
@@ -196,12 +254,12 @@ def get_messy_titles(db, limit: int = 100) -> List[Dict]:
     return messy_songs
 
 
-def detect_potential_duplicates(db, limit: int = 50) -> List[Dict]:
+def detect_potential_duplicates(db, limit: int = 100) -> List[Dict]:
     """Detect potential duplicate songs
 
     Args:
         db: RadioDatabase instance
-        limit: Maximum number of results (default: 50)
+        limit: Maximum number of results (default: 100)
 
     Returns:
         List of potential duplicate groups
@@ -271,3 +329,90 @@ def calculate_health_score(total_songs: int, issues: Dict) -> float:
     score = max(0, 100 - (total_issues / total_songs * 100))
 
     return round(score, 1)
+
+
+def get_songs_to_validate(db, count: int = 50) -> List[Dict]:
+    """Get songs that need recording validation
+
+    Args:
+        db: RadioDatabase instance
+        count: Number of songs to return (default: 50)
+
+    Returns:
+        List of song dicts to validate
+    """
+    cursor = db.get_cursor()
+
+    try:
+        # Check if validation_status column exists
+        cursor.execute("PRAGMA table_info(songs)")
+        columns = [row[1] for row in cursor.fetchall()]
+
+        if 'validation_status' in columns:
+            # Get songs that haven't been validated yet, prioritized by play count
+            cursor.execute("""
+                SELECT id, artist_name, song_title, artist_mbid, play_count
+                FROM songs
+                WHERE validation_status = 'unvalidated' OR validation_status IS NULL
+                ORDER BY play_count DESC
+                LIMIT ?
+            """, (count,))
+        else:
+            # Column doesn't exist, get all songs by play count
+            cursor.execute("""
+                SELECT id, artist_name, song_title, artist_mbid, play_count
+                FROM songs
+                WHERE artist_mbid NOT LIKE 'PENDING-%'
+                ORDER BY play_count DESC
+                LIMIT ?
+            """, (count,))
+
+        results = cursor.fetchall()
+        songs = []
+        for row in results:
+            songs.append({
+                'id': row[0],
+                'artist_name': row[1],
+                'song_title': row[2],
+                'artist_mbid': row[3],
+                'play_count': row[4]
+            })
+        return songs
+    finally:
+        cursor.close()
+
+
+def mark_song_validated(db, song_id: int, success: bool = True, error_message: str = None):
+    """Mark a song as validated
+
+    Args:
+        db: RadioDatabase instance
+        song_id: Song ID to mark
+        success: Whether validation was successful
+        error_message: Error message if validation failed
+    """
+    cursor = db.get_cursor()
+
+    try:
+        # Check if validation_status column exists
+        cursor.execute("PRAGMA table_info(songs)")
+        columns = [row[1] for row in cursor.fetchall()]
+
+        if 'validation_status' in columns:
+            now = datetime.now().isoformat()
+            status = 'valid' if success else 'invalid'
+            method = 'mbid'
+
+            cursor.execute("""
+                UPDATE songs
+                SET validation_status = ?,
+                    validated_at = ?,
+                    validation_method = ?
+                WHERE id = ?
+            """, (status, now, method, song_id))
+            db.conn.commit()
+    except Exception as e:
+        logger.error(f"Error marking song validated: {e}")
+        db.conn.rollback()
+    finally:
+        cursor.close()

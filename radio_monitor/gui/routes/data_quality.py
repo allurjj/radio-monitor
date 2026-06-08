@@ -5,6 +5,7 @@ Provides web interface for:
 - Viewing data quality issues
 - Running health checks
 - Applying fixes
+- Batch recording validation
 """
 
 import logging
@@ -147,6 +148,89 @@ def api_fix_artist_names():
         }), 500
     finally:
         cursor.close()
+
+
+@data_quality_bp.route('/api/data-quality/validate-batch', methods=['POST'])
+@requires_auth
+def api_validate_batch():
+    """API endpoint to validate a batch of songs
+
+    Expects JSON body:
+        {
+            "count": 50  // Number of songs to validate
+        }
+
+    Returns JSON:
+        {
+            "success": true,
+            "processed": 50,
+            "updated": 45,
+            "errors": 2,
+            "skipped": 3
+        }
+    """
+    db = get_db()
+
+    data = request.get_json() or {}
+    count = data.get('count', 50)
+
+    from radio_monitor.data_quality import get_songs_to_validate, mark_song_validated
+    from radio_monitor.recording_validation import validate_recording_with_fallback
+
+    songs_to_validate = get_songs_to_validate(db, count=count)
+
+    if not songs_to_validate:
+        return jsonify({
+            'success': True,
+            'processed': 0,
+            'updated': 0,
+            'errors': 0,
+            'skipped': 0,
+            'message': 'No songs to validate'
+        })
+
+    processed = 0
+    updated = 0
+    errors = 0
+    skipped = 0
+
+    for song in songs_to_validate:
+        processed += 1
+
+        # Skip if PENDING MBID
+        if song['artist_mbid'].startswith('PENDING-'):
+            mark_song_validated(db, song['id'], success=False, error_message='PENDING MBID')
+            skipped += 1
+            continue
+
+        try:
+            # Validate recording
+            result = validate_recording_with_fallback(
+                artist_name=song['artist_name'],
+                song_title=song['song_title'],
+                artist_mbid=song['artist_mbid']
+            )
+
+            if result['match_found']:
+                # Update song if new MBID found
+                if result.get('recording_mbid'):
+                    updated += 1
+                mark_song_validated(db, song['id'], success=True)
+            else:
+                mark_song_validated(db, song['id'], success=False, error_message='No match found')
+
+        except Exception as e:
+            logger.error(f"Error validating song {song['id']}: {e}")
+            mark_song_validated(db, song['id'], success=False, error_message=str(e))
+            errors += 1
+
+    return jsonify({
+        'success': True,
+        'processed': processed,
+        'updated': updated,
+        'errors': errors,
+        'skipped': skipped
+    })
 
 
 @data_quality_bp.route('/api/data-quality/bad-artists')

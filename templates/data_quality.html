@@ -21,6 +21,20 @@
 .issue-card.info {
     border-left-color: #0dcaf0;
 }
+
+.scrollable-table {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.validation-progress {
+    display: none;
+    margin-top: 10px;
+}
+
+.validation-progress.show {
+    display: block;
+}
 </style>
 {% endblock %}
 
@@ -68,8 +82,9 @@
     <div class="col-md-3">
         <div class="card card-standard text-center">
             <div class="card-body">
-                <h5 class="card-title">Last Check</h5>
-                <p class="card-text small text-muted mt-2">Just now</p>
+                <h5 class="card-title">Validated</h5>
+                <p class="card-text stat-value">{{ issues.summary.validated_count or 0 }}</p>
+                <small class="text-muted">recording checks</small>
             </div>
         </div>
     </div>
@@ -80,7 +95,7 @@
     <div class="col-12">
         <div class="card card-standard">
             <div class="card-body">
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 flex-wrap">
                     <button id="btn-refresh-health" class="btn btn-outline-primary">
                         <i class="bi bi-arrow-clockwise"></i> Refresh Health Check
                     </button>
@@ -89,6 +104,18 @@
                         <i class="bi bi-tools"></i> Fix Artist Names
                     </button>
                     {% endif %}
+                    <button id="btn-validate-batch" class="btn btn-outline-info">
+                        <i class="bi bi-check-circle"></i> Validate 50 Songs
+                    </button>
+                </div>
+                <div id="validation-progress" class="validation-progress">
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        <span id="validation-status">Validating recordings...</span>
+                    </div>
+                    <div class="progress mt-2" style="height: 6px;">
+                        <div id="validation-bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -99,13 +126,13 @@
 <!-- Critical Issues -->
 <div class="row mb-4">
     <div class="col-12">
-        <h4><i class="bi bi-exclamation-triangle-fill text-danger"></i> Critical Issues</h4>
+        <h4><i class="bi bi-exclamation-triangle-fill text-danger"></i> Critical Issues ({{ issues.critical|length }})</h4>
         {% for issue in issues.critical %}
         <div class="card issue-card critical mb-3">
             <div class="card-body">
                 <h5 class="card-title">{{ issue.message }}</h5>
                 {% if issue.type == 'artist_names' %}
-                <div class="table-responsive mt-3">
+                <div class="scrollable-table mt-3">
                     <table class="table table-sm">
                         <thead>
                             <tr>
@@ -116,7 +143,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for bad in issue.artists[:10] %}
+                            {% for bad in issue.artists %}
                             <tr>
                                 <td class="text-danger">{{ bad.current_artist }}</td>
                                 <td class="text-success">{{ bad.correct_artist }}</td>
@@ -124,13 +151,6 @@
                                 <td>{{ bad.play_count }}</td>
                             </tr>
                             {% endfor %}
-                            {% if issue.artists|length > 10 %}
-                            <tr>
-                                <td colspan="4" class="text-center text-muted">
-                                    ... and {{ issue.artists|length - 10 }} more
-                                </td>
-                            </tr>
-                            {% endif %}
                         </tbody>
                     </table>
                 </div>
@@ -146,14 +166,67 @@
 <!-- Warning Issues -->
 <div class="row mb-4">
     <div class="col-12">
-        <h4><i class="bi bi-exclamation-circle-fill text-warning"></i> Warnings</h4>
+        <h4><i class="bi bi-exclamation-circle-fill text-warning"></i> Warnings ({{ issues.warning|length }})</h4>
         {% for issue in issues.warning %}
         <div class="card issue-card warning mb-3">
             <div class="card-body">
                 <h5 class="card-title">{{ issue.message }}</h5>
-                <p class="text-muted small">
+                {% if issue.type == 'pending_mbid' and issue.songs %}
+                <div class="scrollable-table mt-3">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Artist</th>
+                                <th>Song</th>
+                                <th>MBID</th>
+                                <th>Plays</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for song in issue.songs[:50] %}
+                            <tr>
+                                <td>{{ song.artist_name }}</td>
+                                <td>{{ song.song_title }}</td>
+                                <td><code>{{ song.artist_mbid[:30] }}...</code></td>
+                                <td>{{ song.play_count }}</td>
+                            </tr>
+                            {% endfor %}
+                            {% if issue.songs|length > 50 %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">
+                                    ... and {{ issue.songs|length - 50 }} more
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+                {% elif issue.type == 'duplicates' and issue.duplicates %}
+                <div class="scrollable-table mt-3">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Artist</th>
+                                <th>Song 1</th>
+                                <th>Song 2</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for dupe in issue.duplicates %}
+                            <tr>
+                                <td>{{ dupe.artist }}</td>
+                                <td>{{ dupe.title1 }}</td>
+                                <td>{{ dupe.title2 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted small mb-0">
                     These issues should be addressed but are not urgent.
                 </p>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -165,14 +238,46 @@
 <!-- Info Issues -->
 <div class="row mb-4">
     <div class="col-12">
-        <h4><i class="bi bi-info-circle-fill text-info"></i> Information</h4>
+        <h4><i class="bi bi-info-circle-fill text-info"></i> Information ({{ issues.info|length }})</h4>
         {% for issue in issues.info %}
         <div class="card issue-card info mb-3">
             <div class="card-body">
                 <h5 class="card-title">{{ issue.message }}</h5>
-                <p class="text-muted small">
+                {% if issue.type == 'song_titles' and issue.titles %}
+                <div class="scrollable-table mt-3">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Artist</th>
+                                <th>Original Title</th>
+                                <th>Cleaned Title</th>
+                                <th>Plays</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for title in issue.titles[:50] %}
+                            <tr>
+                                <td>{{ title.artist_name }}</td>
+                                <td>{{ title.original_title }}</td>
+                                <td class="text-success">{{ title.cleaned_title }}</td>
+                                <td>{{ title.play_count }}</td>
+                            </tr>
+                            {% endfor %}
+                            {% if issue.titles|length > 50 %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">
+                                    ... and {{ issue.titles|length - 50 }} more
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted small mb-0">
                     These are informational items that don't affect functionality.
                 </p>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -208,7 +313,7 @@ document.getElementById('btn-refresh-health').addEventListener('click', function
     fetch('/api/data-quality/health')
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
+            if (data.success !== false) {
                 location.reload();
             } else {
                 alert('Failed to run health check: ' + (data.error || 'Unknown error'));
@@ -225,7 +330,7 @@ document.getElementById('btn-refresh-health').addEventListener('click', function
 });
 
 // Fix artist names
-document.getElementById('btn-fix-artist-names').addEventListener('click', function() {
+document.getElementById('btn-fix-artist-names')?.addEventListener('click', function() {
     const btn = this;
     const artistCount = {{ issues.critical[0].count if issues.critical else 0 }};
 
@@ -259,6 +364,47 @@ document.getElementById('btn-fix-artist-names').addEventListener('click', functi
             alert('Error fixing artist names: ' + error);
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-tools"></i> Fix Artist Names';
+        });
+});
+
+// Batch validate songs
+document.getElementById('btn-validate-batch').addEventListener('click', function() {
+    const btn = this;
+    const progressDiv = document.getElementById('validation-progress');
+    const statusText = document.getElementById('validation-status');
+    const progressBar = document.getElementById('validation-bar');
+
+    if (!confirm('Validate 50 songs with MusicBrainz?\n\nThis will check recording-level metadata and may take a few minutes.')) {
+        return;
+    }
+
+    btn.disabled = true;
+    progressDiv.classList.add('show');
+
+    fetch('/api/data-quality/validate-batch', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ count: 50 })
+    })
+        .then(response => response.json())
+        .then(data => {
+            progressDiv.classList.remove('show');
+            btn.disabled = false;
+
+            if (data.success) {
+                alert(`Validation complete!\n\nProcessed: ${data.processed}\nUpdated: ${data.updated}\nErrors: ${data.errors}\n\nSkipped: ${data.skipped} (already validated)`);
+                location.reload();
+            } else {
+                alert('Failed to validate: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            progressDiv.classList.remove('show');
+            btn.disabled = false;
+            alert('Error validating: ' + error);
         });
 });
 </script>
