@@ -135,6 +135,37 @@ def api_fix_artist_names():
                     if bad_artist_row:
                         correct_mbid = bad_artist_row[0]
 
+                # Handle potential duplicate songs (same MBID + song_title)
+                if correct_mbid and correct_artist_row:
+                    # Find songs that would become duplicates
+                    cursor.execute("""
+                        SELECT s1.id as bad_id, s1.song_title, s1.play_count as bad_plays,
+                               s2.id as good_id, s2.play_count as good_plays
+                        FROM songs s1
+                        JOIN songs s2 ON s1.song_title = s2.song_title
+                        WHERE LOWER(s1.artist_name) = ? AND s2.artist_mbid = ?
+                    """, (bad_name, correct_mbid))
+
+                    duplicates = cursor.fetchall()
+
+                    # For each duplicate, add play counts and delete the bad one
+                    for dup in duplicates:
+                        bad_id, song_title, bad_plays, good_id, good_plays = dup
+                        logger.info(f"Found duplicate song: {song_title} (bad_id={bad_id}, good_id={good_id})")
+
+                        # Add play counts from bad song to good song
+                        new_plays = good_plays + bad_plays
+                        cursor.execute("""
+                            UPDATE songs SET play_count = ? WHERE id = ?
+                        """, (new_plays, good_id))
+
+                        # Delete the bad song (will be skipped in the main update)
+                        cursor.execute("""
+                            DELETE FROM songs WHERE id = ?
+                        """, (bad_id,))
+
+                        logger.info(f"Merged play counts: {good_plays} + {bad_plays} = {new_plays} for song {song_title}")
+
                 # Update songs table FIRST (before touching artists table due to FK constraint)
                 if correct_mbid:
                     cursor.execute("""

@@ -83,7 +83,7 @@
         <div class="card card-standard text-center">
             <div class="card-body">
                 <h5 class="card-title">Validated</h5>
-                <p class="card-text stat-value">{{ issues.summary.validated_count or 0 }}</p>
+                <p class="card-text stat-value">{{ issues.summary.validated_count or 0 }} / {{ issues.summary.total_songs }}</p>
                 <small class="text-muted">recording checks</small>
             </div>
         </div>
@@ -121,6 +121,50 @@
                     </div>
                     <div id="validation-current" class="small text-muted mt-1" style="height: 16px;"></div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Validation Status -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-check-circle"></i> Recording Validation Status</h5>
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <p class="mb-1 text-success">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <strong>{{ issues.summary.validated_count or 0 }}</strong>
+                            </p>
+                            <small class="text-muted">Validated</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <p class="mb-1 text-warning">
+                                <i class="bi bi-question-circle"></i>
+                                <strong>{{ (issues.summary.total_songs or 0) - (issues.summary.validated_count or 0) }}</strong>
+                            </p>
+                            <small class="text-muted">Not Validated</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <p class="mb-1 text-info">
+                                <strong>{{ ((issues.summary.validated_count or 0) / (issues.summary.total_songs or 1) * 100)|round(1) }}%</strong>
+                            </p>
+                            <small class="text-muted">Coverage</small>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-muted small mb-0 mt-2">
+                    <i class="bi bi-info-circle"></i>
+                    Songs marked as "Validated" have been verified against MusicBrainz recording database.
+                    Click "Validate 50 Songs" to check more songs.
+                </p>
             </div>
         </div>
     </div>
