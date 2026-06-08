@@ -368,7 +368,7 @@ document.getElementById('btn-fix-artist-names')?.addEventListener('click', funct
 });
 
 // Batch validate songs
-document.getElementById('btn-validate-batch').addEventListener('click', function() {
+document.getElementById('btn-validate-batch')?.addEventListener('click', function() {
     const btn = this;
     const progressDiv = document.getElementById('validation-progress');
     const statusText = document.getElementById('validation-status');
@@ -377,6 +377,8 @@ document.getElementById('btn-validate-batch').addEventListener('click', function
     if (!confirm('Validate 50 songs with MusicBrainz?\n\nThis will check recording-level metadata and may take a few minutes.')) {
         return;
     }
+
+    console.log('Starting batch validation...');
 
     btn.disabled = true;
     progressDiv.classList.add('show');

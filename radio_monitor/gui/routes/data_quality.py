@@ -60,6 +60,10 @@ def api_health_check():
 def api_fix_artist_names():
     """API endpoint to fix artist names
 
+    Handles artist name corrections with merge logic:
+    - If correct artist already exists, merge the bad one into it
+    - If correct artist doesn't exist, update the bad one
+
     Expects JSON body:
         {
             "backup": true  // Whether to create backup before fixing
@@ -112,12 +116,24 @@ def api_fix_artist_names():
             if result and result[0] > 0:
                 count = result[0]
 
-                # Update artists table
+                # Check if correct artist already exists
                 cursor.execute("""
-                    UPDATE artists
-                    SET name = ?
-                    WHERE LOWER(name) = ?
-                """, (correct_name, bad_name))
+                    SELECT mbid FROM artists WHERE LOWER(name) = ?
+                """, (correct_name.lower(),))
+                correct_artist_row = cursor.fetchone()
+
+                if correct_artist_row:
+                    # Correct artist exists - delete the bad one (merge)
+                    cursor.execute("""
+                        DELETE FROM artists WHERE LOWER(name) = ?
+                    """, (bad_name,))
+                else:
+                    # Correct artist doesn't exist - update the bad one
+                    cursor.execute("""
+                        UPDATE artists
+                        SET name = ?
+                        WHERE LOWER(name) = ?
+                    """, (correct_name, bad_name))
 
                 # Update songs table
                 cursor.execute("""
@@ -129,7 +145,8 @@ def api_fix_artist_names():
                 fixes_applied.append({
                     'from': bad_name,
                     'to': correct_name,
-                    'count': count
+                    'count': count,
+                    'action': 'merged' if correct_artist_row else 'updated'
                 })
 
         db.conn.commit()
@@ -166,7 +183,8 @@ def api_validate_batch():
             "processed": 50,
             "updated": 45,
             "errors": 2,
-            "skipped": 3
+            "skipped": 3,
+            "message": "..."
         }
     """
     db = get_db()
@@ -177,60 +195,70 @@ def api_validate_batch():
     from radio_monitor.data_quality import get_songs_to_validate, mark_song_validated
     from radio_monitor.recording_validation import validate_recording_with_fallback
 
-    songs_to_validate = get_songs_to_validate(db, count=count)
+    try:
+        songs_to_validate = get_songs_to_validate(db, count=count)
 
-    if not songs_to_validate:
+        if not songs_to_validate:
+            return jsonify({
+                'success': True,
+                'processed': 0,
+                'updated': 0,
+                'errors': 0,
+                'skipped': 0,
+                'message': 'No songs to validate - all songs may already be validated'
+            })
+
+        processed = 0
+        updated = 0
+        errors = 0
+        skipped = 0
+
+        for song in songs_to_validate:
+            processed += 1
+
+            # Skip if PENDING MBID
+            if song['artist_mbid'].startswith('PENDING-'):
+                mark_song_validated(db, song['id'], success=False, error_message='PENDING MBID')
+                skipped += 1
+                continue
+
+            try:
+                # Validate recording - returns tuple (found: bool, method: str)
+                found, method = validate_recording_with_fallback(
+                    artist_name=song['artist_name'],
+                    song_title=song['song_title'],
+                    artist_mbid=song['artist_mbid']
+                )
+
+                if found:
+                    # Successfully validated
+                    updated += 1
+                    mark_song_validated(db, song['id'], success=True)
+                    logger.info(f"Validated song {song['id']} ({song['artist_name']} - {song['song_title']}) using method: {method}")
+                else:
+                    mark_song_validated(db, song['id'], success=False, error_message='No match found')
+                    logger.info(f"No match found for song {song['id']} ({song['artist_name']} - {song['song_title']})")
+
+            except Exception as e:
+                logger.error(f"Error validating song {song['id']}: {e}")
+                mark_song_validated(db, song['id'], success=False, error_message=str(e))
+                errors += 1
+
         return jsonify({
             'success': True,
-            'processed': 0,
-            'updated': 0,
-            'errors': 0,
-            'skipped': 0,
-            'message': 'No songs to validate'
+            'processed': processed,
+            'updated': updated,
+            'errors': errors,
+            'skipped': skipped,
+            'message': f'Validated {processed} songs: {updated} found, {errors} errors, {skipped} skipped'
         })
 
-    processed = 0
-    updated = 0
-    errors = 0
-    skipped = 0
-
-    for song in songs_to_validate:
-        processed += 1
-
-        # Skip if PENDING MBID
-        if song['artist_mbid'].startswith('PENDING-'):
-            mark_song_validated(db, song['id'], success=False, error_message='PENDING MBID')
-            skipped += 1
-            continue
-
-        try:
-            # Validate recording - returns tuple (found: bool, method: str)
-            found, method = validate_recording_with_fallback(
-                artist_name=song['artist_name'],
-                song_title=song['song_title'],
-                artist_mbid=song['artist_mbid']
-            )
-
-            if found:
-                # Successfully validated
-                updated += 1
-                mark_song_validated(db, song['id'], success=True)
-                logger.debug(f"Validated song {song['id']} using method: {method}")
-            else:
-                mark_song_validated(db, song['id'], success=False, error_message='No match found')
-
-        except Exception as e:
-            logger.error(f"Error validating song {song['id']}: {e}")
-            mark_song_validated(db, song['id'], success=False, error_message=str(e))
-            errors += 1
-
-    return jsonify({
-        'success': True,
-        'processed': processed,
-        'updated': updated,
-        'errors': errors,
-        'skipped': skipped
-    })
+    except Exception as e:
+        logger.error(f"Error in validate_batch: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @data_quality_bp.route('/api/data-quality/bad-artists')
