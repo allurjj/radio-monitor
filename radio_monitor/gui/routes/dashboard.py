@@ -29,6 +29,7 @@ def dashboard():
     # Get stats from database
     stats = {}
     recent_plays = []
+    data_quality = None
 
     db = get_db()
     if db:
@@ -37,10 +38,21 @@ def dashboard():
             # Get recent plays (last 10)
             # TODO: Implement get_recent_plays() in database.py
             # recent_plays = db.get_recent_plays(limit=10)
+
+            # Get data quality health check
+            from radio_monitor.data_quality import run_health_check
+            health_check = run_health_check(db)
+            data_quality = {
+                'health_score': health_check.get('summary', {}).get('health_score', 100),
+                'total_issues': health_check.get('summary', {}).get('total_issues', 0),
+                'critical_issues': len(health_check.get('critical', [])),
+                'warning_issues': len(health_check.get('warning', [])),
+                'has_issues': health_check.get('summary', {}).get('total_issues', 0) > 0
+            }
         except Exception as e:
             logger.error(f"Error getting stats: {e}")
 
-    return render_template('dashboard.html', stats=stats, recent_plays=recent_plays)
+    return render_template('dashboard.html', stats=stats, recent_plays=recent_plays, data_quality=data_quality)
 
 @dashboard_bp.route('/charts')
 @requires_auth
@@ -374,5 +386,50 @@ def api_mbid_retry_stats():
 
     except Exception as e:
         logger.error(f"Error getting MBID retry stats: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@dashboard_bp.route('/api/data-quality/health')
+@requires_auth
+def api_data_quality_health():
+    """Get data quality health check
+
+    Returns JSON:
+        {
+            "health_score": 85.7,
+            "total_issues": 3,
+            "critical_issues": 1,
+            "warning_issues": 1,
+            "info_issues": 1,
+            "summary": {
+                "total_songs": 1732,
+                "health_score": 85.7,
+                "total_issues": 3
+            }
+        }
+    """
+    try:
+        from radio_monitor.data_quality import run_health_check
+
+        db = get_db()
+        if not db:
+            return jsonify({'error': 'Database not initialized'}), 500
+
+        issues = run_health_check(db)
+
+        return jsonify({
+            'health_score': issues.get('summary', {}).get('health_score', 100),
+            'total_issues': issues.get('summary', {}).get('total_issues', 0),
+            'critical_issues': len(issues.get('critical', [])),
+            'warning_issues': len(issues.get('warning', [])),
+            'info_issues': len(issues.get('info', [])),
+            'summary': issues.get('summary', {}),
+            'critical': issues.get('critical', []),
+            'warning': issues.get('warning', []),
+            'info': issues.get('info', [])
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting data quality health: {e}")
         return jsonify({'error': str(e)}), 500
 

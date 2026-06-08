@@ -1,0 +1,276 @@
+{% extends "base_sidebar.html" %}
+
+{% block title %}Data Quality - Radio Monitor {{ config.get('VERSION', '1.2.0') }}{% endblock %}
+
+{% block custom_css %}
+<style>
+.health-score-excellent { color: #198754; }
+.health-score-good { color: #0d6efd; }
+.health-score-fair { color: #ffc107; }
+.health-score-poor { color: #dc3545; }
+
+.issue-card {
+    border-left: 4px solid #dee2e6;
+}
+.issue-card.critical {
+    border-left-color: #dc3545;
+}
+.issue-card.warning {
+    border-left-color: #ffc107;
+}
+.issue-card.info {
+    border-left-color: #0dcaf0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-clipboard-check"></i> Data Quality</h1>
+        <p class="text-muted">Monitor and fix data quality issues in your song database</p>
+    </div>
+</div>
+
+<!-- Health Score Card -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card card-standard text-center">
+            <div class="card-body">
+                <h5 class="card-title">Health Score</h5>
+                <p class="card-text stat-value {% if issues.summary.health_score >= 90 %}health-score-excellent
+                    {% elif issues.summary.health_score >= 75 %}health-score-good
+                    {% elif issues.summary.health_score >= 60 %}health-score-fair
+                    {% else %}health-score-poor{% endif %}">
+                    {{ "%.1f"|format(issues.summary.health_score) }}%
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-standard text-center">
+            <div class="card-body">
+                <h5 class="card-title">Total Songs</h5>
+                <p class="card-text stat-value">{{ issues.summary.total_songs }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-standard text-center">
+            <div class="card-body">
+                <h5 class="card-title">Issues Found</h5>
+                <p class="card-text stat-value {% if issues.summary.total_issues > 0 %}text-danger{% else %}text-success{% endif %}">
+                    {{ issues.summary.total_issues }}
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-standard text-center">
+            <div class="card-body">
+                <h5 class="card-title">Last Check</h5>
+                <p class="card-text small text-muted mt-2">Just now</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Actions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-body">
+                <div class="d-flex gap-2">
+                    <button id="btn-refresh-health" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh Health Check
+                    </button>
+                    {% if issues.critical %}
+                    <button id="btn-fix-artist-names" class="btn btn-outline-success">
+                        <i class="bi bi-tools"></i> Fix Artist Names
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if issues.critical %}
+<!-- Critical Issues -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h4><i class="bi bi-exclamation-triangle-fill text-danger"></i> Critical Issues</h4>
+        {% for issue in issues.critical %}
+        <div class="card issue-card critical mb-3">
+            <div class="card-body">
+                <h5 class="card-title">{{ issue.message }}</h5>
+                {% if issue.type == 'artist_names' %}
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Current Artist</th>
+                                <th>Correct Artist</th>
+                                <th>Song Title</th>
+                                <th>Plays</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for bad in issue.artists[:10] %}
+                            <tr>
+                                <td class="text-danger">{{ bad.current_artist }}</td>
+                                <td class="text-success">{{ bad.correct_artist }}</td>
+                                <td>{{ bad.song_title }}</td>
+                                <td>{{ bad.play_count }}</td>
+                            </tr>
+                            {% endfor %}
+                            {% if issue.artists|length > 10 %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">
+                                    ... and {{ issue.artists|length - 10 }} more
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if issues.warning %}
+<!-- Warning Issues -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h4><i class="bi bi-exclamation-circle-fill text-warning"></i> Warnings</h4>
+        {% for issue in issues.warning %}
+        <div class="card issue-card warning mb-3">
+            <div class="card-body">
+                <h5 class="card-title">{{ issue.message }}</h5>
+                <p class="text-muted small">
+                    These issues should be addressed but are not urgent.
+                </p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if issues.info %}
+<!-- Info Issues -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h4><i class="bi bi-info-circle-fill text-info"></i> Information</h4>
+        {% for issue in issues.info %}
+        <div class="card issue-card info mb-3">
+            <div class="card-body">
+                <h5 class="card-title">{{ issue.message }}</h5>
+                <p class="text-muted small">
+                    These are informational items that don't affect functionality.
+                </p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if issues.summary.total_issues == 0 %}
+<!-- No Issues -->
+<div class="row">
+    <div class="col-12">
+        <div class="card card-standard">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
+                <h3 class="mt-3">No Data Quality Issues Found!</h3>
+                <p class="text-muted">Your database is in excellent health.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Refresh health check
+document.getElementById('btn-refresh-health').addEventListener('click', function() {
+    const btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Checking...';
+
+    fetch('/api/data-quality/health')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Failed to run health check: ' + (data.error || 'Unknown error'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh Health Check';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error running health check: ' + error);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh Health Check';
+        });
+});
+
+// Fix artist names
+document.getElementById('btn-fix-artist-names').addEventListener('click', function() {
+    const btn = this;
+    const artistCount = {{ issues.critical[0].count if issues.critical else 0 }};
+
+    if (!confirm(`Fix ${artistCount} artist name issues?\n\nThis will update the database. A backup will be created automatically.`)) {
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-tools spin"></i> Fixing...';
+
+    fetch('/api/data-quality/fix-artist-names', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ backup: true })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Fixed ${data.fixes_applied.length} artist name issues!\n\nBackup: ${data.backup}`);
+                location.reload();
+            } else {
+                alert('Failed to fix artist names: ' + (data.error || 'Unknown error'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-tools"></i> Fix Artist Names';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error fixing artist names: ' + error);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-tools"></i> Fix Artist Names';
+        });
+});
+</script>
+
+<style>
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+</style>
+{% endscripts %}

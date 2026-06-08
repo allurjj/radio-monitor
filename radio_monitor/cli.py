@@ -585,6 +585,282 @@ def cmd_uninstall(args, settings):
     return 0 if success else 1
 
 
+def cmd_health_check(args, settings):
+    """Run health check on database (no API calls)
+
+    Usage: --health-check
+    """
+    from radio_monitor.data_quality import run_health_check
+
+    db = load_database(settings)
+    issues = run_health_check(db)
+
+    # Display results
+    print("=" * 60)
+    print("RADIO MONITOR HEALTH CHECK")
+    print("=" * 60)
+    print()
+
+    summary = issues.get('summary', {})
+    print(f"Total Songs: {summary.get('total_songs', 0)}")
+    print(f"Health Score: {summary.get('health_score', 0)}%")
+    print(f"Total Issues: {summary.get('total_issues', 0)}")
+    print()
+
+    if issues.get('critical'):
+        print("CRITICAL ISSUES:")
+        for issue in issues['critical']:
+            print(f"  - {issue['message']}")
+            if issue.get('type') == 'artist_names':
+                for bad in issue.get('artists', [])[:5]:
+                    print(f"    * '{bad['current_artist']}' -> '{bad['correct_artist']}' ({bad['song_title']})")
+                if len(issue.get('artists', [])) > 5:
+                    print(f"    ... and {len(issue['artists']) - 5} more")
+        print()
+
+    if issues.get('warning'):
+        print("WARNINGS:")
+        for issue in issues['warning']:
+            print(f"  - {issue['message']}")
+        print()
+
+    if issues.get('info'):
+        print("INFO:")
+        for issue in issues['info']:
+            print(f"  - {issue['message']}")
+
+    return 0
+
+
+def cmd_fix_artist_names(args, settings):
+    """Fix known artist name issues (pnk → P!NK, etc.)
+
+    Usage: --fix-artist-names [--dry-run] [--backup]
+    """
+    from radio_monitor.data_quality import get_known_bad_artists
+    from radio_monitor.normalization import ARTIST_NAME_CORRECTIONS
+    import shutil
+    from datetime import datetime
+
+    db_file = settings.get('monitor', {}).get('database_file', 'radio_songs.db')
+    db = load_database(settings)
+
+    # Check for issues first
+    bad_artists = get_known_bad_artists(db)
+
+    if not bad_artists:
+        print("[INFO] No artist name issues found!")
+        return 0
+
+    # Create backup if requested
+    if args.backup and not args.dry_run:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_path = f'{db_file}.backup_{timestamp}'
+        shutil.copy2(db_file, backup_path)
+        print(f"[OK] Backup created: {backup_path}")
+
+    if args.dry_run:
+        print("[INFO] DRY RUN - Previewing changes:")
+        print()
+
+    cursor = db.get_cursor()
+    fixes_applied = []
+    total_to_fix = 0
+
+    try:
+        for bad_name, correct_name in ARTIST_NAME_CORRECTIONS.items():
+            # Find affected songs
+            cursor.execute("""
+                SELECT id, artist_name
+                FROM songs
+                WHERE LOWER(artist_name) = ?
+            """, (bad_name,))
+
+            results = cursor.fetchall()
+            if results:
+                count = len(results)
+                total_to_fix += count
+                if args.dry_run:
+                    print(f"Would update {count} songs:")
+                    print(f"  '{bad_name}' -> '{correct_name}'")
+                else:
+                    # Update artists table
+                    cursor.execute("""
+                        UPDATE artists
+                        SET name = ?
+                        WHERE LOWER(name) = ?
+                    """, (correct_name, bad_name))
+
+                    # Update songs table
+                    cursor.execute("""
+                        UPDATE songs
+                        SET artist_name = ?
+                        WHERE LOWER(artist_name) = ?
+                    """, (correct_name, bad_name))
+
+                    fixes_applied.append(f"{bad_name} -> {correct_name} ({count} songs)")
+
+        if not args.dry_run and fixes_applied:
+            db.conn.commit()
+            print(f"[OK] Applied {len(fixes_applied)} fixes:")
+            for fix in fixes_applied:
+                print(f"  * {fix}")
+        elif args.dry_run and total_to_fix == 0:
+            print("[INFO] No artist name issues found!")
+
+    finally:
+        cursor.close()
+
+    return 0
+
+
+def cmd_validate_library(args, settings):
+    """Validate songs against MusicBrainz recordings
+
+    Usage: --validate-library [--limit N] [--priority LEVEL] [--dry-run]
+    """
+    from radio_monitor.recording_validation import validate_recording_with_fallback
+
+    db = load_database(settings)
+
+    limit = args.limit if hasattr(args, 'limit') and args.limit else 100
+    priority = args.priority if hasattr(args, 'priority') and args.priority else None
+
+    # Get songs to validate
+    songs = get_songs_for_validation(db, limit, priority)
+
+    print(f"Validating {len(songs)} songs against MusicBrainz...")
+    print(f"This will take approximately {len(songs) * 1.5 / 60:.1f} minutes...")
+    print()
+
+    results = {
+        'validated': 0,
+        'not_found': 0,
+        'skipped': 0,
+        'issues': []
+    }
+
+    for i, song in enumerate(songs, 1):
+        # Tuple indices: 0=id, 1=artist_mbid, 2=artist_name, 3=song_title
+        song_id = song[0]
+        artist_mbid = song[1]
+        artist_name = song[2]
+        song_title = song[3]
+
+        print(f"[{i}/{len(songs)}] {artist_name} - {song_title}...", end=' ', flush=True)
+
+        if args.dry_run:
+            print("(dry run)")
+            results['skipped'] += 1
+            continue
+
+        # Skip PENDING MBIDs
+        if artist_mbid and artist_mbid.startswith('PENDING-'):
+            print("SKIP (PENDING MBID)")
+            results['skipped'] += 1
+            continue
+
+        # Validate
+        found, method = validate_recording_with_fallback(artist_mbid, artist_name, song_title)
+
+        if found:
+            print(f"OK ({method})")
+            results['validated'] += 1
+
+            # Update validation status
+            cursor = db.get_cursor()
+            try:
+                from datetime import datetime
+                cursor.execute("""
+                    UPDATE songs
+                    SET validated_at = ?,
+                        validation_status = 'valid',
+                        validation_method = ?
+                    WHERE id = ?
+                """, (datetime.now(), method, song_id))
+                db.conn.commit()
+            finally:
+                cursor.close()
+        else:
+            print(f"NOT FOUND")
+            results['not_found'] += 1
+            results['issues'].append({
+                'song_id': song_id,
+                'artist': artist_name,
+                'title': song_title
+            })
+
+        # Rate limiting
+        import time
+        time.sleep(1.5)
+
+    # Summary
+    print()
+    print("=" * 60)
+    print("VALIDATION RESULTS")
+    print("=" * 60)
+    print(f"Total Validated: {results['validated']}")
+    print(f"Not Found: {results['not_found']}")
+    print(f"Skipped: {results['skipped']}")
+    print()
+
+    if results['issues']:
+        print("ISSUES FOUND:")
+        for issue in results['issues'][:10]:
+            print(f"  - {issue['artist']} - {issue['title']}")
+        if len(results['issues']) > 10:
+            print(f"  ... and {len(results['issues']) - 10} more")
+
+    return 0
+
+
+def get_songs_for_validation(db, limit: int, priority: str):
+    """Get songs to validate based on priority
+
+    Args:
+        db: RadioDatabase instance
+        limit: Maximum songs to return
+        priority: 'high', 'low', 'all', or None
+
+    Returns:
+        List of song dicts
+    """
+    cursor = db.get_cursor()
+
+    try:
+        if priority == 'high':
+            # Priority: PENDING MBIDs + high play count
+            cursor.execute("""
+                SELECT id, artist_mbid, artist_name, song_title
+                FROM songs
+                WHERE artist_mbid LIKE 'PENDING-%'
+                   OR play_count >= 10
+                ORDER BY play_count DESC
+                LIMIT ?
+            """, (limit,))
+        elif priority == 'low':
+            # Random sample of unvalidated songs
+            cursor.execute("""
+                SELECT id, artist_mbid, artist_name, song_title
+                FROM songs
+                WHERE validation_status IS NULL
+                ORDER BY RANDOM()
+                LIMIT ?
+            """, (limit,))
+        else:
+            # Stratified sample
+            cursor.execute("""
+                SELECT id, artist_mbid, artist_name, song_title
+                FROM songs
+                ORDER BY play_count DESC
+                LIMIT ?
+            """, (limit,))
+
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+
+
 def cmd_gui(args, settings):
     """Start the Flask web GUI
 
@@ -732,6 +1008,20 @@ def main():
     parser.add_argument('--uninstall', action='store_true',
                        help='Uninstall system service')
     # Note: --gui is already added above before settings check
+    # Data quality commands
+    parser.add_argument('--health-check', action='store_true',
+                       help='Run health check on database (no API calls)')
+    parser.add_argument('--fix-artist-names', action='store_true',
+                       help='Fix known artist name issues (pnk → P!NK, etc.)')
+    parser.add_argument('--validate-library', action='store_true',
+                       help='Validate songs against MusicBrainz recordings')
+    parser.add_argument('--limit', type=int, metavar='N',
+                       help='Maximum songs to validate (default: 100)')
+    parser.add_argument('--priority', metavar='LEVEL',
+                       help='Validation priority: high, low, or all')
+    parser.add_argument('--backup', action='store_true',
+                       help='Create backup before fixing artist names')
+
     parser.add_argument('--host', metavar='HOST',
                        help='GUI host (default: from settings or 0.0.0.0)')
     parser.add_argument('--port', type=int, metavar='PORT',
@@ -771,6 +1061,12 @@ def main():
         return cmd_install(args, settings)
     elif args.uninstall:
         return cmd_uninstall(args, settings)
+    elif args.health_check:
+        return cmd_health_check(args, settings)
+    elif args.fix_artist_names:
+        return cmd_fix_artist_names(args, settings)
+    elif args.validate_library:
+        return cmd_validate_library(args, settings)
     elif args.gui:
         return cmd_gui(args, settings)
     else:

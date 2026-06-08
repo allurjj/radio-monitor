@@ -153,6 +153,10 @@ def _initialize_schema(cursor, conn, db_path, SCHEMA_VERSION):
             if current_version < 21:
                 _migrate_to_v21(cursor, conn)
 
+            # Migrate to version 22 (add recording-level validation tracking)
+            if current_version < 22:
+                _migrate_to_v22(cursor, conn)
+
             # REPAIR: Ensure all expected columns exist (defensive check for corrupted migrations)
             _repair_missing_columns(cursor, conn)
 
@@ -1514,3 +1518,75 @@ def _migrate_to_v21(cursor, conn):
 
     conn.commit()
     print("Migration to version 21 complete!")
+
+
+def _migrate_to_v22(cursor, conn):
+    """Migrate database from v21 to v22 (add recording-level validation tracking)
+
+    This migration adds recording-level validation tracking for data quality improvements:
+    - validated_at column to songs table (timestamp of last recording validation)
+    - validation_status column to songs table ('valid', 'invalid', 'pending', 'unvalidated')
+    - validation_method column to songs table ('mbid', 'text', 'fallback', NULL)
+    - idx_songs_validation index for efficient validation queries
+    """
+    print("Migrating from schema v21 to v22...")
+    print("  - Adding recording-level validation tracking...")
+
+    # Check if columns already exist (for fresh databases)
+    cursor.execute("PRAGMA table_info(songs)")
+    columns = cursor.fetchall()
+    column_names = [col[1] for col in columns]
+
+    if 'validated_at' not in column_names:
+        # Add the columns for existing v21 databases
+        print("  - Adding validation columns to existing table...")
+        try:
+            cursor.execute("ALTER TABLE songs ADD COLUMN validated_at TIMESTAMP")
+        except Exception as e:
+            if "duplicate column" not in str(e).lower():
+                logger.error(f"Error adding validated_at column: {e}")
+    else:
+        print("  - validated_at column already exists (fresh database)")
+
+    if 'validation_status' not in column_names:
+        try:
+            cursor.execute("ALTER TABLE songs ADD COLUMN validation_status TEXT DEFAULT 'unvalidated'")
+        except Exception as e:
+            if "duplicate column" not in str(e).lower():
+                logger.error(f"Error adding validation_status column: {e}")
+    else:
+        print("  - validation_status column already exists")
+
+    if 'validation_method' not in column_names:
+        try:
+            cursor.execute("ALTER TABLE songs ADD COLUMN validation_method TEXT")
+        except Exception as e:
+            if "duplicate column" not in str(e).lower():
+                logger.error(f"Error adding validation_method column: {e}")
+    else:
+        print("  - validation_method column already exists")
+
+    # Create index for efficient validation queries
+    print("  - Creating validation index...")
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_songs_validation
+        ON songs(validation_status, validated_at)
+    """)
+
+    # Update schema version
+    print("  - Recording schema version...")
+    cursor.execute("""
+        INSERT INTO schema_version (version, description)
+        VALUES (22, 'Add recording-level validation tracking: validated_at, validation_status, validation_method')
+    """)
+
+    print("  - Added validation columns and index")
+
+    # Log migration completion
+    cursor.execute("""
+        INSERT INTO activity_log (event_type, title, description, event_severity, source)
+        VALUES ('system', 'success', 'Database Migration', 'Migrated from schema v21 to v22: added recording-level validation tracking for data quality improvements', 'system')
+    """)
+
+    conn.commit()
+    print("Migration to version 22 complete!")

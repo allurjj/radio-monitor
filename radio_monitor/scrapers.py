@@ -885,6 +885,35 @@ def scrape_all_stations(db=None, station_ids=None):
                         primary_artist_mbid = f"PENDING-{artist_hash}"
                         logger.debug(f"Using placeholder MBID for {primary_artist}: {primary_artist_mbid}")
 
+                    # Optional recording validation (if enabled in settings)
+                    # This validates that the artist+song combination exists in MusicBrainz
+                    # Helps prevent invalid entries from being stored
+                    validate_recordings = settings.get('validate_recordings', False) if settings else False
+                    if validate_recordings and not primary_artist_mbid.startswith('PENDING-'):
+                        try:
+                            from radio_monitor.recording_validation import validate_recording_with_fallback
+
+                            recording_found, method = validate_recording_with_fallback(
+                                primary_artist_mbid, primary_artist, song_title
+                            )
+
+                            if not recording_found:
+                                logger.warning(
+                                    f"Recording not found in MusicBrainz: {primary_artist} - {song_title} "
+                                    f"(method: {method})"
+                                )
+
+                                # Option: Skip storing this song if validation is strict
+                                skip_unvalidated = settings.get('skip_unvalidated_recordings', False) if settings else False
+                                if skip_unvalidated:
+                                    logger.info(f"Skipping unvalidated recording: {primary_artist} - {song_title}")
+                                    continue
+                            else:
+                                logger.debug(f"Recording validated: {primary_artist} - {song_title} (method: {method})")
+                        except Exception as e:
+                            logger.warning(f"Recording validation error for {primary_artist} - {song_title}: {e}")
+                            # Continue storing even if validation fails (validation is optional)
+
                     # Add artist and song to database atomically (prevents orphaned artists)
                     # Use MusicBrainz's canonical name if available, otherwise fall back to scraped name
                     # This prevents artist name corruption in the artists table

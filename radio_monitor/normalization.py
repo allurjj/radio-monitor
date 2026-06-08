@@ -157,6 +157,54 @@ COMMON_WORDS = {
     'FEAT', 'FT', 'FEATURING',  # Common abbreviations
 }
 
+# Known artist name corrections for database consistency
+# These are systematic corrections applied BEFORE MBID lookup
+# Maps incorrect/alternate forms to canonical MusicBrainz names
+ARTIST_NAME_CORRECTIONS = {
+    # Case/styling corrections
+    'pnk': 'P!NK',
+    'pink': 'P!NK',
+    'rem': 'R.E.M.',
+    'wham': 'Wham!',
+    # Add more as discovered through validation
+}
+
+
+def apply_artist_corrections(artist_name: str) -> str:
+    """Apply known artist name corrections
+
+    This function corrects known systematic issues with artist names
+    before they are stored in the database or used for MBID lookup.
+
+    Args:
+        artist_name: Raw artist name (may be incorrect)
+
+    Returns:
+        Corrected artist name (or original if no correction known)
+
+    Examples:
+        >>> apply_artist_corrections('pnk')
+        'P!NK'
+        >>> apply_artist_corrections('P!NK')
+        'P!NK'  # Already correct
+        >>> apply_artist_corrections('Unknown Artist')
+        'Unknown Artist'  # No correction known
+    """
+    if not artist_name:
+        return artist_name
+
+    # Check lowercase version for case-insensitive matching
+    artist_lower = artist_name.lower().strip()
+
+    # Apply correction if known
+    if artist_lower in ARTIST_NAME_CORRECTIONS:
+        corrected = ARTIST_NAME_CORRECTIONS[artist_lower]
+        logger.debug(f"Applied artist correction: {artist_name} → {corrected}")
+        return corrected
+
+    # No correction needed
+    return artist_name
+
 
 def should_preserve_caps(text):
     """Check if ALL CAPS text should be preserved
@@ -411,6 +459,9 @@ def normalize_artist_name(artist_name):
         >>> normalize_artist_name("Ne‐Yo")  # Special hyphen
         'Ne-Yo'  # Will be handled by apostrophe unification
     """
+    # Apply known corrections first (pnk → P!NK, etc.)
+    artist_name = apply_artist_corrections(artist_name)
+
     return normalize_text(artist_name)
 
 
@@ -435,6 +486,60 @@ def normalize_song_title(song_title):
         'Perfect'
     """
     return normalize_text(song_title)
+
+
+def clean_song_title_for_query(song_title: str) -> str:
+    """Clean song title for MusicBrainz queries
+
+    Removes parentheticals, features, and other notation that MusicBrainz
+    doesn't include in recording titles. Use this BEFORE querying MusicBrainz,
+    but store the original title in the database.
+
+    This is NON-DESTRUCTIVE - original title is preserved.
+
+    Args:
+        song_title: Original song title (may have parentheticals, etc.)
+
+    Returns:
+        Cleaned song title for MusicBrainz queries
+
+    Examples:
+        >>> clean_song_title_for_query('Rooster (2022 Remaster)')
+        'Rooster'
+        >>> clean_song_title_for_query('Meant to Be (feat. Florida Georgia Line)')
+        'Meant to Be'
+        >>> clean_song_title_for_query('Stateside + Zara Larsson')
+        'Stateside'
+    """
+    if not song_title:
+        return song_title
+
+    cleaned = song_title
+
+    # Remove parentheticals: (2022 Remaster), (Radio Edit), etc.
+    cleaned = re.sub(r'\s*\(.*?\)\s*', ' ', cleaned)
+
+    # Remove brackets: [Official Video], [Lyrics], etc.
+    cleaned = re.sub(r'\s*\[.*?\]\s*', ' ', cleaned)
+
+    # Remove "feat." and variations (keep main artist only)
+    cleaned = re.sub(r'\s+feat\.?\s.*$', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\s+featuring\s.*$', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\s+ft\.?\s.*$', '', cleaned, flags=re.IGNORECASE)
+
+    # Remove collaboration separators after main title
+    cleaned = re.sub(r'\s*&\s.*$', '', cleaned)
+    cleaned = re.sub(r'\s*\+\s.*$', '', cleaned)
+    cleaned = re.sub(r'\s+/\s.*$', '', cleaned)
+
+    # Normalize whitespace
+    cleaned = ' '.join(cleaned.split())
+
+    # Log if title was changed
+    if cleaned != song_title:
+        logger.debug(f"Cleaned song title for query: '{song_title}' → '{cleaned}'")
+
+    return cleaned.strip()
 
 
 def normalize_for_matching(artist_name):

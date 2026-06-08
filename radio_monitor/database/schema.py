@@ -24,8 +24,9 @@ Tables:
 - plex_manual_overrides: Manual Plex track matching overrides (v16)
 - spotiflac_downloads: SpotiFLAC download job tracking (v19)
 - artist_song_verification: Song verification tracking (v21)
+- validation tracking: validated_at, validation_status, validation_method (v22)
 
-Schema Version: 21
+Schema Version: 22
 """
 
 import logging
