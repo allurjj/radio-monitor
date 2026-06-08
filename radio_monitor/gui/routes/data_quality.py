@@ -122,6 +122,34 @@ def api_fix_artist_names():
                 """, (correct_name.lower(),))
                 correct_artist_row = cursor.fetchone()
 
+                # Get the correct MBID to use (either from existing artist or from bad artist)
+                correct_mbid = None
+                if correct_artist_row:
+                    correct_mbid = correct_artist_row[0]
+                else:
+                    # Get MBID from bad artist to carry over
+                    cursor.execute("""
+                        SELECT mbid FROM artists WHERE LOWER(name) = ?
+                    """, (bad_name,))
+                    bad_artist_row = cursor.fetchone()
+                    if bad_artist_row:
+                        correct_mbid = bad_artist_row[0]
+
+                # Update songs table FIRST (before touching artists table due to FK constraint)
+                if correct_mbid:
+                    cursor.execute("""
+                        UPDATE songs
+                        SET artist_name = ?, artist_mbid = ?
+                        WHERE LOWER(artist_name) = ?
+                    """, (correct_name, correct_mbid, bad_name))
+                else:
+                    cursor.execute("""
+                        UPDATE songs
+                        SET artist_name = ?
+                        WHERE LOWER(artist_name) = ?
+                    """, (correct_name, bad_name))
+
+                # Now handle artists table (after songs are updated)
                 if correct_artist_row:
                     # Correct artist exists - delete the bad one (merge)
                     cursor.execute("""
@@ -134,13 +162,6 @@ def api_fix_artist_names():
                         SET name = ?
                         WHERE LOWER(name) = ?
                     """, (correct_name, bad_name))
-
-                # Update songs table
-                cursor.execute("""
-                    UPDATE songs
-                    SET artist_name = ?
-                    WHERE LOWER(artist_name) = ?
-                """, (correct_name, bad_name))
 
                 fixes_applied.append({
                     'from': bad_name,
@@ -187,6 +208,7 @@ def api_validate_batch():
             "message": "..."
         }
     """
+    import time
     db = get_db()
 
     data = request.get_json() or {}
@@ -212,9 +234,16 @@ def api_validate_batch():
         updated = 0
         errors = 0
         skipped = 0
+        last_log_time = time.time()
 
         for song in songs_to_validate:
             processed += 1
+
+            # Log progress every 5 seconds
+            current_time = time.time()
+            if current_time - last_log_time >= 5:
+                logger.info(f"Validation progress: {processed}/{len(songs_to_validate)} songs processed")
+                last_log_time = current_time
 
             # Skip if PENDING MBID
             if song['artist_mbid'].startswith('PENDING-'):
@@ -234,15 +263,20 @@ def api_validate_batch():
                     # Successfully validated
                     updated += 1
                     mark_song_validated(db, song['id'], success=True)
-                    logger.info(f"Validated song {song['id']} ({song['artist_name']} - {song['song_title']}) using method: {method}")
+                    logger.debug(f"Validated song {song['id']} ({song['artist_name']} - {song['song_title']}) using method: {method}")
                 else:
                     mark_song_validated(db, song['id'], success=False, error_message='No match found')
-                    logger.info(f"No match found for song {song['id']} ({song['artist_name']} - {song['song_title']})")
+                    logger.debug(f"No match found for song {song['id']} ({song['artist_name']} - {song['song_title']})")
+
+                # Rate limiting: small delay between requests to avoid 503 errors
+                time.sleep(0.2)
 
             except Exception as e:
                 logger.error(f"Error validating song {song['id']}: {e}")
                 mark_song_validated(db, song['id'], success=False, error_message=str(e))
                 errors += 1
+
+        logger.info(f"Batch validation complete: {processed} processed, {updated} found, {errors} errors, {skipped} skipped")
 
         return jsonify({
             'success': True,
