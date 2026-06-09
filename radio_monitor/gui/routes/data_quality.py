@@ -159,12 +159,17 @@ def api_fix_artist_names():
                         bad_id, song_title, bad_plays, good_id, good_plays = dup
                         logger.info(f"Merging duplicate: {song_title} (id {bad_id} -> {good_id})")
 
-                        # Add play counts
+                        # Add play counts from bad song to good song
                         new_plays = good_plays + bad_plays
                         cursor.execute("UPDATE songs SET play_count = ? WHERE id = ?", (new_plays, good_id))
 
+                        # Delete song_plays_daily entries for the bad song (must do this first due to FK constraint)
+                        cursor.execute("DELETE FROM song_plays_daily WHERE song_id = ?", (bad_id,))
+                        logger.info(f"Deleted {cursor.rowcount} play records for song {bad_id}")
+
                         # Delete the bad song
                         cursor.execute("DELETE FROM songs WHERE id = ?", (bad_id,))
+                        logger.info(f"Deleted duplicate song {bad_id}")
 
                 # Step 2: Update remaining songs to use correct artist name and MBID
                 if correct_mbid:
