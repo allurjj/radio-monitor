@@ -115,6 +115,7 @@ def api_fix_artist_names():
             result = cursor.fetchone()
             if result and result[0] > 0:
                 count = result[0]
+                logger.info(f"Processing: '{bad_name}' -> '{correct_name}' ({count} songs)")
 
                 # Check if correct artist already exists
                 cursor.execute("""
@@ -122,51 +123,50 @@ def api_fix_artist_names():
                 """, (correct_name.lower(),))
                 correct_artist_row = cursor.fetchone()
 
-                # Get the correct MBID to use (either from existing artist or from bad artist)
-                correct_mbid = None
+                # Get the bad artist's MBID
+                cursor.execute("""
+                    SELECT mbid FROM artists WHERE LOWER(name) = ?
+                """, (bad_name,))
+                bad_artist_row = cursor.fetchone()
+                bad_artist_mbid = bad_artist_row[0] if bad_artist_row else None
+
+                # Determine which MBID to use
                 if correct_artist_row:
                     correct_mbid = correct_artist_row[0]
+                    logger.info(f"Using existing artist MBID: {correct_mbid}")
+                elif bad_artist_mbid:
+                    correct_mbid = bad_artist_mbid
+                    logger.info(f"Carrying over bad artist MBID: {correct_mbid}")
                 else:
-                    # Get MBID from bad artist to carry over
-                    cursor.execute("""
-                        SELECT mbid FROM artists WHERE LOWER(name) = ?
-                    """, (bad_name,))
-                    bad_artist_row = cursor.fetchone()
-                    if bad_artist_row:
-                        correct_mbid = bad_artist_row[0]
+                    correct_mbid = None
+                    logger.warning(f"No MBID found for either artist")
 
-                # Handle potential duplicate songs (same MBID + song_title)
+                # Step 1: Handle duplicate songs (if merging with existing artist)
                 if correct_mbid and correct_artist_row:
-                    # Find songs that would become duplicates
+                    # Find songs that would become duplicates (same song title, different artist MBIDs)
                     cursor.execute("""
                         SELECT s1.id as bad_id, s1.song_title, s1.play_count as bad_plays,
                                s2.id as good_id, s2.play_count as good_plays
                         FROM songs s1
-                        JOIN songs s2 ON s1.song_title = s2.song_title
+                        JOIN songs s2 ON s1.song_title = s2.song_title AND s1.id != s2.id
                         WHERE LOWER(s1.artist_name) = ? AND s2.artist_mbid = ?
                     """, (bad_name, correct_mbid))
 
                     duplicates = cursor.fetchall()
+                    logger.info(f"Found {len(duplicates)} duplicate songs to merge")
 
-                    # For each duplicate, add play counts and delete the bad one
                     for dup in duplicates:
                         bad_id, song_title, bad_plays, good_id, good_plays = dup
-                        logger.info(f"Found duplicate song: {song_title} (bad_id={bad_id}, good_id={good_id})")
+                        logger.info(f"Merging duplicate: {song_title} (id {bad_id} -> {good_id})")
 
-                        # Add play counts from bad song to good song
+                        # Add play counts
                         new_plays = good_plays + bad_plays
-                        cursor.execute("""
-                            UPDATE songs SET play_count = ? WHERE id = ?
-                        """, (new_plays, good_id))
+                        cursor.execute("UPDATE songs SET play_count = ? WHERE id = ?", (new_plays, good_id))
 
-                        # Delete the bad song (will be skipped in the main update)
-                        cursor.execute("""
-                            DELETE FROM songs WHERE id = ?
-                        """, (bad_id,))
+                        # Delete the bad song
+                        cursor.execute("DELETE FROM songs WHERE id = ?", (bad_id,))
 
-                        logger.info(f"Merged play counts: {good_plays} + {bad_plays} = {new_plays} for song {song_title}")
-
-                # Update songs table FIRST (before touching artists table due to FK constraint)
+                # Step 2: Update remaining songs to use correct artist name and MBID
                 if correct_mbid:
                     cursor.execute("""
                         UPDATE songs
@@ -180,34 +180,45 @@ def api_fix_artist_names():
                         WHERE LOWER(artist_name) = ?
                     """, (correct_name, bad_name))
 
-                # Handle blocklist table (has FK to artists.mbid)
-                # Update or delete blocklist entries that reference the bad artist
-                if correct_artist_row and correct_mbid:
-                    # Update blocklist entries to use correct MBID
+                logger.info(f"Updated {cursor.rowcount} songs")
+
+                # Step 3: Handle blocklist entries
+                if correct_mbid:
                     cursor.execute("""
                         UPDATE blocklist
                         SET artist_mbid = ?
                         WHERE LOWER(entity_id) = ? AND entity_type = 'artist'
                     """, (correct_mbid, bad_name.lower()))
 
-                    # Delete any remaining blocklist entries for the bad artist
                     cursor.execute("""
                         DELETE FROM blocklist WHERE LOWER(entity_id) = ? AND entity_type = 'artist'
                     """, (bad_name.lower(),))
 
-                # Now handle artists table (after songs and blocklist are updated)
-                if correct_artist_row:
-                    # Correct artist exists - delete the bad one (merge)
-                    cursor.execute("""
-                        DELETE FROM artists WHERE LOWER(name) = ?
-                    """, (bad_name,))
-                else:
-                    # Correct artist doesn't exist - update the bad one
+                # Step 4: Handle artists table - ALWAYS update, never delete to avoid FK issues
+                # If correct artist exists, just delete the bad one (only if safe)
+                # If correct artist doesn't exist, rename the bad one
+                if correct_artist_row and bad_artist_mbid:
+                    # Try to delete bad artist - if it fails due to FK, we'll just leave it
+                    # It should be safe now since we updated all songs
+                    try:
+                        cursor.execute("DELETE FROM artists WHERE LOWER(name) = ?", (bad_name,))
+                        logger.info(f"Deleted bad artist '{bad_name}'")
+                    except Exception as e:
+                        logger.warning(f"Could not delete bad artist: {e}")
+                        # Fallback: just rename it to avoid conflicts
+                        cursor.execute("""
+                            UPDATE artists
+                            SET name = ?
+                            WHERE LOWER(name) = ?
+                        """, (f"{bad_name} (duplicate)", bad_name,))
+                elif not correct_artist_row:
+                    # Correct artist doesn't exist - rename the bad one
                     cursor.execute("""
                         UPDATE artists
                         SET name = ?
                         WHERE LOWER(name) = ?
                     """, (correct_name, bad_name))
+                    logger.info(f"Renamed artist '{bad_name}' to '{correct_name}'")
 
                 fixes_applied.append({
                     'from': bad_name,
