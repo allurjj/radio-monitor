@@ -218,6 +218,7 @@
                                     Last Seen
                                     <span class="sort-indicator"></span>
                                 </th>
+                                <th>Recording</th>
                                 <th>Verification</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -246,6 +247,34 @@
                                         {% else %}
                                             <span class="text-muted">Never</span>
                                         {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set validated_count = artist.get('validated_count', 0) %}
+                                        {% set song_count = artist.song_count %}
+                                        {% set validated_pct = (validated_count / song_count * 100) if song_count > 0 else 0 %}
+
+                                        <div class="verification-breakdown">
+                                            {% if validated_pct >= 80 %}
+                                                <span class="badge bg-success" title="{{ validated_count }} of {{ song_count }} songs validated">
+                                                    <i class="bi bi-check-circle"></i> {{ validated_pct|round }}%
+                                                </span>
+                                            {% elif validated_pct >= 50 %}
+                                                <span class="badge bg-info" title="{{ validated_count }} of {{ song_count }} songs validated">
+                                                    <i class="bi bi-check-circle"></i> {{ validated_pct|round }}%
+                                                </span>
+                                            {% elif validated_pct > 0 %}
+                                                <span class="badge bg-warning" title="{{ validated_count }} of {{ song_count }} songs validated">
+                                                    <i class="bi bi-exclamation-circle"></i> {{ validated_pct|round }}%
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-secondary" title="No songs validated">
+                                                    <i class="bi bi-question-circle"></i> 0%
+                                                </span>
+                                            {% endif %}
+                                            <small class="text-muted d-block" style="font-size: 0.7rem;">
+                                                {{ validated_count }} / {{ song_count }}
+                                            </small>
+                                        </div>
                                     </td>
                                     <td>
                                         {% set verified_mb_count = artist.get('verified_mb_count', 0) %}

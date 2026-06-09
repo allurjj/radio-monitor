@@ -105,7 +105,7 @@
                     </button>
                     {% endif %}
                     <button id="btn-validate-batch" class="btn btn-outline-info">
-                        <i class="bi bi-check-circle"></i> Validate 10 Songs
+                        <i class="bi bi-check-circle"></i> Validate 50 Songs
                     </button>
                 </div>
                 <div id="validation-progress" class="validation-progress">
@@ -414,7 +414,7 @@ document.getElementById('btn-validate-batch')?.addEventListener('click', functio
     const progressDiv = document.getElementById('validation-progress');
     const statusText = document.getElementById('validation-status');
 
-    if (!confirm('Validate 10 songs with MusicBrainz?\n\nThis will check recording-level metadata and may take a minute.')) {
+    if (!confirm('Validate 50 songs with MusicBrainz?\n\nThis will check recording-level metadata and may take a minute.')) {
         return;
     }
 
@@ -428,7 +428,7 @@ document.getElementById('btn-validate-batch')?.addEventListener('click', functio
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ count: 10 })
+        body: JSON.stringify({ count: 50 })
     })
         .then(response => response.json())
         .then(data => {

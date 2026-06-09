@@ -211,6 +211,7 @@
                                     Last Seen
                                     <span class="sort-indicator"></span>
                                 </th>
+                                <th>Recording</th>
                                 <th>Verification</th>
                                 <th>Actions</th>
                             </tr>
@@ -245,6 +246,31 @@
                                             {{ song.last_seen_at[:10] }}
                                         {% else %}
                                             <span class="text-muted">Never</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set validation_status = song.get('validation_status', 'unvalidated') %}
+                                        {% if validation_status == 'valid' %}
+                                            <span class="badge bg-success" title="Recording validated against MusicBrainz">
+                                                <i class="bi bi-check-circle"></i> Validated
+                                            </span>
+                                        {% elif validation_status == 'invalid' %}
+                                            <span class="badge bg-danger" title="Recording not found in MusicBrainz">
+                                                <i class="bi bi-x-circle"></i> Not Found
+                                            </span>
+                                        {% elif validation_status == 'pending' %}
+                                            <span class="badge bg-warning" title="Validation pending">
+                                                <i class="bi bi-clock"></i> Pending
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary" title="Recording not yet validated">
+                                                <i class="bi bi-question-circle"></i> Unvalidated
+                                            </span>
+                                        {% endif %}
+                                        {% if song.get('validated_at') %}
+                                            <small class="text-muted d-block" style="font-size: 0.7rem;">
+                                                {{ song.validated_at[:10] }}
+                                            </small>
                                         {% endif %}
                                     </td>
                                     <td>

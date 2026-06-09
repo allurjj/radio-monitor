@@ -564,6 +564,7 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
             SUM(CASE WHEN COALESCE(s.verification_status, 'UNVERIFIED') IN ('VERIFIED_MB', 'VERIFIED_LIDARR') THEN 1 ELSE 0 END) as verified_count,
             SUM(CASE WHEN EXISTS(SELECT 1 FROM artist_song_verification v WHERE v.song_id = s.id AND v.verification_source = 'musicbrainz' AND v.is_verified = 1) THEN 1 ELSE 0 END) as verified_mb_count,
             SUM(CASE WHEN EXISTS(SELECT 1 FROM artist_song_verification v WHERE v.song_id = s.id AND v.verification_source = 'lidarr' AND v.is_verified = 1) THEN 1 ELSE 0 END) as verified_lidarr_count,
+            SUM(CASE WHEN COALESCE(s.validation_status, 'unvalidated') = 'valid' THEN 1 ELSE 0 END) as validated_count,
             CASE
                 WHEN MAX(bl.id) IS NOT NULL THEN 1
                 ELSE 0
@@ -583,7 +584,7 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
     columns = ['mbid', 'name', 'first_seen_station',
                'first_seen_at', 'last_seen_at', 'needs_lidarr_import',
                'lidarr_imported_at', 'total_plays', 'song_count', 'verified_count',
-               'verified_mb_count', 'verified_lidarr_count', 'is_blocked']
+               'verified_mb_count', 'verified_lidarr_count', 'validated_count', 'is_blocked']
     items = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
     # Capitalize artist names properly
@@ -834,6 +835,9 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
             s.last_seen_at,
             COALESCE(s.verification_status, 'UNVERIFIED') as verification_status,
             s.verification_date,
+            COALESCE(s.validation_status, 'unvalidated') as validation_status,
+            s.validated_at,
+            s.validation_method,
             EXISTS(SELECT 1 FROM artist_song_verification v WHERE v.song_id = s.id AND v.verification_source = 'musicbrainz' AND v.is_verified = 1) as verified_mb,
             EXISTS(SELECT 1 FROM artist_song_verification v WHERE v.song_id = s.id AND v.verification_source = 'lidarr' AND v.is_verified = 1) as verified_lidarr,
             CASE
@@ -853,6 +857,7 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
 
     columns = ['id', 'song_title', 'artist_name', 'artist_mbid', 'lidarr_imported_at',
                'play_count', 'first_seen_at', 'last_seen_at', 'verification_status', 'verification_date',
+               'validation_status', 'validated_at', 'validation_method',
                'verified_mb', 'verified_lidarr', 'is_blocked']
     items = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
