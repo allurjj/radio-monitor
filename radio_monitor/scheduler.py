@@ -347,3 +347,77 @@ class RadioScheduler:
         except Exception as e:
             logger.error(f"Error removing cleanup jobs: {e}")
             return False
+
+    def add_validation_job(self, validation_func, hour=2, minute=30, batch_size=50):
+        """Add daily recording validation job to scheduler
+
+        This job validates a batch of unvalidated songs against MusicBrainz.
+        Runs daily at the specified time (default: 2:30 AM - before backup at 3 AM).
+
+        Args:
+            validation_func: Function to call for validation (should take batch_size param)
+            hour: Hour to run validation (default: 2)
+            minute: Minute to run validation (default: 30)
+            batch_size: Number of songs to validate per run (default: 50)
+
+        Returns:
+            True if added successfully, False if already exists or error
+        """
+        try:
+            job_id = 'validation_job'
+
+            # Check if job already exists
+            if self.scheduler.get_job(job_id):
+                logger.info("Validation job already exists")
+                return False
+
+            # Wrap validation function to pass batch_size
+            def validation_wrapper():
+                try:
+                    logger.info("Starting scheduled recording validation")
+                    # Call with batch_size
+                    result = validation_func(batch_size)
+                    if result:
+                        logger.info(f"Scheduled validation complete: {result.get('message', 'Done')}")
+                    else:
+                        logger.warning("Scheduled validation returned no result")
+                except Exception as e:
+                    logger.error(f"Error during scheduled validation: {e}", exc_info=True)
+
+            # Add validation job (cron trigger for daily at specified time)
+            self.scheduler.add_job(
+                validation_wrapper,
+                'cron',
+                hour=hour,
+                minute=minute,
+                id=job_id,
+                name='Recording Validation Job'
+            )
+
+            logger.info(f"Validation job scheduled for daily at {hour:02d}:{minute:02d} (batch size: {batch_size})")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error adding validation job: {e}")
+            return False
+
+    def remove_validation_job(self):
+        """Remove recording validation job from scheduler
+
+        Returns:
+            True if removed, False if not exists or error
+        """
+        try:
+            job_id = 'validation_job'
+
+            if not self.scheduler.get_job(job_id):
+                logger.info("Validation job does not exist")
+                return False
+
+            self.scheduler.remove_job(job_id)
+            logger.info("Validation job removed")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error removing validation job: {e}")
+            return False

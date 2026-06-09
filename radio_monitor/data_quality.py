@@ -432,3 +432,93 @@ def mark_song_validated(db, song_id: int, success: bool = True, error_message: s
         db.conn.rollback()
     finally:
         cursor.close()
+
+
+def validate_batch_scheduled(db, batch_size: int = 50) -> Dict[str, Any]:
+    """Validate a batch of songs for scheduled background validation
+
+    This function is designed to be called by the scheduler for automated validation.
+    It validates unvalidated songs against MusicBrainz recording database.
+
+    Args:
+        db: RadioDatabase instance
+        batch_size: Number of songs to validate (default: 50)
+
+    Returns:
+        Dict with validation results
+    """
+    import time
+    from radio_monitor.recording_validation import validate_recording_with_fallback
+
+    try:
+        songs_to_validate = get_songs_to_validate(db, count=batch_size)
+
+        if not songs_to_validate:
+            logger.info("Scheduled validation: No songs to validate")
+            return {
+                'success': True,
+                'processed': 0,
+                'updated': 0,
+                'errors': 0,
+                'skipped': 0,
+                'message': 'No songs to validate'
+            }
+
+        processed = 0
+        updated = 0
+        errors = 0
+        skipped = 0
+
+        logger.info(f"Scheduled validation: Starting batch of {len(songs_to_validate)} songs")
+
+        for song in songs_to_validate:
+            processed += 1
+
+            # Skip if PENDING MBID
+            if song['artist_mbid'].startswith('PENDING-'):
+                mark_song_validated(db, song['id'], success=False, error_message='PENDING MBID')
+                skipped += 1
+                continue
+
+            try:
+                # Validate recording - returns tuple (found: bool, method: str)
+                found, method = validate_recording_with_fallback(
+                    artist_name=song['artist_name'],
+                    song_title=song['song_title'],
+                    artist_mbid=song['artist_mbid']
+                )
+
+                if found:
+                    updated += 1
+                    mark_song_validated(db, song['id'], success=True)
+                    logger.debug(f"Validated song {song['id']} ({song['artist_name']} - {song['song_title']}) using method: {method}")
+                else:
+                    mark_song_validated(db, song['id'], success=False, error_message='No match found')
+                    logger.debug(f"No match found for song {song['id']} ({song['artist_name']} - {song['song_title']})")
+
+                # Rate limiting: small delay between requests to avoid 503 errors
+                time.sleep(0.2)
+
+            except Exception as e:
+                logger.error(f"Error validating song {song['id']}: {e}")
+                mark_song_validated(db, song['id'], success=False, error_message=str(e))
+                errors += 1
+
+        result = {
+            'success': True,
+            'processed': processed,
+            'updated': updated,
+            'errors': errors,
+            'skipped': skipped,
+            'message': f'Validated {processed} songs: {updated} found, {errors} errors, {skipped} skipped'
+        }
+
+        logger.info(f"Scheduled validation complete: {result['message']}")
+        return result
+
+    except Exception as e:
+        logger.error(f"Error in scheduled validation: {e}")
+        return {
+            'success': False,
+            'error': str(e)
+        }

@@ -242,6 +242,22 @@ def init_gui(database=None, background_scheduler=None):
         scheduler.add_cleanup_jobs(activity_cleanup_job_func, log_cleanup_job_func, plex_cleanup_job_func, database_cleanup_job_func)
         logger.info("Cleanup jobs added to scheduler (daily at 4 AM, Plex cleanup at 4:10 AM, DB cleanup at 4:20 AM)")
 
+        # Add recording validation job (runs daily at 2:30 AM - before backup at 3 AM)
+        from radio_monitor.data_quality import validate_batch_scheduled
+
+        # Check if validation is enabled in settings (default: true)
+        validation_enabled = settings.get('data_quality', {}).get('auto_validation_enabled', True)
+        validation_batch_size = settings.get('data_quality', {}).get('validation_batch_size', 50)
+
+        if validation_enabled:
+            scheduler.add_validation_job(
+                lambda: validate_batch_scheduled(database, batch_size=validation_batch_size),
+                batch_size=validation_batch_size
+            )
+            logger.info("Recording validation job added to scheduler (daily at 2:30 AM)")
+        else:
+            logger.info("Recording validation job disabled in settings")
+
     # Initialize MBID retry manager (Phase 5 enhancement)
     if scheduler and scheduler.scheduler:
         from radio_monitor.mbid_retry import MBIDRetryManager
