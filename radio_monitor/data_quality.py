@@ -121,9 +121,12 @@ def get_validated_count(db) -> int:
                 WHERE validation_status = 'valid'
             """)
             result = cursor.fetchone()
-            return result[0] if result else 0
+            count = result[0] if result else 0
+            logger.debug(f"Validated count: {count}")
+            return count
         else:
             # Column doesn't exist yet (schema not migrated)
+            logger.warning("validation_status column doesn't exist, returning 0")
             return 0
     except Exception as e:
         logger.error(f"Error getting validated count: {e}")
@@ -398,19 +401,32 @@ def mark_song_validated(db, song_id: int, success: bool = True, error_message: s
         cursor.execute("PRAGMA table_info(songs)")
         columns = [row[1] for row in cursor.fetchall()]
 
-        if 'validation_status' in columns:
-            now = datetime.now().isoformat()
-            status = 'valid' if success else 'invalid'
-            method = 'mbid'
+        if 'validation_status' not in columns:
+            # Column doesn't exist - try to add it (defensive)
+            logger.warning("validation_status column doesn't exist, attempting to add it...")
+            try:
+                cursor.execute("ALTER TABLE songs ADD COLUMN validation_status TEXT DEFAULT 'unvalidated'")
+                cursor.execute("ALTER TABLE songs ADD COLUMN validated_at TIMESTAMP")
+                cursor.execute("ALTER TABLE songs ADD COLUMN validation_method TEXT")
+                db.conn.commit()
+                logger.info("Added validation columns to songs table")
+            except Exception as e:
+                logger.error(f"Could not add validation columns: {e}")
+                return  # Can't proceed without columns
 
-            cursor.execute("""
-                UPDATE songs
-                SET validation_status = ?,
-                    validated_at = ?,
-                    validation_method = ?
-                WHERE id = ?
-            """, (status, now, method, song_id))
-            db.conn.commit()
+        now = datetime.now().isoformat()
+        status = 'valid' if success else 'invalid'
+        method = 'mbid'
+
+        cursor.execute("""
+            UPDATE songs
+            SET validation_status = ?,
+                validated_at = ?,
+                validation_method = ?
+            WHERE id = ?
+        """, (status, now, method, song_id))
+        db.conn.commit()
+        logger.debug(f"Marked song {song_id} as {status}")
     except Exception as e:
         logger.error(f"Error marking song validated: {e}")
         db.conn.rollback()
