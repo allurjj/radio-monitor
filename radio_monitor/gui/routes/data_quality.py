@@ -180,7 +180,22 @@ def api_fix_artist_names():
                         WHERE LOWER(artist_name) = ?
                     """, (correct_name, bad_name))
 
-                # Now handle artists table (after songs are updated)
+                # Handle blocklist table (has FK to artists.mbid)
+                # Update or delete blocklist entries that reference the bad artist
+                if correct_artist_row and correct_mbid:
+                    # Update blocklist entries to use correct MBID
+                    cursor.execute("""
+                        UPDATE blocklist
+                        SET artist_mbid = ?
+                        WHERE LOWER(entity_id) = ? AND entity_type = 'artist'
+                    """, (correct_mbid, bad_name.lower()))
+
+                    # Delete any remaining blocklist entries for the bad artist
+                    cursor.execute("""
+                        DELETE FROM blocklist WHERE LOWER(entity_id) = ? AND entity_type = 'artist'
+                    """, (bad_name.lower(),))
+
+                # Now handle artists table (after songs and blocklist are updated)
                 if correct_artist_row:
                     # Correct artist exists - delete the bad one (merge)
                     cursor.execute("""
