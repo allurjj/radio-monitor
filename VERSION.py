@@ -9,5 +9,5 @@ not necessarily the latest version in git.
 """
 
 __version__ = "1.4.13"
-__build_date__ = "2026-06-08"
+__build_date__ = "2026-06-09"
 __github_url__ = "https://github.com/allurjj/radio-monitor"
