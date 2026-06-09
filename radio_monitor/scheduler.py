@@ -348,17 +348,16 @@ class RadioScheduler:
             logger.error(f"Error removing cleanup jobs: {e}")
             return False
 
-    def add_validation_job(self, validation_func, hour=2, minute=30, batch_size=50):
-        """Add daily recording validation job to scheduler
+    def add_validation_job(self, validation_func, interval_minutes=60, batch_size=10):
+        """Add recording validation job to scheduler for idle-time validation
 
         This job validates a batch of unvalidated songs against MusicBrainz.
-        Runs daily at the specified time (default: 2:30 AM - before backup at 3 AM).
+        Runs on an interval (default: every 60 minutes) to act as "idle" validation.
 
         Args:
             validation_func: Function to call for validation (should take batch_size param)
-            hour: Hour to run validation (default: 2)
-            minute: Minute to run validation (default: 30)
-            batch_size: Number of songs to validate per run (default: 50)
+            interval_minutes: Minutes between validation runs (default: 60)
+            batch_size: Number of songs to validate per run (default: 10 for frequent runs)
 
         Returns:
             True if added successfully, False if already exists or error
@@ -374,27 +373,26 @@ class RadioScheduler:
             # Wrap validation function to pass batch_size
             def validation_wrapper():
                 try:
-                    logger.info("Starting scheduled recording validation")
+                    logger.info("Starting idle-time recording validation")
                     # Call with batch_size
                     result = validation_func(batch_size)
                     if result:
-                        logger.info(f"Scheduled validation complete: {result.get('message', 'Done')}")
+                        logger.info(f"Idle validation complete: {result.get('message', 'Done')}")
                     else:
-                        logger.warning("Scheduled validation returned no result")
+                        logger.warning("Idle validation returned no result")
                 except Exception as e:
-                    logger.error(f"Error during scheduled validation: {e}", exc_info=True)
+                    logger.error(f"Error during idle validation: {e}", exc_info=True)
 
-            # Add validation job (cron trigger for daily at specified time)
+            # Add validation job (interval trigger for periodic runs)
             self.scheduler.add_job(
                 validation_wrapper,
-                'cron',
-                hour=hour,
-                minute=minute,
+                'interval',
+                minutes=interval_minutes,
                 id=job_id,
-                name='Recording Validation Job'
+                name='Recording Validation Job (Idle-Time)'
             )
 
-            logger.info(f"Validation job scheduled for daily at {hour:02d}:{minute:02d} (batch size: {batch_size})")
+            logger.info(f"Validation job scheduled: every {interval_minutes} minutes (batch size: {batch_size})")
             return True
 
         except Exception as e:

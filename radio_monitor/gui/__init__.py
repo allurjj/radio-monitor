@@ -242,19 +242,21 @@ def init_gui(database=None, background_scheduler=None):
         scheduler.add_cleanup_jobs(activity_cleanup_job_func, log_cleanup_job_func, plex_cleanup_job_func, database_cleanup_job_func)
         logger.info("Cleanup jobs added to scheduler (daily at 4 AM, Plex cleanup at 4:10 AM, DB cleanup at 4:20 AM)")
 
-        # Add recording validation job (runs daily at 2:30 AM - before backup at 3 AM)
+        # Add recording validation job (runs periodically as idle-time validation)
         from radio_monitor.data_quality import validate_batch_scheduled
 
         # Check if validation is enabled in settings (default: true)
         validation_enabled = settings.get('data_quality', {}).get('auto_validation_enabled', True)
-        validation_batch_size = settings.get('data_quality', {}).get('validation_batch_size', 50)
+        validation_interval = settings.get('data_quality', {}).get('validation_interval_minutes', 60)
+        validation_batch_size = settings.get('data_quality', {}).get('validation_batch_size', 10)
 
         if validation_enabled:
             scheduler.add_validation_job(
                 lambda: validate_batch_scheduled(database, batch_size=validation_batch_size),
+                interval_minutes=validation_interval,
                 batch_size=validation_batch_size
             )
-            logger.info("Recording validation job added to scheduler (daily at 2:30 AM)")
+            logger.info(f"Recording validation job added to scheduler (every {validation_interval} minutes, batch size: {validation_batch_size})")
         else:
             logger.info("Recording validation job disabled in settings")
 

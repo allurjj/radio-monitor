@@ -477,6 +477,40 @@
             </div>
         </div>
 
+        <!-- Data Quality Section -->
+        <div class="card card-standard settings-card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-clipboard-check text-warning"></i> Data Quality</h5>
+                <p class="text-muted small mb-2">
+                    Recording validation checks songs against MusicBrainz during idle time.
+                </p>
+
+                <div class="row g-2 mb-0">
+                    <div class="col-md-4">
+                        <div class="form-check form-check-sm mt-2">
+                            <input class="form-check-input" type="checkbox" id="dq-auto-validation-enabled" checked>
+                            <label class="form-check-label" for="dq-auto-validation-enabled">Auto-validation enabled</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="dq-interval" class="form-label form-label-sm">Interval (minutes)</label>
+                        <input type="number" class="form-control form-control-sm" id="dq-interval" min="10" max="1440" value="60">
+                        <small class="text-muted">How often to run</small>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="dq-batch-size" class="form-label form-label-sm">Batch Size</label>
+                        <input type="number" class="form-control form-control-sm" id="dq-batch-size" min="1" max="100" value="10">
+                        <small class="text-muted">Songs per run</small>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <a href="/data-quality" class="btn btn-outline-info btn-sm w-100" target="_blank">
+                            <i class="bi bi-eye"></i> View Status
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Database Sharing Section -->
         <div class="card card-standard settings-card">
             <div class="card-body">
@@ -809,6 +843,13 @@ function populateForm(settings) {
         document.getElementById('db-backup-enabled').checked = settings.database.backup_enabled || false;
         document.getElementById('db-retention').value = settings.database.backup_retention_days || 7;
         document.getElementById('db-backup-path').value = settings.database.backup_path || 'backups/';
+    }
+
+    // Data Quality
+    if (settings.data_quality) {
+        document.getElementById('dq-auto-validation-enabled').checked = settings.data_quality.auto_validation_enabled !== false;
+        document.getElementById('dq-interval').value = settings.data_quality.validation_interval_minutes || 60;
+        document.getElementById('dq-batch-size').value = settings.data_quality.validation_batch_size || 10;
     }
 
     // GUI
@@ -1175,6 +1216,11 @@ function getFormSettings() {
             backup_enabled: document.getElementById('db-backup-enabled').checked,
             backup_retention_days: parseInt(document.getElementById('db-retention').value),
             backup_path: document.getElementById('db-backup-path').value
+        },
+        data_quality: {
+            auto_validation_enabled: document.getElementById('dq-auto-validation-enabled').checked,
+            validation_interval_minutes: parseInt(document.getElementById('dq-interval').value),
+            validation_batch_size: parseInt(document.getElementById('dq-batch-size').value)
         },
         gui: {
             host: document.getElementById('gui-host').value,
