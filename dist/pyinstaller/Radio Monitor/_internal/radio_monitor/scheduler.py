@@ -1,0 +1,421 @@
+"""
+APScheduler wrapper for Radio Monitor 1.0
+
+This module provides a simple interface to APScheduler for background scraping:
+- BackgroundScheduler setup
+- Scrape job management (start/stop/resume)
+- Graceful shutdown support
+
+Key Principle: Simple wrapper around APScheduler - don't over-engineer.
+The scraping job runs at a configurable interval (default: 10 minutes).
+"""
+
+import logging
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
+
+logger = logging.getLogger(__name__)
+
+
+class RadioScheduler:
+    """Wrapper for APScheduler to manage background scraping job
+
+    Attributes:
+        scheduler: BackgroundScheduler instance
+        scrape_interval: Interval in minutes between scrapes
+    """
+
+    def __init__(self, scrape_func, scrape_interval_minutes=10, auto_start=True):
+        """Initialize scheduler with scraping function
+
+        Args:
+            scrape_func: Function to call for each scrape (should take no args)
+            scrape_interval_minutes: Minutes between scrapes (default: 10)
+            auto_start: Whether to start scraping automatically (default: True)
+        """
+        self.scheduler = BackgroundScheduler()
+        self.scrape_interval = scrape_interval_minutes
+        self.scrape_func = scrape_func
+        self.job_id = 'scrape_job'
+
+        # Add scrape job
+        self.scheduler.add_job(
+            self._run_scrape,
+            'interval',
+            minutes=self.scrape_interval,
+            id=self.job_id,
+            name='Radio Station Scraping Job'
+        )
+
+        # Start scheduler
+        self.scheduler.start()
+
+        # Pause job if auto_start is False
+        if not auto_start:
+            self.scheduler.pause_job(self.job_id)
+            logger.info(f"Scheduler initialized (interval: {scrape_interval_minutes} minutes, monitoring paused)")
+        else:
+            logger.info(f"Scheduler initialized (interval: {scrape_interval_minutes} minutes, monitoring started)")
+
+    def _run_scrape(self):
+        """Run the scraping function
+
+        This wraps the scrape function for error handling.
+        """
+        try:
+            logger.info("Starting scheduled scrape")
+            if self.scrape_func:
+                self.scrape_func()
+            logger.info("Scheduled scrape complete")
+        except Exception as e:
+            logger.error(f"Error during scheduled scrape: {e}", exc_info=True)
+
+    def start(self):
+        """Start/resume the scraping job
+
+        Returns:
+            True if started, False if already running
+        """
+        try:
+            job = self.scheduler.get_job(self.job_id)
+            if job and job.next_run_time is not None:
+                # Job is already running (not paused)
+                logger.info("Scraping job already running")
+                return False
+
+            # Resume the job
+            self.scheduler.resume_job(self.job_id)
+            logger.info("Scraping job started")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error starting scraping job: {e}")
+            return False
+
+    def stop(self):
+        """Stop/pause the scraping job
+
+        Returns:
+            True if stopped, False if already stopped
+        """
+        try:
+            job = self.scheduler.get_job(self.job_id)
+            if not job:
+                logger.warning("Scraping job not found")
+                return False
+
+            # Pause the job
+            self.scheduler.pause_job(self.job_id)
+            logger.info("Scraping job stopped")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error stopping scraping job: {e}")
+            return False
+
+    def is_running(self):
+        """Check if scraping job is running (not paused)
+
+        Returns:
+            True if job is running, False if paused or error
+        """
+        try:
+            job = self.scheduler.get_job(self.job_id)
+            if not job:
+                return False
+
+            # Check if job has a next run time (not paused)
+            return job.next_run_time is not None
+
+        except Exception as e:
+            logger.error(f"Error checking job status: {e}")
+            return False
+
+    def shutdown(self, wait=True):
+        """Shutdown scheduler (graceful shutdown)
+
+        Args:
+            wait: Wait for running jobs to complete (default: True)
+        """
+        if self.scheduler is None:
+            logger.debug("Scheduler is None, skipping shutdown")
+            return
+
+        if not self.scheduler.running:
+            logger.debug("Scheduler is not running, skipping shutdown")
+            return
+
+        try:
+            logger.info("Shutting down scheduler...")
+            self.scheduler.shutdown(wait=wait)
+            logger.info("Scheduler shut down")
+        except Exception as e:
+            logger.error(f"Error shutting down scheduler: {e}")
+
+    def modify_interval(self, minutes):
+        """Modify the scraping interval
+
+        Args:
+            minutes: New interval in minutes
+        """
+        try:
+            self.scheduler.reschedule_job(
+                self.job_id,
+                trigger=IntervalTrigger(minutes=minutes)
+            )
+            self.scrape_interval = minutes
+            logger.info(f"Scraping interval changed to {minutes} minutes")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error modifying scrape interval: {e}")
+            return False
+
+    def add_backup_job(self, backup_func, hour=3, minute=0):
+        """Add daily backup job to scheduler
+
+        Args:
+            backup_func: Function to call for backup (should take no args)
+            hour: Hour to run backup (default: 3)
+            minute: Minute to run backup (default: 0)
+
+        Returns:
+            True if added, False if already exists or error
+        """
+        try:
+            job_id = 'backup_job'
+
+            # Check if job already exists
+            if self.scheduler.get_job(job_id):
+                logger.info("Backup job already exists")
+                return False
+
+            # Add backup job (cron trigger for daily at 3 AM)
+            self.scheduler.add_job(
+                backup_func,
+                'cron',
+                hour=hour,
+                minute=minute,
+                id=job_id,
+                name='Daily Database Backup'
+            )
+
+            logger.info(f"Backup job scheduled for {hour:02d}:{minute:02d} daily")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error adding backup job: {e}")
+            return False
+
+    def remove_backup_job(self):
+        """Remove daily backup job from scheduler
+
+        Returns:
+            True if removed, False if not exists or error
+        """
+        try:
+            job_id = 'backup_job'
+
+            if not self.scheduler.get_job(job_id):
+                logger.info("Backup job does not exist")
+                return False
+
+            self.scheduler.remove_job(job_id)
+            logger.info("Backup job removed")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error removing backup job: {e}")
+            return False
+
+    def add_cleanup_jobs(self, activity_cleanup_func, log_cleanup_func, plex_cleanup_func=None, database_cleanup_func=None, hour=4, minute=0):
+        """Add daily cleanup jobs for activity logs, log files, Plex failures, and database corruption
+
+        Args:
+            activity_cleanup_func: Function to call for activity cleanup (should take no args)
+            log_cleanup_func: Function to call for log cleanup (should take no args)
+            plex_cleanup_func: Function to call for Plex failure cleanup (should take no args, optional)
+            database_cleanup_func: Function to call for database cleanup (should take no args, optional)
+            hour: Hour to run cleanup (default: 4 AM - after backup at 3 AM)
+            minute: Minute to run cleanup (default: 0)
+
+        Returns:
+            True if added successfully, False if already exists or error
+        """
+        try:
+            # Add activity cleanup job
+            activity_job_id = 'activity_cleanup_job'
+            if not self.scheduler.get_job(activity_job_id):
+                self.scheduler.add_job(
+                    activity_cleanup_func,
+                    'cron',
+                    hour=hour,
+                    minute=minute,
+                    id=activity_job_id,
+                    name='Activity Log Cleanup Job'
+                )
+                logger.info(f"Activity cleanup job scheduled for daily at {hour:02d}:{minute:02d}")
+            else:
+                logger.info("Activity cleanup job already exists")
+
+            # Add Plex failure cleanup job (10 minutes after activity cleanup)
+            if plex_cleanup_func:
+                plex_job_id = 'plex_failure_cleanup_job'
+                if not self.scheduler.get_job(plex_job_id):
+                    self.scheduler.add_job(
+                        plex_cleanup_func,
+                        'cron',
+                        hour=hour,
+                        minute=minute + 10,
+                        id=plex_job_id,
+                        name='Plex Failure Cleanup Job'
+                    )
+                    logger.info(f"Plex failure cleanup job scheduled for daily at {hour:02d}:{minute + 10:02d}")
+                else:
+                    logger.info("Plex failure cleanup job already exists")
+
+            # Add log cleanup job (15 minutes after activity cleanup)
+            log_job_id = 'log_cleanup_job'
+            if not self.scheduler.get_job(log_job_id):
+                self.scheduler.add_job(
+                    log_cleanup_func,
+                    'cron',
+                    hour=hour,
+                    minute=minute + 15,
+                    id=log_job_id,
+                    name='Log File Cleanup Job'
+                )
+                logger.info(f"Log cleanup job scheduled for daily at {hour:02d}:{minute + 15:02d}")
+            else:
+                logger.info("Log cleanup job already exists")
+
+            # Add database cleanup job (20 minutes after activity cleanup)
+            if database_cleanup_func:
+                db_cleanup_job_id = 'database_cleanup_job'
+                if not self.scheduler.get_job(db_cleanup_job_id):
+                    self.scheduler.add_job(
+                        database_cleanup_func,
+                        'cron',
+                        hour=hour,
+                        minute=minute + 20,
+                        id=db_cleanup_job_id,
+                        name='Database Corruption Cleanup Job'
+                    )
+                    logger.info(f"Database cleanup job scheduled for daily at {hour:02d}:{minute + 20:02d}")
+                else:
+                    logger.info("Database cleanup job already exists")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error adding cleanup jobs: {e}")
+            return False
+
+    def remove_cleanup_jobs(self):
+        """Remove daily cleanup jobs from scheduler
+
+        Returns:
+            True if removed successfully, False otherwise
+        """
+        try:
+            removed = False
+
+            # Remove activity cleanup job
+            activity_job_id = 'activity_cleanup_job'
+            if self.scheduler.get_job(activity_job_id):
+                self.scheduler.remove_job(activity_job_id)
+                logger.info("Activity cleanup job removed")
+                removed = True
+
+            # Remove Plex failure cleanup job
+            plex_job_id = 'plex_failure_cleanup_job'
+            if self.scheduler.get_job(plex_job_id):
+                self.scheduler.remove_job(plex_job_id)
+                logger.info("Plex failure cleanup job removed")
+                removed = True
+
+            # Remove log cleanup job
+            log_job_id = 'log_cleanup_job'
+            if self.scheduler.get_job(log_job_id):
+                self.scheduler.remove_job(log_job_id)
+                logger.info("Log cleanup job removed")
+                removed = True
+
+            return removed
+
+        except Exception as e:
+            logger.error(f"Error removing cleanup jobs: {e}")
+            return False
+
+    def add_validation_job(self, validation_func, interval_minutes=60, batch_size=10):
+        """Add recording validation job to scheduler for idle-time validation
+
+        This job validates a batch of unvalidated songs against MusicBrainz.
+        Runs on an interval (default: every 60 minutes) to act as "idle" validation.
+
+        Args:
+            validation_func: Function to call for validation (should take batch_size param)
+            interval_minutes: Minutes between validation runs (default: 60)
+            batch_size: Number of songs to validate per run (default: 10 for frequent runs)
+
+        Returns:
+            True if added successfully, False if already exists or error
+        """
+        try:
+            job_id = 'validation_job'
+
+            # Check if job already exists
+            if self.scheduler.get_job(job_id):
+                logger.info("Validation job already exists")
+                return False
+
+            # Wrap validation function to pass batch_size
+            def validation_wrapper():
+                try:
+                    logger.info("Starting idle-time recording validation")
+                    # Call with batch_size
+                    result = validation_func(batch_size)
+                    if result:
+                        logger.info(f"Idle validation complete: {result.get('message', 'Done')}")
+                    else:
+                        logger.warning("Idle validation returned no result")
+                except Exception as e:
+                    logger.error(f"Error during idle validation: {e}", exc_info=True)
+
+            # Add validation job (interval trigger for periodic runs)
+            self.scheduler.add_job(
+                validation_wrapper,
+                'interval',
+                minutes=interval_minutes,
+                id=job_id,
+                name='Recording Validation Job (Idle-Time)'
+            )
+
+            logger.info(f"Validation job scheduled: every {interval_minutes} minutes (batch size: {batch_size})")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error adding validation job: {e}")
+            return False
+
+    def remove_validation_job(self):
+        """Remove recording validation job from scheduler
+
+        Returns:
+            True if removed, False if not exists or error
+        """
+        try:
+            job_id = 'validation_job'
+
+            if not self.scheduler.get_job(job_id):
+                logger.info("Validation job does not exist")
+                return False
+
+            self.scheduler.remove_job(job_id)
+            logger.info("Validation job removed")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error removing validation job: {e}")
+            return False
