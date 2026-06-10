@@ -252,7 +252,7 @@ def init_gui(database=None, background_scheduler=None):
 
         if validation_enabled:
             scheduler.add_validation_job(
-                lambda: validate_batch_scheduled(database, batch_size=validation_batch_size),
+                lambda batch_size: validate_batch_scheduled(database, batch_size=batch_size),
                 interval_minutes=validation_interval,
                 batch_size=validation_batch_size
             )
