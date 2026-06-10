@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Loading Overlay Test</title>
+    <style>
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.75);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body>
+    <h1>Loading Overlay Test</h1>
+    <button onclick="testLoading()">Test Loading Overlay</button>
+
+    <div id="loading-overlay">
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3" id="loading-text">Testing connection...</p>
+        </div>
+    </div>
+
+    <script>
+        function showLoading(message) {
+            console.log('showLoading called with:', message);
+            document.getElementById('loading-text').textContent = message;
+            document.getElementById('loading-overlay').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            console.log('hideLoading called');
+            document.getElementById('loading-overlay').style.display = 'none';
+        }
+
+        function testLoading() {
+            console.log('testLoading called');
+            showLoading('Testing...');
+
+            // Safety timeout
+            setTimeout(() => {
+                console.log('Safety timeout - hiding loading');
+                hideLoading();
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
