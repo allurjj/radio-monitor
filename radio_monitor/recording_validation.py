@@ -22,6 +22,7 @@ import json
 import ssl
 import logging
 import re
+import unicodedata
 from typing import Dict, Tuple, Optional
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,13 @@ def is_recording_match(recording: Dict, expected_title: str, expected_artist: st
         True if recording matches our song
     """
     recording_title = recording.get('title', '')
+
+    # Normalize Unicode apostrophes to ASCII apostrophe
+    # MusicBrainz sometimes returns U+2019/U+2018 instead of U+0027
+    # Also handle corrupted control characters (U+0019)
+    recording_title = unicodedata.normalize('NFKC', recording_title)
+    recording_title = re.sub(r"[’‘‛❜❛❝❞]", "'", recording_title)
+    recording_title = re.sub(r'[\x00-\x1F\x7F-\x9F]', "'", recording_title)
 
     # Case-insensitive title comparison
     if recording_title.lower() != expected_title.lower():

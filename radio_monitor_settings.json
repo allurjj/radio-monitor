@@ -1,0 +1,31 @@
+{
+  "lidarr": {
+    "url": "http://192.168.0.85:8686",
+    "api_key": "33c3709ba50645bba43f23f650944afa",
+    "root_folder_path": "/data/music",
+    "quality_profile_id": 3,
+    "metadata_profile_id": 4,
+    "monitor_new_artists": false,
+    "search_for_missing_albums": true,
+    "quality_profile_name": "Standard",
+    "metadata_profile_name": "Standard n Singles n Soundtrack n Compilation",
+    "auto_import": true,
+    "min_plays_for_import": 10,
+    "min_songs_for_import": 1
+  },
+  "plex": {
+    "url": "http://192.168.0.85:32400",
+    "token": "Zew8fVxYaBY_tZAf7s3S",
+    "music_library_name": "Music"
+  },
+  "monitor": {
+    "database_file": "radio_songs.db",
+    "scrape_interval_minutes": 20,
+    "auto_start": true
+  },
+  "data_quality": {
+    "auto_validation_enabled": true,
+    "validation_interval_minutes": 5,
+    "validation_batch_size": 1
+  }
+}
