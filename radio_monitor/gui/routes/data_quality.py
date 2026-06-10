@@ -324,10 +324,10 @@ def api_validate_batch():
                 if found:
                     # Successfully validated
                     updated += 1
-                    mark_song_validated(db, song['id'], success=True)
+                    mark_song_validated(db, song['id'], success=True, method=method)
                     logger.debug(f"Validated song {song['id']} ({song['artist_name']} - {song['song_title']}) using method: {method}")
                 else:
-                    mark_song_validated(db, song['id'], success=False, error_message='No match found')
+                    mark_song_validated(db, song['id'], success=False, error_message='No match found', method=method)
                     logger.debug(f"No match found for song {song['id']} ({song['artist_name']} - {song['song_title']})")
 
                 # Rate limiting: small delay between requests to avoid 503 errors
@@ -413,6 +413,130 @@ def api_messy_titles():
         })
     except Exception as e:
         logger.error(f"Error getting messy titles: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_quality_bp.route('/api/data-quality/revalidate-invalid', methods=['POST'])
+@requires_auth
+def api_revalidate_invalid():
+    """API endpoint to reset and re-validate invalid songs
+
+    Resets validation_status of invalid songs to unvalidated,
+    then re-validates them with the fixed code.
+
+    Returns JSON:
+        {
+            "success": true,
+            "reset_count": 68,
+            "validation_results": {...}
+        }
+    """
+    import time
+    db = get_db()
+
+    from radio_monitor.data_quality import get_songs_to_validate, mark_song_validated
+    from radio_monitor.recording_validation import validate_recording_with_fallback
+
+    cursor = db.get_cursor()
+
+    try:
+        # Step 1: Reset invalid songs to unvalidated
+        cursor.execute("""
+            UPDATE songs
+            SET validation_status = 'unvalidated',
+                validated_at = NULL,
+                validation_method = NULL
+            WHERE validation_status = 'invalid'
+        """)
+        reset_count = cursor.rowcount
+        db.conn.commit()
+        logger.info(f"Reset {reset_count} invalid songs to unvalidated")
+
+        if reset_count == 0:
+            return jsonify({
+                'success': True,
+                'reset_count': 0,
+                'message': 'No invalid songs found to re-validate'
+            })
+
+        # Step 2: Get the songs we just reset (they're now unvalidated)
+        cursor.execute("""
+            SELECT id, artist_name, song_title, artist_mbid
+            FROM songs
+            WHERE validation_status = 'unvalidated' OR validation_status IS NULL
+            ORDER BY id DESC
+            LIMIT ?
+        """, (reset_count,))
+
+        songs_to_validate = []
+        for row in cursor.fetchall():
+            songs_to_validate.append({
+                'id': row[0],
+                'artist_name': row[1],
+                'song_title': row[2],
+                'artist_mbid': row[3]
+            })
+        cursor.close()
+
+        processed = 0
+        updated = 0
+        errors = 0
+        skipped = 0
+
+        logger.info(f"Starting re-validation of {len(songs_to_validate)} songs")
+
+        for song in songs_to_validate:
+            processed += 1
+
+            # Skip if PENDING MBID
+            if song['artist_mbid'].startswith('PENDING-'):
+                mark_song_validated(db, song['id'], success=False, error_message='PENDING MBID', method='pending')
+                skipped += 1
+                continue
+
+            try:
+                # Validate recording - returns tuple (found: bool, method: str)
+                found, method = validate_recording_with_fallback(
+                    artist_name=song['artist_name'],
+                    song_title=song['song_title'],
+                    artist_mbid=song['artist_mbid']
+                )
+
+                if found:
+                    updated += 1
+                    mark_song_validated(db, song['id'], success=True, method=method)
+                    logger.info(f"[{processed}/{len(songs_to_validate)}] ✓ Validated: {song['artist_name']} - {song['song_title']} (method: {method})")
+                else:
+                    mark_song_validated(db, song['id'], success=False, error_message='No match found', method=method)
+                    logger.warning(f"[{processed}/{len(songs_to_validate)}] ✗ No match: {song['artist_name']} - {song['song_title']}")
+
+                # Rate limiting: small delay between requests to avoid 503 errors
+                time.sleep(0.2)
+
+            except Exception as e:
+                logger.error(f"Error validating song {song['id']}: {e}")
+                mark_song_validated(db, song['id'], success=False, error_message=str(e), method='error')
+                errors += 1
+
+        result = {
+            'success': True,
+            'reset_count': reset_count,
+            'processed': processed,
+            'updated': updated,
+            'errors': errors,
+            'skipped': skipped,
+            'message': f'Re-validated {processed} songs: {updated} found (were invalid), {errors} errors, {skipped} skipped'
+        }
+
+        logger.info(f"Re-validation complete: {result['message']}")
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Error in revalidate_invalid: {e}")
+        db.conn.rollback()
         return jsonify({
             'success': False,
             'error': str(e)
