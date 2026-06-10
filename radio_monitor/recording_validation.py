@@ -70,7 +70,7 @@ def is_recording_match(recording: Dict, expected_title: str, expected_artist: st
     Args:
         recording: MusicBrainz recording dict
         expected_title: Our song title (cleaned)
-        expected_artist: Our artist name
+        expected_artist: Our artist name (empty for MBID queries)
 
     Returns:
         True if recording matches our song
@@ -80,6 +80,10 @@ def is_recording_match(recording: Dict, expected_title: str, expected_artist: st
     # Case-insensitive title comparison
     if recording_title.lower() != expected_title.lower():
         return False
+
+    # If no artist expected (MBID query), title match is sufficient
+    if not expected_artist:
+        return True
 
     # Check artist credits
     artist_credits = recording.get('artist-credit', [])

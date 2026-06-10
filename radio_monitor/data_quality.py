@@ -385,7 +385,7 @@ def get_songs_to_validate(db, count: int = 50) -> List[Dict]:
         cursor.close()
 
 
-def mark_song_validated(db, song_id: int, success: bool = True, error_message: str = None):
+def mark_song_validated(db, song_id: int, success: bool = True, error_message: str = None, method: str = 'unknown'):
     """Mark a song as validated
 
     Args:
@@ -393,6 +393,7 @@ def mark_song_validated(db, song_id: int, success: bool = True, error_message: s
         song_id: Song ID to mark
         success: Whether validation was successful
         error_message: Error message if validation failed
+        method: Validation method used (mbid, text_fallback, etc.)
     """
     cursor = db.get_cursor()
 
@@ -416,7 +417,6 @@ def mark_song_validated(db, song_id: int, success: bool = True, error_message: s
 
         now = datetime.now().isoformat()
         status = 'valid' if success else 'invalid'
-        method = 'mbid'
 
         cursor.execute("""
             UPDATE songs
@@ -426,7 +426,7 @@ def mark_song_validated(db, song_id: int, success: bool = True, error_message: s
             WHERE id = ?
         """, (status, now, method, song_id))
         db.conn.commit()
-        logger.debug(f"Marked song {song_id} as {status}")
+        logger.debug(f"Marked song {song_id} as {status} (method: {method})")
     except Exception as e:
         logger.error(f"Error marking song validated: {e}")
         db.conn.rollback()
@@ -490,10 +490,10 @@ def validate_batch_scheduled(db, batch_size: int = 50) -> Dict[str, Any]:
 
                 if found:
                     updated += 1
-                    mark_song_validated(db, song['id'], success=True)
+                    mark_song_validated(db, song['id'], success=True, method=method)
                     logger.debug(f"Validated song {song['id']} ({song['artist_name']} - {song['song_title']}) using method: {method}")
                 else:
-                    mark_song_validated(db, song['id'], success=False, error_message='No match found')
+                    mark_song_validated(db, song['id'], success=False, error_message='No match found', method=method)
                     logger.debug(f"No match found for song {song['id']} ({song['artist_name']} - {song['song_title']})")
 
                 # Rate limiting: small delay between requests to avoid 503 errors
