@@ -114,7 +114,7 @@ def api_settings_update():
                 restart_reasons.append('Debug mode changed')
 
         # Update with new values
-        for section in ['lidarr', 'plex', 'monitor', 'database', 'gui', 'logging', 'openrouter', 'spotiflac']:
+        for section in ['lidarr', 'plex', 'monitor', 'database', 'gui', 'logging', 'openrouter', 'spotiflac', 'data_quality']:
             if section in data:
                 settings[section] = {**settings.get(section, {}), **data[section]}
 
