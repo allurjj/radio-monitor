@@ -308,7 +308,7 @@ def api_validate_batch():
                 last_log_time = current_time
 
             # Skip if PENDING MBID
-            if song['artist_mbid'].startswith('PENDING-'):
+            if song['artist_mbid'] and song['artist_mbid'].startswith('PENDING-'):
                 mark_song_validated(db, song['id'], success=False, error_message='PENDING MBID')
                 skipped += 1
                 continue

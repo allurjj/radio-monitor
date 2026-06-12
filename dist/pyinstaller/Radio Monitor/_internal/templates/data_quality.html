@@ -107,6 +107,9 @@
                     <button id="btn-validate-batch" class="btn btn-outline-info">
                         <i class="bi bi-check-circle"></i> Validate 50 Songs
                     </button>
+                    <button id="btn-revalidate-invalid" class="btn btn-outline-warning">
+                        <i class="bi bi-arrow-repeat"></i> Re-validate Invalid ({{ issues.summary.invalid_count or 0 }})
+                    </button>
                 </div>
                 <div id="validation-progress" class="validation-progress">
                     <div class="d-flex align-items-center">
@@ -447,6 +450,51 @@ document.getElementById('btn-validate-batch')?.addEventListener('click', functio
             progressDiv.classList.remove('show');
             btn.disabled = false;
             alert('Error validating: ' + error);
+        });
+});
+
+// Re-validate invalid songs
+document.getElementById('btn-revalidate-invalid')?.addEventListener('click', function() {
+    const btn = this;
+    const progressDiv = document.getElementById('validation-progress');
+    const statusText = document.getElementById('validation-status');
+    const invalidCount = {{ issues.summary.invalid_count or 0 }};
+
+    if (!confirm(`Re-validate ${invalidCount} invalid songs with MusicBrainz?\n\nThis will reset invalid songs to unvalidated and re-check them with the latest validation code. May take several minutes.`)) {
+        return;
+    }
+
+    console.log('Starting re-validation of invalid songs...');
+
+    btn.disabled = true;
+    progressDiv.classList.add('show');
+    statusText.textContent = 'Re-validating invalid songs... This may take several minutes...';
+
+    fetch('/api/data-quality/revalidate-invalid', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+        .then(response => response.json())
+        .then(data => {
+            progressDiv.classList.remove('show');
+            btn.disabled = false;
+            statusText.textContent = 'Validating recordings... This may take a minute...';
+
+            if (data.success) {
+                alert(`Re-validation complete!\n\n${data.message}`);
+                location.reload();
+            } else {
+                alert('Failed to re-validate: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            progressDiv.classList.remove('show');
+            btn.disabled = false;
+            statusText.textContent = 'Validating recordings... This may take a minute...';
+            alert('Error re-validating: ' + error);
         });
 });
 </script>
