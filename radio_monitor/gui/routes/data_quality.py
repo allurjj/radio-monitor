@@ -330,8 +330,9 @@ def api_validate_batch():
                     mark_song_validated(db, song['id'], success=False, error_message='No match found', method=method)
                     logger.debug(f"No match found for song {song['id']} ({song['artist_name']} - {song['song_title']})")
 
-                # Rate limiting: small delay between requests to avoid 503 errors
-                time.sleep(0.2)
+                # Rate limiting: delay between requests to avoid MusicBrainz blocking
+                # MusicBrainz recommends 1 request per second
+                time.sleep(1)
 
             except Exception as e:
                 logger.error(f"Error validating song {song['id']}: {e}")
@@ -492,7 +493,7 @@ def api_revalidate_invalid():
             processed += 1
 
             # Skip if PENDING MBID
-            if song['artist_mbid'].startswith('PENDING-'):
+            if song['artist_mbid'] and song['artist_mbid'].startswith('PENDING-'):
                 mark_song_validated(db, song['id'], success=False, error_message='PENDING MBID', method='pending')
                 skipped += 1
                 continue
@@ -513,8 +514,9 @@ def api_revalidate_invalid():
                     mark_song_validated(db, song['id'], success=False, error_message='No match found', method=method)
                     logger.warning(f"[{processed}/{len(songs_to_validate)}] ✗ No match: {song['artist_name']} - {song['song_title']}")
 
-                # Rate limiting: small delay between requests to avoid 503 errors
-                time.sleep(0.2)
+                # Rate limiting: delay between requests to avoid MusicBrainz blocking
+                # MusicBrainz recommends 1 request per second
+                time.sleep(1)
 
             except Exception as e:
                 logger.error(f"Error validating song {song['id']}: {e}")

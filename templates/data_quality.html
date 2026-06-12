@@ -460,7 +460,7 @@ document.getElementById('btn-revalidate-invalid')?.addEventListener('click', fun
     const statusText = document.getElementById('validation-status');
     const invalidCount = {{ issues.summary.invalid_count or 0 }};
 
-    if (!confirm(`Re-validate ${invalidCount} invalid songs with MusicBrainz?\n\nThis will reset invalid songs to unvalidated and re-check them with the latest validation code. May take several minutes.`)) {
+    if (!confirm(`Re-validate ${invalidCount} invalid songs with MusicBrainz?\n\nThis will reset invalid songs to unvalidated and re-check them with the latest validation code.\n\nRate limited to 1 song/second to avoid blocking.\n\nEstimated time: ${Math.ceil(invalidCount / 60)} minutes`)) {
         return;
     }
 
