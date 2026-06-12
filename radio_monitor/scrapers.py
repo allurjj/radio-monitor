@@ -438,11 +438,18 @@ def scrape_station_iheart_fast(config, max_retries=7, initial_wait=4):
                         logger.debug(f"Skipping song that looks like ad: {song_title}")
                         continue
 
-                    # Try to find artist link inside same parent container
+                    # Try to find artist link - check parent first, then grandparent
+                    # iHeartRadio HTML structure: artist links are typically in grandparent level
                     parent = link.parent
                     artist_link = parent.find(
                         "a", href=lambda h: h and "/artist/" in h and "/songs/" not in h
                     ) if parent else None
+
+                    # If not found in parent, check grandparent (common iHeartRadio structure)
+                    if not artist_link and parent and parent.parent:
+                        artist_link = parent.parent.find(
+                            "a", href=lambda h: h and "/artist/" in h and "/songs/" not in h
+                        )
 
                     if artist_link:
                         artist_name = artist_link.get_text(strip=True)

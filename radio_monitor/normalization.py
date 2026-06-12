@@ -826,7 +826,7 @@ def detect_collaboration(artist_name):
 
     # Collaboration markers to check
     collab_patterns = [
-        ' feat', ' ft.', ' ft ', 'featuring', ' with ', ' & ', ' + ', ' x ', ' and '
+        ' feat', ' ft.', ' ft ', 'featuring', ' with ', ' & ', ' + ', ' x ', ' and ', ';'
     ]
 
     # Check if any collaboration marker is present
@@ -845,6 +845,14 @@ def split_collaboration_artists(artist_name):
 
     Returns:
         list: Individual artist names
+
+    Examples:
+        >>> split_collaboration_artists("Gotye & Kimbra")
+        ['Gotye', 'Kimbra']
+        >>> split_collaboration_artists("Pitbull, Afrojack & Ne-Yo feat. Nayer")
+        ['Pitbull', 'Afrojack', 'Ne-Yo', 'Nayer']
+        >>> split_collaboration_artists("Kenny Chesney;Uncle Kracker")
+        ['Kenny Chesney', 'Uncle Kracker']
     """
     if not artist_name:
         return []
@@ -852,68 +860,87 @@ def split_collaboration_artists(artist_name):
     # Normalize for splitting
     normalized = normalize_with_edge_cases(artist_name)
 
-    # Try different splitting strategies in order
+    # Splitting patterns in priority order
+    # IMPORTANT: Order matters! Check comma/ampersand BEFORE feat
+    # Otherwise "A & B feat. C" will split incorrectly
     strategies = [
-        # Strategy 1: Feat/ft/featuring (period is optional for "ft")
-        (r'\s+(?:feat\.?|ft\.?|featuring)\s+', 'feat'),
+        # Strategy 1: Semicolon (iHeartRadio uses this)
+        (r'\s*;\s*', ';'),
 
-        # Strategy 2: & (ampersand) - RELAXED: allow no spaces
+        # Strategy 2: Commas (multiple artists like "Artist1, Artist2, Artist3")
+        (r',\s*', ','),
+
+        # Strategy 3: & (ampersand) - RELAXED: allow no spaces
         (r'\s*\&\s*', '&'),
 
-        # Strategy 3: + (plus) - RELAXED: allow no spaces
+        # Strategy 4: + (plus) - RELAXED: allow no spaces
         (r'\s*\+\s*', '+'),
 
-        # Strategy 4: X (collaboration marker) - Must have spaces on both sides
+        # Strategy 5: X (collaboration marker) - Must have spaces on both sides
         (r'\s+x\s+', 'x'),
 
-        # Strategy 5: And (only lowercase "and" in artist names)
+        # Strategy 6: And (only lowercase "and" in artist names)
         (r'\s+and\s+', 'and'),
 
-        # NEW: Strategy 6: Commas (multiple artists like "Artist1, Artist2, Artist3")
-        # Simple: split on comma with optional whitespace
-        (r',\s*', ','),
+        # Strategy 7: Feat/ft/featuring (period is optional for "ft")
+        # Check AFTER comma/ampersand to avoid incorrect splits
+        (r'\s+(?:feat\.?|ft\.?|featuring)\s+', 'feat'),
     ]
 
     import re
-    for pattern, marker in strategies:
-        if re.search(pattern, normalized.lower()):
-            # Split using this pattern
-            parts = re.split(pattern, normalized, flags=re.IGNORECASE)
 
-            # Clean up each part
-            artists = []
-            for part in parts:
-                part = part.strip()
+    # Recursively split artist string until no more separators found
+    def recursive_split(parts, depth=0):
+        """Recursively split artist parts using all strategies"""
+        if depth > 10:  # Prevent infinite recursion
+            logger.warning(f"Recursion depth exceeded for '{parts}', stopping")
+            return parts
 
-                # NEW: Validate minimum name length (corruption detection)
-                if not part or len(part) < 2:
-                    logger.debug(f"Skipping invalid artist name from split: '{part}' (too short)")
-                    continue
+        result = []
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
 
-                # NEW: Check for suspicious patterns (corruption detection)
-                # More than 5 words likely indicates a corruption issue
-                word_count = len(part.split())
-                if word_count > 5:
-                    logger.warning(
-                        f"Suspicious artist name from split: '{part}' ({word_count} words). "
-                        f"Likely corruption from timeout, skipping this part."
-                    )
-                    continue
+            # Try each strategy in order
+            split_happened = False
+            for pattern, marker in strategies:
+                if re.search(pattern, part.lower()):
+                    # Split this part using the pattern
+                    sub_parts = re.split(pattern, part, flags=re.IGNORECASE)
+                    # Clean sub-parts (strip whitespace, no feat removal yet)
+                    cleaned_sub_parts = [sub.strip() for sub in sub_parts if sub.strip()]
 
-                # Remove common trailing markers like "feat." or "ft."
-                part = re.sub(r'\s+(?:feat|ft\.?|featuring).*$', '', part, flags=re.IGNORECASE)
-                part = part.strip()
+                    # Recursively split the cleaned sub-parts FIRST
+                    if cleaned_sub_parts:
+                        final_parts = recursive_split(cleaned_sub_parts, depth + 1)
+                        result.extend(final_parts)
+                        split_happened = True
+                    break  # Only use first matching pattern per recursion level
 
-                # Final validation
+            if not split_happened:
+                # No more splits possible, clean and add this part
+                # Remove trailing feat markers only at the end
+                part = re.sub(r'\s+(?:feat|ft\.?|featuring).*$', '', part, flags=re.IGNORECASE).strip()
                 if part and len(part) >= 2:
-                    artists.append(part)
-                    logger.debug(f"Split collaboration part: '{part}'")
-                else:
-                    logger.debug(f"Skipping empty/short part after cleaning: '{part}'")
+                    result.append(part)
 
-            if artists:
-                logger.debug(f"Split collaboration '{artist_name}' into {len(artists)} artists using '{marker}' marker: {artists}")
-                return artists
+        return result
+
+    # Start recursive splitting
+    artists = recursive_split([normalized])
+
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_artists = []
+    for artist in artists:
+        if artist not in seen:
+            seen.add(artist)
+            unique_artists.append(artist)
+
+    if unique_artists:
+        logger.debug(f"Split collaboration '{artist_name}' into {len(unique_artists)} artists: {unique_artists}")
+        return unique_artists
 
     # No split found, return original as single artist
     logger.debug(f"No collaboration split found for '{artist_name}', treating as single artist")
