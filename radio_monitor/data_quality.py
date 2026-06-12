@@ -85,6 +85,7 @@ def run_health_check(db) -> Dict[str, Any]:
 
     # Get validation stats
     validated_count = get_validated_count(db)
+    invalid_count = get_invalid_count(db)
 
     # Summary
     stats = db.get_stats()
@@ -93,7 +94,8 @@ def run_health_check(db) -> Dict[str, Any]:
         'total_songs': total_songs,
         'total_issues': sum(len(issues[k]) for k in ['critical', 'warning', 'info']),
         'health_score': calculate_health_score(total_songs, issues),
-        'validated_count': validated_count
+        'validated_count': validated_count,
+        'invalid_count': invalid_count
     }
 
     return issues
@@ -130,6 +132,42 @@ def get_validated_count(db) -> int:
             return 0
     except Exception as e:
         logger.error(f"Error getting validated count: {e}")
+        return 0
+    finally:
+        cursor.close()
+
+
+def get_invalid_count(db) -> int:
+    """Count songs that failed validation with MusicBrainz
+
+    Args:
+        db: RadioDatabase instance
+
+    Returns:
+        Number of invalid songs
+    """
+    cursor = db.get_cursor()
+    try:
+        # Check if validation_status column exists
+        cursor.execute("PRAGMA table_info(songs)")
+        columns = [row[1] for row in cursor.fetchall()]
+
+        if 'validation_status' in columns:
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM songs
+                WHERE validation_status = 'invalid'
+            """)
+            result = cursor.fetchone()
+            count = result[0] if result else 0
+            logger.debug(f"Invalid count: {count}")
+            return count
+        else:
+            # Column doesn't exist yet (schema not migrated)
+            logger.warning("validation_status column doesn't exist, returning 0")
+            return 0
+    except Exception as e:
+        logger.error(f"Error getting invalid count: {e}")
         return 0
     finally:
         cursor.close()
@@ -475,7 +513,7 @@ def validate_batch_scheduled(db, batch_size: int = 50) -> Dict[str, Any]:
             processed += 1
 
             # Skip if PENDING MBID
-            if song['artist_mbid'].startswith('PENDING-'):
+            if song['artist_mbid'] and song['artist_mbid'].startswith('PENDING-'):
                 mark_song_validated(db, song['id'], success=False, error_message='PENDING MBID')
                 skipped += 1
                 continue
