@@ -1,0 +1,29 @@
+{
+  "description": "Whitelist of duos and groups that should NOT be split by collaboration detection",
+  "instructions": [
+    "MusicBrainz API is checked first - if found, artist won't be split",
+    "This whitelist is a FALLBACK when MusicBrainz fails or is unavailable",
+    "Add artist names that should be treated as single artists (not collaborations)",
+    "Use exact artist names as they appear on radio station websites",
+    "Names are case-insensitive (lowercase recommended)"
+  ],
+  "duos": [
+    "daft punk",
+    "the everly brothers",
+    "brooks & dunn",
+    "earth wind & fire",
+    "the judds",
+    "dan + shay",
+    "crosby stills nash & young",
+    "the prodigy",
+    "the white stripes",
+    "the allman brothers band",
+    "loggins & messina",
+    "the mamas & the papas",
+    "the chemical brothers",
+    "hall & oates",
+    "pet shop boys",
+    "simon & garfunkel",
+    "daryl hall & john oates"
+  ]
+}
