@@ -273,6 +273,8 @@ python test_plex_matching_advanced.py --artist "Tim McGraw" --song "Don't Take t
 - **API Documentation:** [API.md](API.md)
 - **Troubleshooting:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 - **Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md)
+- **Collaboration Detection:** [docs/COLLABORATION_DETECTION.md](docs/COLLABORATION_DETECTION.md)
+- **User Mappings:** [USER_MAPPINGS_README.md](USER_MAPPINGS_README.md)
 
 ---
 
