@@ -25,6 +25,10 @@ import re
 import unicodedata
 from typing import Dict, Tuple, Optional
 
+# Import clean_song_title_for_query for pre-query title cleaning
+# This removes (feat.), (with), and other parentheticals before querying MusicBrainz
+from radio_monitor.normalization import clean_song_title_for_query
+
 logger = logging.getLogger(__name__)
 
 
@@ -68,6 +72,11 @@ def query_musicbrainzRecording(query: str, limit: int = 10) -> Dict:
 def is_recording_match(recording: Dict, expected_title: str, expected_artist: str) -> bool:
     """Check if a MusicBrainz recording matches our song
 
+    Uses a three-tier matching strategy:
+    1. Exact match (after cleaning)
+    2. Suffix-aware match (strips Remix, Live, etc.)
+    3. Similarity match (85%+ threshold for near matches)
+
     Args:
         recording: MusicBrainz recording dict
         expected_title: Our song title
@@ -78,27 +87,66 @@ def is_recording_match(recording: Dict, expected_title: str, expected_artist: st
     """
     recording_title = recording.get('title', '')
 
-    # Clean both titles the same way for fair comparison
-    # This handles parentheticals, features, etc. that may differ
-    from radio_monitor.normalization import clean_song_title_for_query
-    recording_title = clean_song_title_for_query(recording_title)
-    expected_title = clean_song_title_for_query(expected_title)
+    # Import helper functions
+    from radio_monitor.normalization import (
+        clean_song_title_for_query,
+        strip_song_suffixes,
+        calculate_similarity
+    )
 
-    # Normalize Unicode apostrophes to ASCII apostrophe
-    # MusicBrainz sometimes returns U+2019/U+2018 instead of U+0027
-    # Also handle corrupted control characters (U+0019)
-    recording_title = unicodedata.normalize('NFKC', recording_title)
-    recording_title = re.sub(r"[’‘‛❜❛❝❞]", "'", recording_title)
-    recording_title = re.sub(r'[\x00-\x1F\x7F-\x9F]', "'", recording_title)
+    # Clean both titles for fair comparison
+    # This handles parentheticals, features, etc.
+    recording_title_clean = clean_song_title_for_query(recording_title)
+    expected_title_clean = clean_song_title_for_query(expected_title)
 
-    expected_title = unicodedata.normalize('NFKC', expected_title)
-    expected_title = re.sub(r"[’‘‛❜❛❝❞]", "'", expected_title)
-    expected_title = re.sub(r'[\x00-\x1F\x7F-\x9F]', "'", expected_title)
+    # Normalize Unicode apostrophes and control characters
+    recording_title_clean = unicodedata.normalize('NFKC', recording_title_clean)
+    recording_title_clean = re.sub(r"[’‘‛❜❛❝❞]", "'", recording_title_clean)
+    recording_title_clean = re.sub(r'[\x00-\x1F\x7F-\x9F]', "'", recording_title_clean)
 
-    # Case-insensitive title comparison
-    if recording_title.lower() != expected_title.lower():
-        return False
+    expected_title_clean = unicodedata.normalize('NFKC', expected_title_clean)
+    expected_title_clean = re.sub(r"[’‘‛❜❛❝❞]", "'", expected_title_clean)
+    expected_title_clean = re.sub(r'[\x00-\x1F\x7F-\x9F]', "'", expected_title_clean)
 
+    # Tier 1: Exact match (case-insensitive)
+    if recording_title_clean.lower() == expected_title_clean.lower():
+        return _check_artist_match(recording, expected_artist, expected_title)
+
+    # Tier 2: Suffix-aware match (handles Remix, Live, Remastered, etc.)
+    recording_stripped = strip_song_suffixes(recording_title_clean)
+    expected_stripped = strip_song_suffixes(expected_title_clean)
+
+    if recording_stripped.lower() == expected_stripped.lower():
+        logger.debug(f"Suffix-aware match: '{recording_title}' -> '{recording_stripped}' matches '{expected_stripped}'")
+        return _check_artist_match(recording, expected_artist, expected_title)
+
+    # Tier 3: Similarity match (85%+ threshold)
+    # Only for reasonably long titles to avoid false positives on short titles
+    min_title_length = 4
+    if (len(recording_title_clean) >= min_title_length and
+        len(expected_title_clean) >= min_title_length):
+
+        similarity = calculate_similarity(recording_title_clean, expected_title_clean)
+
+        if similarity >= 0.85:
+            logger.debug(f"Similarity match: '{recording_title}' vs '{expected_title}' (similarity: {similarity:.2f})")
+            return _check_artist_match(recording, expected_artist, expected_title)
+
+    # No match found
+    return False
+
+
+def _check_artist_match(recording: Dict, expected_artist: str, expected_title: str) -> bool:
+    """Helper function to check artist match after title match.
+
+    Args:
+        recording: MusicBrainz recording dict
+        expected_artist: Artist name to match (empty for MBID queries)
+        expected_title: Song title (for logging)
+
+    Returns:
+        True if artist matches or no artist check needed
+    """
     # If no artist expected (MBID query), title match is sufficient
     if not expected_artist:
         return True
@@ -110,6 +158,7 @@ def is_recording_match(recording: Dict, expected_title: str, expected_artist: st
         if artist_name.lower() == expected_artist.lower():
             return True
 
+    logger.debug(f"Title matched but artist didn't: expected '{expected_artist}', got {[c.get('name', '') for c in artist_credits]} for '{expected_title}'")
     return False
 
 
@@ -195,16 +244,21 @@ def validate_recording_with_fallback(artist_mbid: Optional[str], artist_name: st
         Tuple of (found: bool, method: str)
         method can be: 'mbid', 'text', 'not_found'
     """
+    # Clean song title before querying MusicBrainz
+    # This removes (feat.), (with), and other parentheticals that MusicBrainz doesn't store
+    # Example: "GEEKALEEK (feat. Cash Kidd)" -> "GEEKALEEK"
+    cleaned_title = clean_song_title_for_query(song_title)
+
     # Try MBID query first (most precise)
     if artist_mbid and not artist_mbid.startswith('PENDING-'):
-        found, method = validate_recording_by_mbid(artist_mbid, song_title, clean_title=False)
+        found, method = validate_recording_by_mbid(artist_mbid, cleaned_title, clean_title=False)
         if found:
             return True, 'mbid'
 
-        logger.debug(f"MBID query failed, trying text query for {artist_name} - {song_title}")
+        logger.debug(f"MBID query failed, trying text query for {artist_name} - {cleaned_title}")
 
     # Fallback to text query
-    found, method = validate_recording_by_text(artist_name, song_title, clean_title=False)
+    found, method = validate_recording_by_text(artist_name, cleaned_title, clean_title=False)
     if found:
         return True, 'text_fallback'
 
