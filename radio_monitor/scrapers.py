@@ -24,6 +24,10 @@ from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 import uuid
+import urllib3
+
+# Suppress SSL warnings for iHeartRadio scraping (Windows certificate bundle issue)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -402,8 +406,10 @@ def scrape_station_iheart_fast(config, max_retries=7, initial_wait=4):
             }
 
             # Fetch page
+            # NOTE: verify=False bypasses SSL certificate verification
+            # Required on Windows systems where certificate bundle may not be properly configured
             logger.debug(f"Fast scraper attempt {attempt}/{max_retries}: {config['url']}")
-            response = requests.get(config['url'], headers=headers, timeout=15)
+            response = requests.get(config['url'], headers=headers, timeout=15, verify=False)
             response.raise_for_status()
 
             # CRITICAL FIX: Force UTF-8 encoding to prevent character corruption
@@ -900,8 +906,11 @@ def scrape_all_stations(db=None, station_ids=None):
                         try:
                             from radio_monitor.recording_validation import validate_recording_with_fallback
 
+                            # Use the verified MusicBrainz name for validation (not the split collaboration name)
+                            # This ensures we validate "KC & The Sunshine Band" not "Kc"
+                            artist_for_validation = primary_artist_verified_name if primary_artist_verified_name else primary_artist
                             recording_found, method = validate_recording_with_fallback(
-                                primary_artist_mbid, primary_artist, song_title
+                                primary_artist_mbid, artist_for_validation, song_title
                             )
 
                             if not recording_found:
