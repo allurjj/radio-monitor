@@ -12,7 +12,7 @@ This package provides a modular database interface with:
 The main RadioDatabase class (below) provides a unified interface
 to all database operations with backward compatibility.
 
-Schema Version: 21 (Song Verification Support)
+Schema Version: 22 (Recording-Level Validation Support)
 """
 
 import sqlite3
@@ -59,10 +59,11 @@ class RadioDatabase:
     - plex_manual_overrides: Manual Plex track matching overrides (v16)
     - spotiflac_downloads: SpotiFLAC download job tracking (v19)
     - artist_song_verification: Song verification tracking (v21)
+    - recording_validation: Recording-level validation tracking (v22)
     """
 
     # Current schema version
-    SCHEMA_VERSION = 21
+    SCHEMA_VERSION = 22
 
     def __init__(self, db_path):
         self.db_path = db_path
@@ -190,6 +191,25 @@ class RadioDatabase:
         cursor = self.conn.cursor()
         try:
             return queries.get_artist_by_name(cursor, name)
+        finally:
+            cursor.close()
+
+    def get_artist_by_match_key(self, match_key):
+        """Get artist by match_key (for database-first lookup)
+
+        This method is used for Phase 1 database-first MBID lookup.
+        It queries the database using the normalized match_key which handles
+        variations in spacing, punctuation, and capitalization.
+
+        Args:
+            match_key: Normalized artist match key
+
+        Returns:
+            Artist dict or None
+        """
+        cursor = self.conn.cursor()
+        try:
+            return queries.get_artist_by_match_key(cursor, match_key)
         finally:
             cursor.close()
 
