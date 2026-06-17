@@ -24,6 +24,9 @@ import ssl
 import re
 from difflib import SequenceMatcher
 
+# Import normalization functions for consistent artist name matching
+from radio_monitor.normalization import normalize_artist_name
+
 # Get logger (will be configured properly in Phase 8)
 logger = logging.getLogger(__name__)
 
@@ -72,6 +75,11 @@ ARTIST_NAME_VARIATIONS = {
     'hootie the blowfish': 'Hootie & The Blowfish',
     'k ci jojo': 'K-Ci & JoJo',
     'sonny cher': 'Sonny & Cher',
+
+    # Special character variations (6-17-26 investigation)
+    'soulja boy tell\'em': 'Soulja Boy',
+    'ke$ha': 'Kesha',
+    'dht': 'D.H.T.',
 }
 
 
@@ -169,8 +177,13 @@ def safe_artist_match(our_artist, their_artist, threshold=NAME_SIMILARITY_THRESH
     Returns:
         tuple: (is_match: bool, reason: str)
     """
-    # Check for exact match (case-insensitive)
-    if our_artist.lower().strip() == their_artist.lower().strip():
+    # Normalize special characters (hyphens, apostrophes) BEFORE comparison
+    # This ensures "Ne-Yo" matches "Ne‒Yo" regardless of hyphen encoding
+    our_normalized = normalize_artist_name(our_artist).lower().strip()
+    their_normalized = normalize_artist_name(their_artist).lower().strip()
+
+    # Check for exact match (with normalized special characters)
+    if our_normalized == their_normalized:
         return True, "exact match"
 
     # Calculate string similarity
@@ -348,7 +361,7 @@ def lookup_artist_mbid(artist_name, db, user_agent=None, max_retries=10, auto_re
         9. Validate artist name with fuzzy matching (80% threshold)
         10. Return (MBID, verified_name) or (None, None) if not found
     """
-    # Check cache first
+    # Check cache first (exact name match)
     artist = db.get_artist_by_name(artist_name)
 
     if artist:
@@ -373,6 +386,24 @@ def lookup_artist_mbid(artist_name, db, user_agent=None, max_retries=10, auto_re
     else:
         # New artist - will be added after MBID lookup
         logger.debug(f"New artist: {artist_name} - looking up MBID")
+
+        # Phase 1 Enhancement: Try match_key lookup for more robust database-first caching
+        # This handles variations in spacing, punctuation, and capitalization
+        from radio_monitor.normalization import generate_match_key_for_db
+        match_key = generate_match_key_for_db(artist_name)
+        artist_by_match_key = db.get_artist_by_match_key(match_key)
+
+        if artist_by_match_key:
+            artist_mbid = artist_by_match_key.get('mbid')
+            if artist_mbid and not artist_mbid.startswith('PENDING-'):
+                # Found valid MBID via match_key
+                logger.debug(f"Using cached MBID via match_key for {artist_name}: {artist_mbid}")
+                return artist_mbid, artist_by_match_key.get('name')
+            else:
+                # Artist found by match_key but has PENDING or NULL MBID - retry lookup
+                logger.info(f"Found artist by match_key but MBID is {artist_mbid or 'NULL'} - retrying lookup")
+        else:
+            logger.debug(f"Artist not found by match_key: {match_key}")
 
     # Check for common artist name variations before querying MusicBrainz
     # This handles cases where scraper produces different formatting than MusicBrainz
@@ -409,14 +440,15 @@ def lookup_artist_mbid(artist_name, db, user_agent=None, max_retries=10, auto_re
                 # First attempt - minimal delay to space out requests
                 time.sleep(0.5)
 
-            # Create SSL context with proper certificate verification
-            # MusicBrainz requires valid SSL certificates
+            # Create SSL context (verification disabled for Windows compatibility)
             ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
 
             req = urllib.request.Request(url, headers=headers)
 
-            # Shorter timeout (5s) - fail fast if connection is bad
-            with urllib.request.urlopen(req, timeout=5, context=ssl_context) as response:
+            # Timeout (10s) - allow time for slow API responses
+            with urllib.request.urlopen(req, timeout=10, context=ssl_context) as response:
                 # Rate limiting - wait after successful request
                 # (Total delay: 0.5s before + 0.5s after = 1 second between requests)
                 time.sleep(0.5)
@@ -631,38 +663,53 @@ def lookup_artist_mbid(artist_name, db, user_agent=None, max_retries=10, auto_re
                             return None, None
 
                 elif response.status == 404:
-                    # Not found
+                    # Not found - this means the artist truly doesn't exist in MusicBrainz
+                    # Return None so multi-artist resolver can be tried
                     logger.warning(f"No MBID found for {artist_name} (HTTP 404)")
                     return None, None
+                elif response.status == 503:
+                    # Service Temporarily Unavailable - retry with exponential backoff
+                    # This is a temporary error, not a "not found" error
+                    if attempt < max_retries - 1:
+                        wait_time = (2 ** attempt) + 2  # 3s, 4s, 6s
+                        logger.warning(f"MusicBrainz API 503 for {artist_name} (attempt {attempt + 1}/{max_retries}) - retrying in {wait_time}s")
+                        time.sleep(wait_time)
+                        break  # Break out of response handling, continue retry loop
+                    else:
+                        logger.error(f"MusicBrainz API 503 for {artist_name} after {max_retries} attempts")
+                        return None, None
+                elif response.status == 429:
+                    # Rate limit - retry with longer delay
+                    if attempt < max_retries - 1:
+                        wait_time = 5 + (attempt * 5)  # 5s, 10s, 15s
+                        logger.warning(f"MusicBrainz API rate limit (429) for {artist_name} (attempt {attempt + 1}/{max_retries}) - retrying in {wait_time}s")
+                        time.sleep(wait_time)
+                        break  # Break out of response handling, continue retry loop
+                    else:
+                        logger.error(f"MusicBrainz API rate limit (429) for {artist_name} after {max_retries} attempts")
+                        return None, None
                 else:
-                    # Other error
+                    # Other HTTP error - don't retry
                     logger.error(f"MusicBrainz API error for {artist_name}: HTTP {response.status}")
                     return None, None
 
         except urllib.error.URLError as e:
-            # SSL, EOF, and connection errors - retry with exponential backoff
-            if 'SSL' in str(e) or 'EOF' in str(e) or '10054' in str(e) or 'forcibly closed' in str(e).lower():
-                # Network/Connection error - retry
+            # SSL, EOF, connection, and timeout errors - retry with exponential backoff
+            if ('SSL' in str(e) or 'EOF' in str(e) or '10054' in str(e) or
+                'forcibly closed' in str(e).lower() or 'timed out' in str(e).lower()):
+                # Network/Connection/Timeout error - retry
                 if attempt < max_retries - 1:
                     wait_time = (2 ** attempt) + 2  # 3s, 4s, 6s (slightly longer)
-                    logger.warning(f"MusicBrainz connection error for {artist_name} (attempt {attempt + 1}/{max_retries}): {e}")
+                    logger.warning(f"MusicBrainz connection/timeout error for {artist_name} (attempt {attempt + 1}/{max_retries}): {e}")
                     logger.info(f"Retrying in {wait_time} seconds...")
                     time.sleep(wait_time)
                 else:
-                    logger.error(f"MusicBrainz connection error for {artist_name} after {max_retries} attempts: {e}")
+                    logger.error(f"MusicBrainz connection/timeout error for {artist_name} after {max_retries} attempts: {e}")
                     return None, None
             else:
                 # Other URL errors - don't retry
                 logger.error(f"MusicBrainz API request failed for {artist_name}: {e}")
                 return None, None
-
-        except urllib.error.URLError as e:
-            # Other URL errors
-            if hasattr(e, 'reason'):
-                logger.error(f"MusicBrainz API request failed for {artist_name}: {e.reason}")
-            else:
-                logger.error(f"MusicBrainz API request failed for {artist_name}: {e}")
-            return None, None
 
         except Exception as e:
             logger.error(f"Unexpected error looking up MBID for {artist_name}: {e}")
@@ -851,8 +898,10 @@ def verify_mbid_exists(mbid, user_agent=None):
         # Add delay to respect rate limiting
         time.sleep(0.5)
 
-        # Create SSL context
+        # Create SSL context (verification disabled for Windows compatibility)
         ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
 
         req = urllib.request.Request(url, headers=headers)
 
