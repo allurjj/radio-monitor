@@ -684,7 +684,16 @@ function setupPlaylistModal() {
     });
 
     // Save button
-    document.getElementById('btn-save-playlist').addEventListener('click', savePlaylist);
+    const saveBtn = document.getElementById('btn-save-playlist');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function(e) {
+            console.log('Save button clicked');
+            e.preventDefault();
+            savePlaylist();
+        });
+    } else {
+        console.error('Save button not found!');
+    }
 }
 
 function updateStationsSelectedCount() {
@@ -772,6 +781,16 @@ function editPlaylist(id) {
 }
 
 function savePlaylist() {
+    console.log('savePlaylist called');
+    console.log('Toast available:', typeof Toast !== 'undefined');
+
+    // Check if Toast is available
+    if (typeof Toast === 'undefined') {
+        console.error('Toast is not defined!');
+        alert('Error: Toast system not loaded. Please refresh the page.');
+        return;
+    }
+
     const id = document.getElementById('playlist-id').value;
     const name = document.getElementById('playlist-name').value.trim();
     const mode = document.getElementById('playlist-mode').value;
@@ -833,6 +852,8 @@ function savePlaylist() {
     const url = id ? `/api/plex/playlists/${id}` : '/api/plex/playlists';
     const method = id ? 'PUT' : 'POST';
 
+    console.log('Saving playlist:', { url, method, data });
+
     fetch(url, {
         method: method,
         headers: {
@@ -840,8 +861,12 @@ function savePlaylist() {
         },
         body: JSON.stringify(data)
     })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Response status:', response.status);
+            return response.json();
+        })
         .then(data => {
+            console.log('Response data:', data);
             if (data.success) {
                 playlistModal.hide();
                 loadPlaylists();
@@ -853,12 +878,15 @@ function savePlaylist() {
                     setTimeout(() => {
                         hideResultsAlert();
                     }, 5000);
+                } else {
+                    Toast.success('Playlist saved successfully!');
                 }
             } else {
                 Toast.error('Error: ' + (data.error || 'Unknown error'));
             }
         })
         .catch(error => {
+            console.error('Fetch error:', error);
             Toast.error('Error: ' + error.message);
         });
 }

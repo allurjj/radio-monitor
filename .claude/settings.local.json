@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(gh release *)"
+      "Bash(gh release *)",
+      "Bash(python test_manual_validation.py)",
+      "Bash(python -m radio_monitor.cli --gui)",
+      "Bash(python *)"
     ]
   }
 }

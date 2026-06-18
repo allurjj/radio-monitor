@@ -223,6 +223,13 @@ def normalize_with_edge_cases(text):
     for apostrophe in smart_apostrophes:
         text = text.replace(apostrophe, "'")
 
+    # Step 2.5: Unify hyphens and dashes (all variants → regular hyphen)
+    # This handles cases where MusicBrainz returns U+2010 (hyphen) but we use U+002D (regular hyphen)
+    # Characters to normalize: U+2010, U+2011, U+2012, U+2013, U+2014, U+2015
+    dash_characters = ['‐', '‑', '‒', '–', '—', '―']
+    for dash in dash_characters:
+        text = text.replace(dash, "-")
+
     # Step 3: Trim whitespace
     text = text.strip()
 
@@ -449,7 +456,7 @@ def check_musicbrainz_exists(artist_name):
         # Query MusicBrainz for exact match
         # Use AND operator for exact phrase match
         query = f'artist:"{artist_name}"'
-        url = f'https://musicbrainz.org/ws2/artist?query={requests.utils.quote(query)}&fmt=json&limit=5'
+        url = f'https://musicbrainz.org/ws2/artist?query={requests.utils.quote(query)}&fmt=json&limit=20'
 
         response = requests.get(
             url,
@@ -783,13 +790,22 @@ def generate_match_key_for_db(artist_name):
     Returns:
         Match key suitable for database storage
     """
+    # Handle None input
+    if artist_name is None:
+        logger.warning("None artist_name provided to generate_match_key_for_db")
+        return ""
+
     match_key = normalize_for_matching(artist_name)
 
     # Safety check: ensure match_key is not empty
     if not match_key or match_key.strip() == '':
         # Fallback: use artist name (shouldn't happen, but safety net)
         logger.warning(f"Empty match_key generated for '{artist_name}', using fallback")
-        match_key = artist_name.lower().replace(' ', '')
+        try:
+            match_key = artist_name.lower().replace(' ', '')
+        except AttributeError:
+            # If artist_name is not a string, return empty string
+            return ""
 
     # Safety check: ensure match_key is not too long
     if len(match_key) > 100:
@@ -797,3 +813,127 @@ def generate_match_key_for_db(artist_name):
         match_key = match_key[:100]
 
     return match_key
+
+
+# ==================== SONG VALIDATION ====================
+
+def strip_song_suffixes(title: str) -> str:
+    """Strip common version suffixes from song titles for comparison.
+
+    This removes suffixes like "(Remix)", "(Live)", "- Remastered", etc.
+    to allow matching base song titles against versioned recordings.
+
+    Args:
+        title: Song title that may have version suffixes
+
+    Returns:
+        Base song title with common suffixes removed
+
+    Examples:
+        >>> strip_song_suffixes("Neon Moon (Remix)")
+        "Neon Moon"
+        >>> strip_song_suffixes("Austin - Live")
+        "Austin"
+        >>> strip_song_suffixes("Test Song (Radio Edit)")
+        "Test Song"
+    """
+    if not title:
+        return title
+
+    # Common version patterns to strip (case-insensitive)
+    patterns = [
+        r'\s*\(.*?\bremix\b.*?\)\s*$',           # (Remix), (Club Remix), etc.
+        r'\s*\(.*?\blive\b.*?\)\s*$',            # (Live), (Live Version), etc.
+        r'\s*\(.*?\bradio\s+edit\b.*?\)\s*$',    # (Radio Edit)
+        r'\s*\(.*?\bedit\b.*?\)\s*$',             # (Edit), (Vocal Edit), etc.
+        r'\s*\(.*?\bextended\b.*?\)\s*$',        # (Extended), (Extended Mix)
+        r'\s*\(.*?\boriginal\b.*?\)\s*$',       # (Original), (Original Mix)
+        r'\s*\(.*?\bversion\b.*?\)\s*$',         # (Version), (Alternate Version)
+        r'\s*\(.*?\bremaster(?:ed)?\b.*?\)\s*$', # (Remastered), (2023 Remaster)
+        r'\s*\(.*?\b acoustic\b.*?\)\s*$',        # (Acoustic), (Acoustic Version)
+        r'\s*\(.*?\bfeat\b.*?\)\s*$',            # (feat. Artist) - but keep base
+        r'\s*\(.*?\bwith\b.*?\)\s*$',            # (with Artist)
+        r'\s*\[.*?\]\s*$',                       # [Remix], [Live], etc.
+        r'\s*-\s*live\s*$',                      # - Live
+        r'\s*-\s*remix\s*$',                     # - Remix
+        r'\s*-\s*remaster(?:ed)?\s*$',           # - Remastered
+        r'\s*-\s*version\s*$',                   # - Version
+    ]
+
+    result = title.strip()
+    for pattern in patterns:
+        result = re.sub(pattern, '', result, flags=re.IGNORECASE)
+        # After each match, check if we changed something and stop
+        if result != title.strip():
+            break
+
+    return result.strip()
+
+
+def calculate_similarity(str1: str, str2: str) -> float:
+    """Calculate similarity between two strings using SequenceMatcher.
+
+    Returns 0.0 to 1.0, where 1.0 is exact match.
+
+    Args:
+        str1: First string to compare
+        str2: Second string to compare
+
+    Returns:
+        float: Similarity ratio between 0.0 and 1.0
+
+    Examples:
+        >>> calculate_similarity("Neon Moon", "Neon Moon")
+        1.0
+        >>> calculate_similarity("Neon Moon", "Neon Moon (Remix)")
+        0.85+
+        >>> calculate_similarity("Test Song", "Different Title")
+        < 0.5
+    """
+    from difflib import SequenceMatcher
+    return SequenceMatcher(None, str1.lower(), str2.lower()).ratio()
+
+
+def clean_song_title_for_query(title: str) -> str:
+    """Clean song title for MusicBrainz queries.
+
+    Removes parentheticals and modifiers that may interfere with matching:
+    - Features: (feat. Artist), (ft. Artist), (with Artist)
+    - Remixes/Live versions (already handled by strip_song_suffixes)
+    - Extra metadata: (Official Video), (From Album X)
+
+    Args:
+        title: Raw song title
+
+    Returns:
+        Cleaned title suitable for MusicBrainz queries
+
+    Examples:
+        >>> clean_song_title_for_query("Neon Moon (feat. John Doe)")
+        'Neon Moon'
+        >>> clean_song_title_for_query("Test Song (Official Video)")
+        'Test Song'
+    """
+    import re
+
+    # Remove features and collaborations
+    patterns = [
+        r'\s*\(feat\.?\s+[^)]+\)',             # (feat. Artist)
+        r'\s*\(ft\.?\s+[^)]+\)',               # (ft. Artist)
+        r'\s*\(featuring\s+[^)]+\)',           # (featuring Artist)
+        r'\s*\(with\s+[^)]+\)',                # (with Artist)
+        r'\s*\(official\s+(video|music\s+video)\)',  # (Official Video)
+        r'\s*\(from\s+[^)]+\)',                # (From Album X)
+        r'\s*\(audio\s*(only)?\)',             # (Audio)
+        r'\s*\(lyrics?\)',                     # (Lyrics)
+        r'\s*\[[^\]]+\]',                      # [Square brackets]
+    ]
+
+    result = title.strip()
+    for pattern in patterns:
+        result = re.sub(pattern, '', result, flags=re.IGNORECASE)
+
+    # Also strip version suffixes (remix, live, etc.)
+    result = strip_song_suffixes(result)
+
+    return result.strip()

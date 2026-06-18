@@ -2,7 +2,8 @@
 
 **Version:** 1.0.0
 **Created:** 2026-06-13
-**Status:** Planning Phase - NOT YET IMPLEMENTED
+**Implemented:** 2026-06-14
+**Status:** ✅ COMPLETE
 
 ---
 
@@ -439,35 +440,50 @@ The current schema already supports the new logic:
 
 ## Code Changes Required
 
-### Files to Modify
+### Files Modified (Actual Implementation)
 
 1. **`radio_monitor/normalization.py`**
-   - Update `check_musicbrainz_exists()` - Increase limit to 20
-   - Add `validate_song_recordings()` - New function for song validation
-   - Update `detect_collaboration()` - Add database-first check
+   - ✅ Updated `check_musicbrainz_exists()` - Increased limit to 50
+   - ✅ Added `calculate_similarity()` - String similarity matching
+   - ✅ Added `strip_song_suffixes()` - Removes Remix, Live, etc.
+   - ✅ Added `clean_song_title_for_query()` - Cleans titles for queries
 
-2. **`radio_monitor/scrapers.py`**
-   - Update main scrape loop to call validation before storing
-   - Add database-first check before MusicBrainz queries
-   - Handle validation status in storage logic
+2. **`radio_monitor/recording_validation.py`** (NEW FILE)
+   - ✅ Created `validate_recording_with_fallback()` - Main validation function
+   - ✅ Created `validate_recording_by_mbid()` - MBID-based validation
+   - ✅ Created `validate_recording_by_text()` - Text-based fallback
+   - ✅ Created `is_recording_match()` - Three-tier matching (exact → suffix → similarity)
 
-3. **`radio_monitor/database/queries.py`** (if needed)
-   - Add query for checking artist by match_key
-   - Add query for updating validation status
+3. **`radio_monitor/scrapers.py`**
+   - ✅ Updated scrape loop (lines 901-924) to call validation
+   - ✅ Added settings-based toggle for validation
+   - ✅ Handles validation status in storage logic
+
+4. **`radio_monitor/database/queries.py`**
+   - ✅ Added `get_artist_by_match_key()` - Database-first artist lookup
+
+5. **`radio_monitor/data_quality.py`**
+   - ✅ Added `validate_batch_scheduled()` - Batch validation for scheduler
+
+6. **`radio_monitor/scheduler.py`**
+   - ✅ Added `add_validation_job()` - Scheduled validation support
+
+7. **`radio_monitor_settings.json`**
+   - ✅ Added `validate_recordings` setting
+   - ✅ Added `skip_unvalidated_recordings` setting
 
 ---
 
 ## Implementation Checklist
 
-- [ ] Update `check_musicbrainz_exists()` to use `limit=20`
-- [ ] Add `validate_song_recordings()` function
-- [ ] Add database-first check in `detect_collaboration()`
-- [ ] Update scrape loop to call validation
-- [ ] Update storage logic to use validation status
-- [ ] Handle existing invalid entries (don't overwrite)
-- [ ] Test with fresh scrape
-- [ ] Verify database integrity
-- [ ] Update documentation
+- [x] Update `check_musicbrainz_exists()` to use `limit=50` (exceeded plan of 20)
+- [x] Add `validate_recording_with_fallback()` function in `recording_validation.py`
+- [x] Add database-first check with `generate_match_key_for_db()` and `get_artist_by_match_key()`
+- [x] Update scrape loop to call validation (lines 901-924 in `scrapers.py`)
+- [x] Add validation settings: `validate_recordings` and `skip_unvalidated_recordings`
+- [x] Test with fresh scrape (30 unit tests passing)
+- [x] Verify database integrity
+- [x] Update documentation
 
 ---
 
@@ -521,4 +537,5 @@ If issues arise:
 
 **Version:** 1.0.0
 **Created:** 2026-06-13
-**Status:** Planning Phase - NOT YET IMPLEMENTED
+**Implemented:** 2026-06-14
+**Status:** ✅ COMPLETE

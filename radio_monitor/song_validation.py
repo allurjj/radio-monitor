@@ -259,27 +259,14 @@ def verify_artist_song_lidarr(artist_name, song_title, artist_mbid, settings):
                 tracks = tracks_response.json()
                 logger.info(f"[Lidarr] Found {len(tracks)} tracks for '{artist_name}'")
 
+                # Log first track structure to debug
+                if tracks:
+                    logger.info(f"[Lidarr] Sample track keys: {list(tracks[0].keys())}")
+                    logger.info(f"[Lidarr] Sample track data: {tracks[0]}")
+
                 # Search through all tracks
                 for track in tracks:
                     track_title = track.get('title', '')
-
-                    # Extract album title with better fallback handling
-                    album_title = None
-                    album_data = track.get('album')
-
-                    if album_data:
-                        if isinstance(album_data, dict):
-                            album_title = album_data.get('title') or album_data.get('name')
-                            # Log for debugging
-                            logger.debug(f"[Lidarr] Track album data: {album_data}")
-                        elif isinstance(album_data, str):
-                            album_title = album_data
-
-                    # Final fallback
-                    if not album_title:
-                        album_title = 'Unknown Album'
-                        logger.debug(f"[Lidarr] No album found for track '{track_title}', using fallback")
-
                     track_similarity = SequenceMatcher(
                         None,
                         song_title.lower(),
@@ -289,6 +276,25 @@ def verify_artist_song_lidarr(artist_name, song_title, artist_mbid, settings):
                     logger.debug(f"[Lidarr] Checking track: '{track_title}' vs '{song_title}' (similarity: {track_similarity:.1%})")
 
                     if track_similarity >= SONG_SIMILARITY_THRESHOLD:
+                        # Found a match! Now fetch album details using albumId
+                        album_title = None
+                        album_id = track.get('albumId')
+
+                        if album_id:
+                            try:
+                                album_url = f"{lidarr_url}/api/v1/album/{album_id}"
+                                album_response = requests.get(
+                                    album_url,
+                                    headers={"X-Api-Key": lidarr_api_key},
+                                    timeout=10
+                                )
+                                if album_response.status_code == 200:
+                                    album_data = album_response.json()
+                                    album_title = album_data.get('title')
+                                    logger.info(f"[Lidarr] Fetched album: {album_title} (ID: {album_id})")
+                            except Exception as e:
+                                logger.warning(f"[Lidarr] Failed to fetch album {album_id}: {e}")
+
                         logger.info(
                             f"✅ VERIFIED_LIDARR: {artist_name} - {song_title} "
                             f"(track: {track_title}, album: {album_title}, similarity: {track_similarity:.1%})"

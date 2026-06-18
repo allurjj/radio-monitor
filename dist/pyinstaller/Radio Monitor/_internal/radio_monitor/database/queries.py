@@ -318,6 +318,29 @@ def get_artist_by_name(cursor, name):
         return dict(zip(columns, row))
     return None
 
+
+def get_artist_by_match_key(cursor, match_key):
+    """Get artist by match_key (database-first check)
+
+    This function is used for database-first MBID lookup to avoid
+    unnecessary MusicBrainz API calls for known artists.
+
+    Args:
+        cursor: SQLite cursor object
+        match_key: Normalized artist match key
+
+    Returns:
+        Artist dict or None with keys: id, name, mbid, match_key, etc.
+    """
+    cursor.execute("SELECT * FROM artists WHERE match_key = ?", (match_key,))
+    row = cursor.fetchone()
+
+    if row:
+        columns = [desc[0] for desc in cursor.description]
+        return dict(zip(columns, row))
+    return None
+
+
 def get_all_artists(cursor):
     """Get all artists
 
@@ -503,7 +526,9 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
         'song_count': 'song_count',
         'total_plays': 'total_plays',
         'last_seen': 'a.last_seen_at',
-        'first_seen': 'a.first_seen_at'
+        'first_seen': 'a.first_seen_at',
+        'validated_count': 'validated_count',
+        'verified_count': 'verified_count'
     }
 
     # Get column name (default to name)
@@ -513,6 +538,13 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
     # Use COLLATE NOCASE for case-insensitive text sorting
     if sort in ['name']:
         order_by = f"{sort_column} COLLATE NOCASE {direction.upper()}"
+    elif sort in ['validated_count', 'verified_count']:
+        # For aggregate columns, repeat the aggregate expression in ORDER BY
+        if sort == 'validated_count':
+            agg_expr = 'SUM(CASE WHEN COALESCE(s.validation_status, \'unvalidated\') = \'valid\' THEN 1 ELSE 0 END)'
+        else:  # verified_count
+            agg_expr = 'SUM(CASE WHEN COALESCE(s.verification_status, \'UNVERIFIED\') IN (\'VERIFIED_MB\', \'VERIFIED_LIDARR\') THEN 1 ELSE 0 END)'
+        order_by = f"{agg_expr} {direction.upper()}, {sort_column} {direction.upper()}"
     else:
         order_by = f"{sort_column} {direction.upper()}"
 
@@ -800,7 +832,9 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
         'title': 's.song_title',
         'artist_name': 's.artist_name',
         'play_count': 's.play_count',
-        'last_seen': 's.last_seen_at'
+        'last_seen': 's.last_seen_at',
+        'validation_status': 'validation_status',
+        'verification': 'verification'
     }
 
     # Get column name (default to song_title)
@@ -808,7 +842,30 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
 
     # Build ORDER BY clause with direction
     # Use COLLATE NOCASE for case-insensitive text sorting
-    if sort in ['title', 'artist_name']:
+    if sort == 'validation_status':
+        # Custom sort order for validation status: invalid(1) < unvalidated(2) < pending(3) < valid(4)
+        # When descending, shows problems first (invalid at top)
+        order_expr = """CASE COALESCE(s.validation_status, 'unvalidated')
+            WHEN 'invalid' THEN 1
+            WHEN 'unvalidated' THEN 2
+            WHEN 'pending' THEN 3
+            WHEN 'valid' THEN 4
+            ELSE 5
+        END"""
+        order_by = f"{order_expr} {direction.upper()}"
+    elif sort == 'verification':
+        # Custom sort order for verification: both(1) < mb_only(2) < lidarr_only(3) < not_found(4) < unverified(5)
+        # When descending, shows problems first (unverified at bottom)
+        order_expr = """CASE
+            WHEN EXISTS(SELECT 1 FROM artist_song_verification v WHERE v.song_id = s.id AND v.verification_source = 'musicbrainz' AND v.is_verified = 1)
+             AND EXISTS(SELECT 1 FROM artist_song_verification v WHERE v.song_id = s.id AND v.verification_source = 'lidarr' AND v.is_verified = 1) THEN 1
+            WHEN EXISTS(SELECT 1 FROM artist_song_verification v WHERE v.song_id = s.id AND v.verification_source = 'musicbrainz' AND v.is_verified = 1) THEN 2
+            WHEN EXISTS(SELECT 1 FROM artist_song_verification v WHERE v.song_id = s.id AND v.verification_source = 'lidarr' AND v.is_verified = 1) THEN 3
+            WHEN COALESCE(s.verification_status, 'UNVERIFIED') = 'NOT_FOUND' THEN 4
+            ELSE 5
+        END"""
+        order_by = f"{order_expr} {direction.upper()}"
+    elif sort in ['title', 'artist_name']:
         order_by = f"{sort_column} COLLATE NOCASE {direction.upper()}"
     else:
         order_by = f"{sort_column} {direction.upper()}"

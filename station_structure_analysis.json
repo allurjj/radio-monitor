@@ -1,0 +1,344 @@
+{
+  "stats": {
+    "artist_in_parent": 0,
+    "artist_in_grandparent": 0,
+    "artist_in_great_grandparent": 0,
+    "no_artist_link": 0,
+    "url_slug_fallback": 0,
+    "http_error": 20,
+    "no_songs": 3,
+    "grandparent": 8
+  },
+  "results": [
+    {
+      "station_id": "us99",
+      "station_name": "US99",
+      "status": "grandparent",
+      "songs_found": 12,
+      "structure": {
+        "parent": 0,
+        "grandparent": 10,
+        "great_grandparent": 0,
+        "no_link": 0,
+        "examples": [
+          {
+            "song": "Hard Fought Hallelujah (Single Version)",
+            "artist": "Brandon Lake & Jelly Roll",
+            "location": "grandparent"
+          },
+          {
+            "song": "A Guy with a Girl",
+            "artist": "Blake Shelton",
+            "location": "grandparent"
+          }
+        ]
+      }
+    },
+    {
+      "station_id": "wls",
+      "station_name": "WLSfm",
+      "status": "grandparent",
+      "songs_found": 12,
+      "structure": {
+        "parent": 0,
+        "grandparent": 10,
+        "great_grandparent": 0,
+        "no_link": 0,
+        "examples": [
+          {
+            "song": "Uptown Funk",
+            "artist": "Mark Ronson feat. Bruno Mars",
+            "location": "grandparent"
+          },
+          {
+            "song": "Pour Some Sugar On Me",
+            "artist": "Def Leppard",
+            "location": "grandparent"
+          }
+        ]
+      }
+    },
+    {
+      "station_id": "wlit",
+      "station_name": "93.9 Lite FM",
+      "status": "grandparent",
+      "songs_found": 12,
+      "structure": {
+        "parent": 0,
+        "grandparent": 10,
+        "great_grandparent": 0,
+        "no_link": 0,
+        "examples": [
+          {
+            "song": "Free Fallin'",
+            "artist": "Tom Petty",
+            "location": "grandparent"
+          },
+          {
+            "song": "Red Red Wine",
+            "artist": "UB40",
+            "location": "grandparent"
+          }
+        ]
+      }
+    },
+    {
+      "station_id": "kiss",
+      "station_name": "103.5 KISS FM",
+      "status": "grandparent",
+      "songs_found": 12,
+      "structure": {
+        "parent": 0,
+        "grandparent": 10,
+        "great_grandparent": 0,
+        "no_link": 0,
+        "examples": [
+          {
+            "song": "Backseat",
+            "artist": "Balu Brigada",
+            "location": "grandparent"
+          },
+          {
+            "song": "In My Room",
+            "artist": "Julia Wolf",
+            "location": "grandparent"
+          }
+        ]
+      }
+    },
+    {
+      "station_id": "b96",
+      "station_name": "B96",
+      "status": "grandparent",
+      "songs_found": 12,
+      "structure": {
+        "parent": 0,
+        "grandparent": 10,
+        "great_grandparent": 0,
+        "no_link": 0,
+        "examples": [
+          {
+            "song": "Man I Need",
+            "artist": "Olivia Dean",
+            "location": "grandparent"
+          },
+          {
+            "song": "Die For You",
+            "artist": "The Weeknd",
+            "location": "grandparent"
+          }
+        ]
+      }
+    },
+    {
+      "station_id": "wgci",
+      "station_name": "GCI 101.7",
+      "status": "no_songs",
+      "songs_found": 0
+    },
+    {
+      "station_id": "rock955",
+      "station_name": "Rock 95.5",
+      "status": "grandparent",
+      "songs_found": 12,
+      "structure": {
+        "parent": 0,
+        "grandparent": 10,
+        "great_grandparent": 0,
+        "no_link": 0,
+        "examples": [
+          {
+            "song": "Better Man",
+            "artist": "Pearl Jam",
+            "location": "grandparent"
+          },
+          {
+            "song": "Paradise City",
+            "artist": "Guns N' Roses",
+            "location": "grandparent"
+          }
+        ]
+      }
+    },
+    {
+      "station_id": "q101",
+      "station_name": "Q101",
+      "status": "grandparent",
+      "songs_found": 12,
+      "structure": {
+        "parent": 0,
+        "grandparent": 10,
+        "great_grandparent": 0,
+        "no_link": 0,
+        "examples": [
+          {
+            "song": "Ride",
+            "artist": "Twenty One Pilots",
+            "location": "grandparent"
+          },
+          {
+            "song": "can't slow down",
+            "artist": "Almost Monday",
+            "location": "grandparent"
+          }
+        ]
+      }
+    },
+    {
+      "station_id": "wiil",
+      "station_name": "95 WIIL Rock",
+      "status": "grandparent",
+      "songs_found": 12,
+      "structure": {
+        "parent": 0,
+        "grandparent": 10,
+        "great_grandparent": 0,
+        "no_link": 0,
+        "examples": [
+          {
+            "song": "Gotta Get Away",
+            "artist": "The Offspring",
+            "location": "grandparent"
+          },
+          {
+            "song": "Animal I Have Become",
+            "artist": "Three Days Grace",
+            "location": "grandparent"
+          }
+        ]
+      }
+    },
+    {
+      "station_id": "the_zone",
+      "station_name": "The Zone",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "the_loop",
+      "station_name": "The Loop",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "alt949",
+      "station_name": "Alt 949",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "kiis",
+      "station_name": "KIIS FM",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "z100",
+      "station_name": "Z100",
+      "status": "no_songs",
+      "songs_found": 0
+    },
+    {
+      "station_id": "hot97",
+      "station_name": "Hot 97",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "power105",
+      "station_name": "Power 105.1",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "country108",
+      "station_name": "Country 108",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "big99",
+      "station_name": "Big 99",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "beat1027",
+      "station_name": "The Beat",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "hot923",
+      "station_name": "Hot 92.3",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "power106",
+      "station_name": "Power 106",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "star941",
+      "station_name": "Star 94.1",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "mix1011",
+      "station_name": "Mix 101.1",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "softrock",
+      "station_name": "Soft Rock",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "myfm",
+      "station_name": "MYfm",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "kool105",
+      "station_name": "KOOL 105",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "cbsfm",
+      "station_name": "CBS FM",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "kisw",
+      "station_name": "KISW Seattle",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "kroq",
+      "station_name": "KROQ",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "wfms",
+      "station_name": "WFMS",
+      "status": "http_error",
+      "songs_found": 0
+    },
+    {
+      "station_id": "wqht",
+      "station_name": "Hot 97",
+      "status": "no_songs",
+      "songs_found": 0
+    }
+  ]
+}

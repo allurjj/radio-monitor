@@ -185,9 +185,9 @@ def api_retry_failure(failure_id):
         # Get Plex connection
         from radio_monitor.gui import load_settings
         settings = load_settings() or {}
-        plex_url = settings.get('plex_url')
-        plex_token = settings.get('plex_token')
-        library_name = settings.get('music_library_name', 'Music')
+        plex_url = settings.get('plex', {}).get('url')
+        plex_token = settings.get('plex', {}).get('token')
+        library_name = settings.get('plex', {}).get('music_library_name', 'Music')
 
         if not plex_url or not plex_token:
             return jsonify({'error': 'Plex not configured. Please configure Plex in Settings first.'}), 400
@@ -205,20 +205,14 @@ def api_retry_failure(failure_id):
         from radio_monitor.plex import find_song_in_library
         song_title = failure['song']['song_title']
         artist_name = failure['song']['artist_name']
-        album_name = failure.get('album_name')  # May be None
 
-        # Use EXACT same matching logic as playlists
-        result = find_song_in_library(
-            plex_url=plex_url,
-            plex_token=plex_token,
-            library_name=library_name,
+        # Call find_song_in_library with correct arguments
+        plex_track = find_song_in_library(
+            music_library=music_library,
             song_title=song_title,
             artist_name=artist_name,
-            album_name=album_name,
             enable_various_artists_fallback=settings.get('plex', {}).get('enable_various_artists_fallback', False)
         )
-
-        plex_track, confidence_score, confidence_level, strategy_used = result
 
         if plex_track:
             # SUCCESS: Mark retry as succeeded but KEEP record (for 7-day history)
@@ -244,9 +238,9 @@ def api_retry_failure(failure_id):
                     'song_id': failure['song_id'],
                     'song_title': song_title,
                     'artist_name': artist_name,
-                    'strategy_used': strategy_used,
-                    'confidence_level': confidence_level,
-                    'confidence_score': confidence_score
+                    'plex_track_key': plex_track.key,
+                    'plex_track_title': plex_track.title,
+                    'plex_artist_title': plex_track.artist().title if plex_track.artist() else None
                 },
                 severity='success',
                 source='user'
@@ -258,13 +252,11 @@ def api_retry_failure(failure_id):
                 'found': True,
                 'message': f'Matched: {song_title} - {artist_name}',
                 'plex_track': {
-                    'title': plex_track.get('title'),
-                    'artist': plex_track.get('artist'),
-                    'album': plex_track.get('album'),
-                    'year': plex_track.get('year')
-                },
-                'strategy_used': strategy_used,
-                'confidence_level': confidence_level
+                    'title': plex_track.title,
+                    'artist': plex_track.artist().title if plex_track.artist() else None,
+                    'album': plex_track.album().title if plex_track.album() else None,
+                    'year': plex_track.year
+                }
             })
         else:
             # FAILURE: Mark retry as failed but keep record for later attempts

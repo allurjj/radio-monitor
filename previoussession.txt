@@ -1,0 +1,550 @@
+
+● Update(radio_monitor\normalization.py)
+  ⎿  Added 45 lines
+      885      """
+      886      from difflib import SequenceMatcher
+      887      return SequenceMatcher(None, str1.lower(), str2.lo
+           wer()).ratio()
+      888 +
+      889 +
+      890 +def clean_song_title_for_query(title: str) -> str:
+      891 +    """Clean song title for MusicBrainz queries.
+      892 +
+      893 +    Removes parentheticals and modifiers that may inte
+          +rfere with matching:
+      894 +    - Features: (feat. Artist), (ft. Artist), (with Ar
+          +tist)
+      895 +    - Remixes/Live versions (already handled by strip_
+          +song_suffixes)
+      896 +    - Extra metadata: (Official Video), (From Album X)
+      897 +
+      898 +    Args:
+      899 +        title: Raw song title
+      900 +
+      901 +    Returns:
+      902 +        Cleaned title suitable for MusicBrainz queries
+      903 +
+      904 +    Examples:
+      905 +        >>> clean_song_title_for_query("Neon Moon (fea
+          +t. John Doe)")
+      906 +        'Neon Moon'
+      907 +        >>> clean_song_title_for_query("Test Song (Off
+          +icial Video)")
+      908 +        'Test Song'
+      909 +    """
+      910 +    import re
+      911 +
+      912 +    # Remove features and collaborations
+      913 +    patterns = [
+      914 +        r'\s*\(feat\.?\s+[^)]+\)',             # (feat
+          +. Artist)
+      915 +        r'\s*\(ft\.?\s+[^)]+\)',               # (ft.
+          +Artist)
+      916 +        r'\s*\(featuring\s+[^)]+\)',           # (feat
+          +uring Artist)
+      917 +        r'\s*\(with\s+[^)]+\)',                # (with
+          + Artist)
+      918 +        r'\s*\(official\s+(video|music\s+video)\)',  #
+          + (Official Video)
+      919 +        r'\s*\(from\s+[^)]+\)',                # (From
+          + Album X)
+      920 +        r'\s*\(audio\s*(only)?\)',             # (Audi
+          +o)
+      921 +        r'\s*\(lyrics?\)',                     # (Lyri
+          +cs)
+      922 +        r'\s*\[[^\]]+\]',                      # [Squa
+          +re brackets]
+      923 +    ]
+      924 +
+      925 +    result = title.strip()
+      926 +    for pattern in patterns:
+      927 +        result = re.sub(pattern, '', result, flags=re.
+          +IGNORECASE)
+      928 +
+      929 +    # Also strip version suffixes (remix, live, etc.)
+      930 +    result = strip_song_suffixes(result)
+      931 +
+      932 +    return result.strip()
+
+● Now let me verify the import works and test the function:
+
+● Bash(python -c "from radio_monitor.normalization import
+      clean_song_title_for_query; print('Import successful');
+      print(clean_song_title_for_query('Neon Moon (feat. Jo…)
+  ⎿  Import successful
+     Neon Moon
+     Test Song
+
+● Now let me test that recording_validation.py imports work:
+
+● Bash(python -c "from radio_monitor.recording_validation import
+      is_recording_match; print('Import successful')")
+  ⎿  Import successful
+
+● Now let me run the Phase 3 tests to ensure all helper functions work:
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && python -m pytest       tests/new_scrape_match_logic/test_3_validation.py -v)
+  ⎿  ============================= test session starts ============
+     =================
+     platform win32 -- Python 3.13.11, pytest-9.0.2, pluggy-1.6.0 -
+     … +18 lines (ctrl+o to expand)
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && python -m pytest       tests/new_scrape_match_logic/test_2_query_limit.py -v)
+  ⎿  ============================= test session starts ============
+     =================
+     platform win32 -- Python 3.13.11, pytest-9.0.2, pluggy-1.6.0 -
+     … +15 lines (ctrl+o to expand)
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && python -m pytest       tests/new_scrape_match_logic/ -v)
+  ⎿  ============================= test session starts ============
+     =================
+     platform win32 -- Python 3.13.11, pytest-9.0.2, pluggy-1.6.0 -
+     … +51 lines (ctrl+o to expand)
+
+● Excellent! All tests pass. Let me check the implementation plan to see   if Phase 4 (Integration into Scrape Loop) needs any additional work:
+
+  Read 1 file (ctrl+o to expand)
+
+● Looking at the plan, I see Phase 4 talks about integration into the
+  scrape loop. Let me check the current state of is_recording_match() to   see if the Phase 3 helper functions need to be integrated:
+
+  Read 1 file (ctrl+o to expand)
+
+● I see - the current is_recording_match() only does exact matching. The   Phase 3 helper functions (strip_song_suffixes, calculate_similarity)
+  should be integrated to add suffix-aware and similarity matching. Let
+  me enhance this function:
+
+● Update(radio_monitor\recording_validation.py)
+  ⎿  Added 62 lines, removed 17 lines
+      68  def is_recording_match(recording: Dict, expected_title:
+           str, expected_artist: str) -> bool:
+      69      """Check if a MusicBrainz recording matches our son
+          g
+      70
+      71 +    Uses a three-tier matching strategy:
+      72 +    1. Exact match (after cleaning)
+      73 +    2. Suffix-aware match (strips Remix, Live, etc.)
+      74 +    3. Similarity match (85%+ threshold for near matche
+         +s)
+      75 +
+      76      Args:
+      77          recording: MusicBrainz recording dict
+      78          expected_title: Our song title
+     ...
+       83      """
+       84      recording_title = recording.get('title', '')
+       85
+       81 -    # Clean both titles the same way for fair comparis
+          -on
+       82 -    # This handles parentheticals, features, etc. that
+          - may differ
+       83 -    from radio_monitor.normalization import clean_song
+          -_title_for_query
+       84 -    recording_title = clean_song_title_for_query(recor
+          -ding_title)
+       85 -    expected_title = clean_song_title_for_query(expect
+          -ed_title)
+       86 +    # Import helper functions
+       87 +    from radio_monitor.normalization import (
+       88 +        clean_song_title_for_query,
+       89 +        strip_song_suffixes,
+       90 +        calculate_similarity
+       91 +    )
+       92
+       87 -    # Normalize Unicode apostrophes to ASCII apostroph
+          -e
+       88 -    # MusicBrainz sometimes returns U+2019/U+2018 inst
+          -ead of U+0027
+       89 -    # Also handle corrupted control characters (U+0019
+          -)
+       90 -    recording_title = unicodedata.normalize('NFKC', re
+          -cording_title)
+       91 -    recording_title = re.sub(r"[’‘‛❜❛❝❞]", "'", record
+          -ing_title)
+       92 -    recording_title = re.sub(r'[\x00-\x1F\x7F-\x9F]',
+          -"'", recording_title)
+       93 +    # Clean both titles for fair comparison
+       94 +    # This handles parentheticals, features, etc.
+       95 +    recording_title_clean = clean_song_title_for_query
+          +(recording_title)
+       96 +    expected_title_clean = clean_song_title_for_query(
+          +expected_title)
+       97
+       94 -    expected_title = unicodedata.normalize('NFKC', exp
+          -ected_title)
+       95 -    expected_title = re.sub(r"[’‘‛❜❛❝❞]", "'", expecte
+          -d_title)
+       96 -    expected_title = re.sub(r'[\x00-\x1F\x7F-\x9F]', "
+          -'", expected_title)
+       98 +    # Normalize Unicode apostrophes and control charac
+          +ters
+       99 +    recording_title_clean = unicodedata.normalize('NFK
+          +C', recording_title_clean)
+      100 +    recording_title_clean = re.sub(r"[’‘‛❜❛❝❞]", "'",
+          +recording_title_clean)
+      101 +    recording_title_clean = re.sub(r'[\x00-\x1F\x7F-\x
+          +9F]', "'", recording_title_clean)
+      102
+       98 -    # Case-insensitive title comparison
+       99 -    if recording_title.lower() != expected_title.lower
+          -():
+      100 -        return False
+      103 +    expected_title_clean = unicodedata.normalize('NFKC
+          +', expected_title_clean)
+      104 +    expected_title_clean = re.sub(r"[’‘‛❜❛❝❞]", "'", e
+          +xpected_title_clean)
+      105 +    expected_title_clean = re.sub(r'[\x00-\x1F\x7F-\x9
+          +F]', "'", expected_title_clean)
+      106
+      107 +    # Tier 1: Exact match (case-insensitive)
+      108 +    if recording_title_clean.lower() == expected_title
+          +_clean.lower():
+      109 +        return _check_artist_match(recording, expected
+          +_artist, expected_title)
+      110 +
+      111 +    # Tier 2: Suffix-aware match (handles Remix, Live,
+          + Remastered, etc.)
+      112 +    recording_stripped = strip_song_suffixes(recording
+          +_title_clean)
+      113 +    expected_stripped = strip_song_suffixes(expected_t
+          +itle_clean)
+      114 +
+      115 +    if recording_stripped.lower() == expected_stripped
+          +.lower():
+      116 +        logger.debug(f"Suffix-aware match: '{recording
+          +_title}' -> '{recording_stripped}' matches '{expected_
+          +stripped}'")
+      117 +        return _check_artist_match(recording, expected
+          +_artist, expected_title)
+      118 +
+      119 +    # Tier 3: Similarity match (85%+ threshold)
+      120 +    # Only for reasonably long titles to avoid false p
+          +ositives on short titles
+      121 +    min_title_length = 4
+      122 +    if (len(recording_title_clean) >= min_title_length
+          + and
+      123 +        len(expected_title_clean) >= min_title_length)
+          +:
+      124 +
+      125 +        similarity = calculate_similarity(recording_ti
+          +tle_clean, expected_title_clean)
+      126 +
+      127 +        if similarity >= 0.85:
+      128 +            logger.debug(f"Similarity match: '{recordi
+          +ng_title}' vs '{expected_title}' (similarity: {similar
+          +ity:.2f})")
+      129 +            return _check_artist_match(recording, expe
+          +cted_artist, expected_title)
+      130 +
+      131 +    # No match found
+      132 +    return False
+      133 +
+      134 +
+      135 +def _check_artist_match(recording: Dict, expected_arti
+          +st: str, expected_title: str) -> bool:
+      136 +    """Helper function to check artist match after tit
+          +le match.
+      137 +
+      138 +    Args:
+      139 +        recording: MusicBrainz recording dict
+      140 +        expected_artist: Artist name to match (empty f
+          +or MBID queries)
+      141 +        expected_title: Song title (for logging)
+      142 +
+      143 +    Returns:
+      144 +        True if artist matches or no artist check need
+          +ed
+      145 +    """
+      146      # If no artist expected (MBID query), title match
+           is sufficient
+      147      if not expected_artist:
+      148          return True
+     ...
+      154          if artist_name.lower() == expected_artist.lowe
+           r():
+      155              return True
+      156
+      157 +    logger.debug(f"Title matched but artist didn't: ex
+          +pected '{expected_artist}', got {[c.get('name', '') fo
+          +r c in artist_credits]} for '{expected_title}'")
+      158      return False
+      159
+      160
+
+● Now let me verify the integration works:
+
+● Bash(python -c "from radio_monitor.recording_validation import
+      is_recording_match; print('Import successful')")
+  ⎿  Import successful
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && python -m pytest       tests/new_scrape_match_logic/test_3_validation.py -v)
+  ⎿  ============================= test session starts ============
+     =================
+     platform win32 -- Python 3.13.11, pytest-9.0.2, pluggy-1.6.0 -
+     … +18 lines (ctrl+o to expand)
+
+● Let me run all the new scrape match logic tests:
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && python -m pytest       tests/new_scrape_match_logic/ -v)
+  ⎿  ============================= test session starts ============
+     =================
+     platform win32 -- Python 3.13.11, pytest-9.0.2, pluggy-1.6.0 -
+     … +51 lines (ctrl+o to expand)
+
+● All 30 tests pass. Let me run the application smoke test to verify the   core functionality still works:
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && python -m
+      radio_monitor.cli --test)
+  ⎿  2026-06-14 08:05:15,719 - INFO - Flask app initialized with te
+     mplates from: C:\Users\allurjj\Documents\Radio_Monitor\templat
+     es
+     … +18 lines (ctrl+o to expand)
+
+● Perfect! Let me create a quick test to demonstrate the enhanced
+  is_recording_match() with the integrated helper functions:
+
+● Bash(python -c "
+      from radio_monitor.recording_validation import
+      is_recording_match…)
+  ⎿  Enhanced Recording Validation Tests
+     ==============================================================
+     ==================
+     … +18 lines (ctrl+o to expand)
+
+● Excellent! The integration works correctly. Let me check the current
+  state of the scrape loop to see if recording validation is already
+  integrated (Phase 4):
+
+  Read 1 file (ctrl+o to expand)
+
+● Phase 4 is already complete - the recording validation is integrated
+  into the scrape loop (lines 901-924 in scrapers.py).
+
+  Let me verify the integration works end-to-end by checking the
+  settings file:
+
+● Bash(python -c "
+      from radio_monitor.gui import load_settings…)
+  ⎿  Current Recording Validation Settings:
+       validate_recordings: False
+       skip_unvalidated_recordings: False
+
+● Implementation Status Update:
+
+  Completed Phases:
+  - ✅ Phase 1: Database-First MBID Lookup (30 tests passing)
+  - ✅ Phase 2: MusicBrainz query limit increased from 5 to 20
+  - ✅ Phase 3: Helper functions (strip_song_suffixes,
+  calculate_similarity, clean_song_title_for_query) integrated into
+  recording_validation.py
+  - ✅ Phase 4: Integration into Scrape Loop (already in scrapers.py
+  lines 901-924)
+
+  Enhanced Matching Strategy in is_recording_match():
+  Tier 1: Exact match (after cleaning)
+  Tier 2: Suffix-aware match (strips Remix, Live, Remastered, etc.)
+  Tier 3: Similarity match (85%+ threshold for near matches)
+
+  Current Settings:
+  - validate_recordings: False (disabled by default)
+  - skip_unvalidated_recordings: False (disabled by default)
+
+  The implementation is complete but currently disabled. To enable
+  recording validation, set validate_recordings: true in
+  radio_monitor_settings.json. All tests pass and the smoke test
+  confirms the application remains stable.
+
+  Remaining Work:
+  - Phase 5: Comprehensive testing & validation
+  - Phase 6: Documentation & cleanup
+
+✻ Worked for 2m 2s · 4 shells still running
+
+> enable validation and test it,  and do we have these settings           documented anywhere?
+● Let me check if the validation settings are documented:
+
+  Searched for 3 patterns, read 1 file (ctrl+o to expand)
+
+● Let me add the validation settings to the settings file:
+
+● Update(radio_monitor_settings.json)
+  ⎿  Added 3 lines, removed 1 line
+      21    "monitor": {
+      22      "database_file": "radio_songs.db",
+      23      "scrape_interval_minutes": 20,
+      24 -    "auto_start": true
+      24 +    "auto_start": true,
+      25 +    "validate_recordings": true,
+      26 +    "skip_unvalidated_recordings": false
+      27    },
+      28    "data_quality": {
+      29      "auto_validation_enabled": true,
+
+● Now let me test the validation with a single scrape:
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && python -m
+      radio_monitor.cli --scrape-once 2>&1 | head -100)
+  ⎿  Running in the background (↓ to manage)
+  ⎿  (timeout 2m)
+
+● Bash(sleep 10)
+  ⎿  (No output)
+
+  Read 1 file (ctrl+o to expand)
+
+● I can see validation is working - it's catching potential artist/song
+  swaps (lines 79-80). Let me wait for the full scrape to complete and
+  then check the logs for validation results:
+
+● Bash(sleep 60)
+  ⎿  Error: Blocked: standalone sleep 60. To wait for a condition, use
+     Monitor with an until-loop (e.g. `until <check>; do sleep 2;
+     done`). To wait for a command you started, use run_in_background:
+     true. Do not chain shorter sleeps to work around this block.
+
+  Read 1 file (ctrl+o to expand)
+
+● Bash(until test -f "C:\Users\allurjj\AppData\Local\Temp\claude\C--User      s-allurjj-Documents-Radio-Monitor\c88b6a2d-46b1-44e4-a656-13b316ed      d56d\tasks\bd5qz1n2u.output.c…)
+  ⎿  waiting
+     Completed
+
+  Read 1 file (ctrl+o to expand)
+
+● Let me check the main log file for validation messages:
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && grep -i
+      "validation\|recording" radio_monitor.log | tail -20)
+  ⎿  2026-06-12 05:06:36 - ERROR - radio_monitor.data_quality - Err
+     or in scheduled validation: 'NoneType' object has no attribute
+      'startswith'
+     … +42 lines (ctrl+o to expand)
+
+● Let me check if the scrape is still running and wait for completion:
+
+● Bash(ps aux 2>/dev/null | grep -i "radio_monitor\|scrape" | grep -v
+      grep || echo "No running scrape process found")
+  ⎿  No running scrape process found
+
+● Let me check the recent log entries for recording validation:
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && tail -100
+      radio_monitor.log | grep -i "recording\|validat")
+  ⎿  2026-06-12 06:16:43 - ERROR - radio_monitor.data_quality - Err
+     or in scheduled validation: 'NoneType' object has no attribute
+      'startswith'
+     … +33 lines (ctrl+o to expand)
+
+● Let me check if recording validation logging is configured:
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● The recording validation uses logger.debug() which won't show in logs
+  if the level is set to INFO. Let me create a simple test to verify the   recording validation is working:
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && python -c "
+      import logging…)
+  ⎿  DEBUG:radio_monitor.recording_validation:MBID query failed, tr
+     ying text query for Brooks & Dunn - Neon Moon
+     DEBUG:radio_monitor.recording_validation:Recording validated b
+     … +10 lines (ctrl+o to expand)
+  ⎿  (timeout 30s)
+
+> but when we validate a song against music brains we use the mbid,       correct?
+● Yes, we should use the MBID query first. But looking at the test
+  output, the MBID query failed and it fell back to text query. Let me
+  investigate why the MBID query is failing:
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && python -c "
+      import logging…)
+  ⎿  Testing MBID-only validation for: Neon Moon
+     Result: found=False, method=mbid_not_found
+
+● The MBID query is failing. Let me check what query is being sent to
+  MusicBrainz:
+
+  Read 1 file (ctrl+o to expand)
+
+● Let me test the actual MusicBrainz API query to see what it returns:
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && python -c "
+      import urllib.request…)
+  ⎿  Query URL: https://musicbrainz.org/ws/2/recording/?query=arid%
+     3Af30118c5-0ff5-449a-839c-23efa634caa4%20AND%20recording%3A%22
+     Neon%20Moon%22&fmt=json&limit=10
+     Found 0 recordings
+
+● The MBID query returns 0 recordings. Let me try a simpler query to see   if the issue is with the MBID:
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && python -c "
+      import urllib.request…)
+  ⎿  Query URL: https://musicbrainz.org/ws/2/recording/?query=arid%
+     3Af30118c5-0ff5-449a-839c-23efa634caa4&fmt=json&limit=10
+     Found 0 recordings
+     First 5 recordings:
+
+● The MBID query returns 0 recordings even without the title filter. Let   me verify the MBID is correct:
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && python -c "
+      import urllib.request…)
+  ⎿  Error: Exit code 1
+     Traceback (most recent call last):
+       File "<string>", line 16, in <module>
+         with urllib.request.urlopen(req, timeout=10,
+     context=ssl_context) as response:
+
+     ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+       File "C:\Python313\Lib\urllib\request.py", line 189, in urlopen
+         return opener.open(url, data, timeout)
+                ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+       File "C:\Python313\Lib\urllib\request.py", line 495, in open
+         response = meth(req, response)
+
+     … +12 lines (ctrl+o to expand)
+
+● Background command "Test validation with single scrape" completed
+(exit code 0)
+
+● The MBID is invalid (404 error). Let me search for the correct Brooks
+  & Dunn MBID:
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && python -c "
+      import urllib.request…)
+  ⎿  Searching for: Brooks & Dunn
+     Found 1 artists:
+       - Brooks & Dunn (ID: f30118c5-f783-4969-8427-f3c096378267, s
+     core: 100)
+
+● The correct MBID is f30118c5-f783-4969-8427-f3c096378267. Let me test
+  recording validation with the correct MBID:
+
+● Bash(cd "C:\Users\allurjj\Documents\Radio_Monitor" && python -c "
+      import logging…)
+  ⎿  DEBUG:radio_monitor.recording_validation:Recording validated b
+     y MBID: Neon Moon
+     DEBUG:radio_monitor.recording_validation:Recording validated b
+     … +7 lines (ctrl+o to expand)
+
+● Yes, you're correct. The MBID query is the primary method and most
+  precise. The validation uses this priority order:
+
+  1. MBID query (most precise): arid:{artist_mbid} AND
+  recording:"{song_title}"
+  2. Text query (fallback): recording of:"{song_title}"
+  by:"{artist_name}"
+
+  The test earlier failed because the MBID I was using was incorrect.
+  With the correct MBID, it works perfectly.
+
+  Regarding settings documentation: The validation settings
+  (validate_recordings, skip_unvalidated_recordings) are NOT documented
+  anywhere. They only exist in the code at scrapers.py lines 904 and
+  920.
+
+  Would you like me to:
+  1. Create documentation for these settings?
+  2. Add them to a settings documentation file?
+  3. Update the README or other documentation?
+
+✻ Worked for 4m 40s · 4 shells still running
+
+> 3

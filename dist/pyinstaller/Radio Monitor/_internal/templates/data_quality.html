@@ -35,6 +35,47 @@
 .validation-progress.show {
     display: block;
 }
+
+/* Sortable table columns */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 25px !important;
+    transition: background-color 0.15s ease;
+}
+
+.sortable:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.sort-indicator {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.3;
+    font-size: 0.8em;
+}
+
+.sorted-asc .sort-indicator::after {
+    content: '▲';
+    opacity: 1;
+}
+
+.sorted-desc .sort-indicator::after {
+    content: '▼';
+    opacity: 1;
+}
+
+/* Sticky table header */
+#unvalidated-table thead th {
+    position: sticky;
+    top: 0;
+    background-color: #fff;
+    z-index: 10;
+    box-shadow: 0 1px 0 rgba(0,0,0,.1);
+}
 </style>
 {% endblock %}
 
@@ -278,56 +319,66 @@
 </div>
 {% endif %}
 
-{% if issues.info %}
-<!-- Info Issues -->
+<!-- Not Validated Songs -->
 <div class="row mb-4">
     <div class="col-12">
-        <h4><i class="bi bi-info-circle-fill text-info"></i> Information ({{ issues.info|length }})</h4>
-        {% for issue in issues.info %}
-        <div class="card issue-card info mb-3">
+        <div class="card card-standard">
             <div class="card-body">
-                <h5 class="card-title">{{ issue.message }}</h5>
-                {% if issue.type == 'song_titles' and issue.titles %}
-                <div class="scrollable-table mt-3">
-                    <table class="table table-sm">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="card-title mb-0"><i class="bi bi-question-circle"></i> Not Validated Songs</h5>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button id="btn-validate-selected" class="btn btn-outline-success" disabled>
+                            <i class="bi bi-check-circle"></i> Validate Selected (<span id="selected-count">0</span>)
+                        </button>
+                        <button id="btn-refresh-unvalidated" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div id="unvalidated-loading" class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                    <span>Loading unvalidated songs...</span>
+                </div>
+                <div id="unvalidated-empty" class="text-center py-4 d-none">
+                    <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+                    <p class="mt-3 text-muted">All songs have been validated!</p>
+                </div>
+                <div id="unvalidated-table-container" class="scrollable-table d-none">
+                    <table class="table table-sm table-hover" id="unvalidated-table">
                         <thead>
                             <tr>
-                                <th>Artist</th>
-                                <th>Original Title</th>
-                                <th>Cleaned Title</th>
-                                <th>Plays</th>
+                                <th class="text-center" style="width: 40px;">
+                                    <input type="checkbox" id="select-all-unvalidated" aria-label="Select all">
+                                </th>
+                                <th class="sortable" data-sort="song_title">
+                                    Song <span class="sort-indicator"></span>
+                                </th>
+                                <th class="sortable" data-sort="artist_name">
+                                    Artist <span class="sort-indicator"></span>
+                                </th>
+                                <th class="sortable" data-sort="validation_status">
+                                    Status <span class="sort-indicator"></span>
+                                </th>
+                                <th class="sortable text-end" data-sort="play_count">
+                                    Play Count <span class="sort-indicator"></span>
+                                </th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {% for title in issue.titles[:50] %}
-                            <tr>
-                                <td>{{ title.artist_name }}</td>
-                                <td>{{ title.original_title }}</td>
-                                <td class="text-success">{{ title.cleaned_title }}</td>
-                                <td>{{ title.play_count }}</td>
-                            </tr>
-                            {% endfor %}
-                            {% if issue.titles|length > 50 %}
-                            <tr>
-                                <td colspan="4" class="text-center text-muted">
-                                    ... and {{ issue.titles|length - 50 }} more
-                                </td>
-                            </tr>
-                            {% endif %}
+                        <tbody id="unvalidated-tbody">
+                            <!-- Songs will be loaded here via AJAX -->
                         </tbody>
                     </table>
                 </div>
-                {% else %}
-                <p class="text-muted small mb-0">
-                    These are informational items that don't affect functionality.
+                <p class="text-muted small mb-0 mt-2">
+                    <i class="bi bi-info-circle"></i>
+                    Songs marked as "Not Validated" haven't been checked against MusicBrainz yet.
+                    Songs marked as "Failed" were checked but no match was found.
+                    Click "Validate Selected" to check specific songs with MusicBrainz.
                 </p>
-                {% endif %}
             </div>
         </div>
-        {% endfor %}
     </div>
 </div>
-{% endif %}
 
 {% if issues.summary.total_issues == 0 %}
 <!-- No Issues -->
@@ -460,7 +511,7 @@ document.getElementById('btn-revalidate-invalid')?.addEventListener('click', fun
     const statusText = document.getElementById('validation-status');
     const invalidCount = {{ issues.summary.invalid_count or 0 }};
 
-    if (!confirm(`Re-validate ${invalidCount} invalid songs with MusicBrainz?\n\nThis will reset invalid songs to unvalidated and re-check them with the latest validation code. May take several minutes.`)) {
+    if (!confirm(`Re-validate ${invalidCount} invalid songs with MusicBrainz?\n\nThis will reset invalid songs to unvalidated and re-check them with the latest validation code.\n\nRate limited to 1 song/second to avoid blocking.\n\nEstimated time: ${Math.ceil(invalidCount / 60)} minutes`)) {
         return;
     }
 
@@ -497,6 +548,220 @@ document.getElementById('btn-revalidate-invalid')?.addEventListener('click', fun
             alert('Error re-validating: ' + error);
         });
 });
+
+// =============================================================================
+// Unvalidated Songs Table
+// =============================================================================
+
+// Store songs and sort state
+let unvalidatedSongs = [];
+let currentSort = { column: 'play_count', direction: 'DESC' };
+
+// Load unvalidated songs on page load
+loadUnvalidatedSongs();
+
+function loadUnvalidatedSongs() {
+    const loadingDiv = document.getElementById('unvalidated-loading');
+    const emptyDiv = document.getElementById('unvalidated-empty');
+    const tableContainer = document.getElementById('unvalidated-table-container');
+
+    loadingDiv.classList.remove('d-none');
+    emptyDiv.classList.add('d-none');
+    tableContainer.classList.add('d-none');
+
+    fetch('/api/data-quality/unvalidated-songs')
+        .then(response => response.json())
+        .then(data => {
+            loadingDiv.classList.add('d-none');
+
+            if (data.success && data.songs.length > 0) {
+                unvalidatedSongs = data.songs;
+                renderUnvalidatedTable();
+                tableContainer.classList.remove('d-none');
+            } else {
+                emptyDiv.classList.remove('d-none');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading unvalidated songs:', error);
+            loadingDiv.classList.add('d-none');
+            emptyDiv.innerHTML = '<p class="text-danger">Error loading unvalidated songs: ' + error + '</p>';
+            emptyDiv.classList.remove('d-none');
+        });
+}
+
+function renderUnvalidatedTable() {
+    const tbody = document.getElementById('unvalidated-tbody');
+    const selectAllCheckbox = document.getElementById('select-all-unvalidated');
+
+    // Sort songs
+    const sortedSongs = [...unvalidatedSongs].sort((a, b) => {
+        let aVal = a[currentSort.column];
+        let bVal = b[currentSort.column];
+
+        // Handle null values
+        if (aVal === null) aVal = '';
+        if (bVal === null) bVal = '';
+
+        // String comparison for text fields
+        if (typeof aVal === 'string') {
+            aVal = aVal.toLowerCase();
+            bVal = bVal.toLowerCase();
+        }
+
+        if (aVal < bVal) return currentSort.direction === 'ASC' ? -1 : 1;
+        if (aVal > bVal) return currentSort.direction === 'ASC' ? 1 : -1;
+        return 0;
+    });
+
+    tbody.innerHTML = '';
+
+    sortedSongs.forEach(song => {
+        const tr = document.createElement('tr');
+
+        // Status badge
+        let statusBadge = '';
+        if (song.validation_status === 'invalid') {
+            statusBadge = '<span class="badge bg-danger">Failed</span>';
+        } else {
+            statusBadge = '<span class="badge bg-warning text-dark">Not Validated</span>';
+        }
+
+        tr.innerHTML = `
+            <td class="text-center">
+                <input type="checkbox" class="song-checkbox" data-song-id="${song.id}" aria-label="Select song">
+            </td>
+            <td><a href="/songs/${song.id}">${escapeHtml(song.song_title)}</a></td>
+            <td><a href="/artists/${song.artist_mbid}">${escapeHtml(song.artist_name)}</a></td>
+            <td>${statusBadge}</td>
+            <td class="text-end">${song.play_count.toLocaleString()}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // Update sort indicators
+    document.querySelectorAll('#unvalidated-table .sortable').forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+        if (th.dataset.sort === currentSort.column) {
+            th.classList.add(currentSort.direction === 'ASC' ? 'sorted-asc' : 'sorted-desc');
+        }
+    });
+
+    // Setup checkbox handlers
+    setupCheckboxHandlers();
+}
+
+function setupCheckboxHandlers() {
+    const selectAllCheckbox = document.getElementById('select-all-unvalidated');
+    const songCheckboxes = document.querySelectorAll('.song-checkbox');
+    const validateBtn = document.getElementById('btn-validate-selected');
+    const selectedCount = document.getElementById('selected-count');
+
+    // Select all functionality
+    selectAllCheckbox.onclick = function() {
+        songCheckboxes.forEach(cb => cb.checked = this.checked);
+        updateSelectedCount();
+    };
+
+    // Individual checkbox functionality
+    songCheckboxes.forEach(cb => {
+        cb.onclick = function() {
+            updateSelectedCount();
+            // Update select all checkbox state
+            const allChecked = Array.from(songCheckboxes).every(c => c.checked);
+            selectAllCheckbox.checked = allChecked;
+        };
+    });
+
+    function updateSelectedCount() {
+        const checkedCount = Array.from(songCheckboxes).filter(cb => cb.checked).length;
+        selectedCount.textContent = checkedCount;
+        validateBtn.disabled = checkedCount === 0;
+    }
+}
+
+// Sort functionality
+document.querySelectorAll('#unvalidated-table .sortable').forEach(th => {
+    th.style.cursor = 'pointer';
+    th.onclick = function() {
+        const column = this.dataset.sort;
+
+        // Toggle direction if same column, otherwise set to ASC
+        if (currentSort.column === column) {
+            currentSort.direction = currentSort.direction === 'ASC' ? 'DESC' : 'ASC';
+        } else {
+            currentSort.column = column;
+            currentSort.direction = 'ASC';
+        }
+
+        renderUnvalidatedTable();
+    };
+});
+
+// Refresh button
+document.getElementById('btn-refresh-unvalidated').addEventListener('click', function() {
+    const btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Refreshing...';
+
+    loadUnvalidatedSongs();
+
+    setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh';
+    }, 500);
+});
+
+// Validate selected button
+document.getElementById('btn-validate-selected').addEventListener('click', function() {
+    const btn = this;
+    const selectedIds = Array.from(document.querySelectorAll('.song-checkbox:checked'))
+        .map(cb => parseInt(cb.dataset.songId));
+
+    if (selectedIds.length === 0) return;
+
+    if (!confirm(`Validate ${selectedIds.length} selected song(s) with MusicBrainz?\n\nThis will check recording-level metadata and may take a minute.\n\nEstimated time: ${Math.ceil(selectedIds.length / 60)} minutes`)) {
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Validating...';
+
+    fetch('/api/data-quality/validate-selected', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ song_ids: selectedIds })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Validation complete!\n\n${data.message}`);
+                location.reload();
+            } else {
+                alert('Failed to validate: ' + (data.error || 'Unknown error'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-circle"></i> Validate Selected (<span id="selected-count">0</span>)';
+                // Re-setup the handler
+                setupCheckboxHandlers();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error validating: ' + error);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-circle"></i> Validate Selected (<span id="selected-count">0</span>)';
+            setupCheckboxHandlers();
+        });
+});
+
+// Escape HTML helper
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 </script>
 
 <style>
