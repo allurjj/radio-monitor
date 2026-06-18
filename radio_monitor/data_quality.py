@@ -548,6 +548,10 @@ def validate_batch_scheduled(db, batch_size: int = 50) -> Dict[str, Any]:
     This function is designed to be called by the scheduler for automated validation.
     It validates unvalidated songs against MusicBrainz recording database.
 
+    Only songs validated via MBID method are marked as 'valid'. Songs found via
+    text fallback are left as 'unvalidated' for manual review, as text matching
+    is less robust and may have false positives.
+
     Args:
         db: RadioDatabase instance
         batch_size: Number of songs to validate (default: 50)
@@ -597,9 +601,14 @@ def validate_batch_scheduled(db, batch_size: int = 50) -> Dict[str, Any]:
                 )
 
                 if found:
-                    updated += 1
-                    mark_song_validated(db, song['id'], success=True, method=method)
-                    logger.debug(f"Validated song {song['id']} ({song['artist_name']} - {song['song_title']}) using method: {method}")
+                    # Only mark as valid if MBID method was used (most robust)
+                    # Text fallback matches are left unvalidated for manual review
+                    if method == 'mbid':
+                        updated += 1
+                        mark_song_validated(db, song['id'], success=True, method=method)
+                        logger.debug(f"Validated song {song['id']} ({song['artist_name']} - {song['song_title']}) using method: {method}")
+                    else:
+                        logger.debug(f"Found song {song['id']} via {method}, but not marking as valid (MBID method required)")
                 else:
                     mark_song_validated(db, song['id'], success=False, error_message='No match found', method=method)
                     logger.debug(f"No match found for song {song['id']} ({song['artist_name']} - {song['song_title']})")
