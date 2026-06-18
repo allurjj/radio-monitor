@@ -56,7 +56,7 @@ class KeyboardManager {
 
         // Legacy single key support (backwards compatibility)
         if (!e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
-            const key = e.key.toLowerCase();
+            const key = e.key ? e.key.toLowerCase() : 'unknown';
 
             if (this.shortcuts.has(key)) {
                 if (this.isTyping(e)) {
@@ -98,7 +98,7 @@ class KeyboardManager {
             'F9': 'f9', 'F10': 'f10', 'F11': 'f11', 'F12': 'f12'
         };
 
-        const key = specialKeys[event.key] || event.key.toLowerCase();
+        const key = specialKeys[event.key] || (event.key ? event.key.toLowerCase() : 'unknown');
         parts.push(key);
 
         return parts.join('+');
