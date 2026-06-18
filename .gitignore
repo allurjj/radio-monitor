@@ -135,6 +135,38 @@ tests/                  # Test files and fixtures
 pytest.ini              # Pytest configuration (if needed)
 .pytest_cache/          # Pytest cache directory
 
+# Root-level test scripts (development only)
+check_*.py              # Check/validation scripts in root
+test_*.py               # Test scripts in root
+analyze_*.py            # Analysis scripts in root
+debug_*.py              # Debug scripts in root
+investigate_*.py        # Investigation scripts in root
+extract_*.py            # Extraction scripts in root
+find_*.py               # Find scripts in root
+retry_*.py              # Retry scripts in root
+cleanup_*.py            # Cleanup scripts in root
+delete_*.py             # Delete scripts in root
+revalidate_*.py         # Revalidation scripts in root
+trace_*.py              # Trace scripts in root
+
+# Root-level analysis and debug files
+*.json                  # JSON files in root (analysis output)
+*_analysis.json         # Analysis output files
+*_structure_analysis.json  # Structure analysis files
+
+# Root-level HTML and text files (scraping debug output)
+iheart_*.html           # iHeartRadio scraping debug output
+iheart_*.txt            # iHeartRadio scraping debug output
+scrape_*.log            # Scraping debug logs
+*_output_*.log          # Output logs
+
+# Root-level backup and session files
+previoussession.txt     # Previous session files
+radio_monitor.db        # Alternative database files
+
+# Root-level temporary scripts
+*.py.bak                # Python backup files
+
 # ------------------------------------------
 # Development Dependencies
 # ------------------------------------------
