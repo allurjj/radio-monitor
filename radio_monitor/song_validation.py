@@ -262,7 +262,23 @@ def verify_artist_song_lidarr(artist_name, song_title, artist_mbid, settings):
                 # Search through all tracks
                 for track in tracks:
                     track_title = track.get('title', '')
-                    album_title = track.get('album', {}).get('title', 'Unknown Album')
+
+                    # Extract album title with better fallback handling
+                    album_title = None
+                    album_data = track.get('album')
+
+                    if album_data:
+                        if isinstance(album_data, dict):
+                            album_title = album_data.get('title') or album_data.get('name')
+                            # Log for debugging
+                            logger.debug(f"[Lidarr] Track album data: {album_data}")
+                        elif isinstance(album_data, str):
+                            album_title = album_data
+
+                    # Final fallback
+                    if not album_title:
+                        album_title = 'Unknown Album'
+                        logger.debug(f"[Lidarr] No album found for track '{track_title}', using fallback")
 
                     track_similarity = SequenceMatcher(
                         None,

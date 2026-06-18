@@ -90,7 +90,7 @@ class PlexFailuresView {
         if (this.failures.length === 0) {
             this.tableBody.innerHTML = `
                 <tr>
-                    <td colspan="7">
+                    <td colspan="6">
                         <div class="empty-state">
                             <i class="bi bi-check-circle empty-state-icon"></i>
                             <h5 class="empty-state-title">No Plex failures found</h5>
@@ -105,13 +105,20 @@ class PlexFailuresView {
         this.tableBody.innerHTML = this.failures.map(failure => {
             const song = failure.song || { song_title: 'Unknown', artist_name: 'Unknown' };
 
+            // Format retry status badge
+            let retryStatusBadge = '<span class="text-muted"><i class="bi bi-dash"></i></span>';
+            if (failure.retry_match_succeeded === true) {
+                retryStatusBadge = '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Matched</span>';
+            } else if (failure.retry_match_succeeded === false) {
+                retryStatusBadge = '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> Failed</span>';
+            }
+
             return `
                 <tr>
                     <td>${this.escapeHtml(song.song_title)}</td>
                     <td>${this.escapeHtml(song.artist_name)}</td>
-                    <td><span class="failure-badge ${failure.failure_reason}">${this.formatReason(failure.failure_reason)}</span></td>
                     <td>${this.formatDate(failure.failure_date)}</td>
-                    <td>${failure.search_attempts}</td>
+                    <td>${retryStatusBadge}</td>
                     <td><span class="resolved-badge ${failure.resolved}">${failure.resolved ? 'Yes' : 'No'}</span></td>
                     <td>
                         ${!failure.resolved ? `
@@ -218,6 +225,13 @@ class PlexFailuresView {
             const response = await fetch(`/plex-failures/api/failures/${failureId}/retry`, {
                 method: 'POST'
             });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                Toast.error('Failed to retry: ' + (errorData.error || 'Unknown error'));
+                return;
+            }
+
             const data = await response.json();
 
             if (data.success) {
