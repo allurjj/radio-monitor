@@ -152,6 +152,7 @@ Once running, open your web browser and navigate to:
 - **Multi-Strategy Matching** - 6-strategy fuzzy matching with normalization for accurate Plex song identification
 - **Manual Overrides** - Manually specify Plex track matches for songs that fail automatic matching
 - **Various Artists Fallback** - Opt-in scanning of compilation albums when standard matching fails
+- **Recording Validation** - Validate artist-song relationships during scrape using MusicBrainz recordings API with three-tier matching (exact → suffix-aware → similarity)
 
 ### Playlist Creation
 - **Automated Playlists** - Generate playlists based on play counts, date ranges, and station filters
@@ -212,6 +213,28 @@ The application uses a `radio_monitor_settings.json` file for configuration. Key
 - **GUI Settings** - Host, port, and debug mode
 - **Scraping Schedule** - How often to scrape stations
 - **Duplicate Detection** - Time window for detecting duplicate plays
+- **Recording Validation** - Validate artist+song combinations during scraping
+
+### Recording Validation Settings
+
+The `monitor` section includes optional recording validation to improve data quality:
+
+```json
+"monitor": {
+  "validate_recordings": true,           // Enable MusicBrainz recording validation
+  "skip_unvalidated_recordings": false   // Skip songs that fail validation
+}
+```
+
+**How it works:**
+- When enabled, validates that the artist actually recorded the song using MusicBrainz recordings API
+- Uses three-tier matching: exact match → suffix-aware match (Remix, Live, etc.) → similarity match (85%+)
+- Prevents invalid artist+song combinations from being stored
+- Logs warnings for potential mismatches without blocking storage (unless `skip_unvalidated_recordings` is true)
+
+**Performance impact:** First scrape may take longer (~5 minutes) but subsequent scrapes use cached artist MBIDs for faster validation.
+
+**Implementation:** Fully implemented as of v1.4.24. See `docs/NEW_SCRAPE_MATCH_LOGIC_COMPLETE.md` for technical details.
 
 Configure these through the web interface at **Settings** or by editing the JSON file directly.
 

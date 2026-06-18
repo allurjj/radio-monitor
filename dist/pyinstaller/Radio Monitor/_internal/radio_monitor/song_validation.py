@@ -9,6 +9,7 @@ Sources:
 
 import logging
 import json
+import ssl
 import time
 import urllib.request
 import urllib.error
@@ -88,7 +89,13 @@ def verify_artist_song_musicbrainz(artist_name, song_title, artist_mbid, user_ag
         }
 
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as response:
+
+        # Create SSL context (verification disabled for Windows compatibility)
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+
+        with urllib.request.urlopen(req, timeout=10, context=ssl_context) as response:
             _last_musicbrainz_request = time.time()
 
             if response.status != 200:

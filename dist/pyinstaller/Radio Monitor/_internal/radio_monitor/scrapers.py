@@ -24,6 +24,10 @@ from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 import uuid
+import urllib3
+
+# Suppress SSL warnings for iHeartRadio scraping (Windows certificate bundle issue)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -402,8 +406,10 @@ def scrape_station_iheart_fast(config, max_retries=7, initial_wait=4):
             }
 
             # Fetch page
+            # NOTE: verify=False bypasses SSL certificate verification
+            # Required on Windows systems where certificate bundle may not be properly configured
             logger.debug(f"Fast scraper attempt {attempt}/{max_retries}: {config['url']}")
-            response = requests.get(config['url'], headers=headers, timeout=15)
+            response = requests.get(config['url'], headers=headers, timeout=15, verify=False)
             response.raise_for_status()
 
             # CRITICAL FIX: Force UTF-8 encoding to prevent character corruption
@@ -438,11 +444,18 @@ def scrape_station_iheart_fast(config, max_retries=7, initial_wait=4):
                         logger.debug(f"Skipping song that looks like ad: {song_title}")
                         continue
 
-                    # Try to find artist link inside same parent container
+                    # Try to find artist link - check parent first, then grandparent
+                    # iHeartRadio HTML structure: artist links are typically in grandparent level
                     parent = link.parent
                     artist_link = parent.find(
                         "a", href=lambda h: h and "/artist/" in h and "/songs/" not in h
                     ) if parent else None
+
+                    # If not found in parent, check grandparent (common iHeartRadio structure)
+                    if not artist_link and parent and parent.parent:
+                        artist_link = parent.parent.find(
+                            "a", href=lambda h: h and "/artist/" in h and "/songs/" not in h
+                        )
 
                     if artist_link:
                         artist_name = artist_link.get_text(strip=True)
@@ -838,9 +851,11 @@ def scrape_all_stations(db=None, station_ids=None):
                                     from radio_monitor.mbid import lookup_artist_mbid
                                     # Get user_agent from settings for MusicBrainz API
                                     user_agent = settings.get('musicbrainz', {}).get('user_agent') if settings else None
-                                    primary_artist_mbid, primary_artist_verified_name = lookup_artist_mbid(primary_artist, db, user_agent=user_agent)
+                                    primary_artist_mbid, primary_artist_verified_name, lookup_method = lookup_artist_mbid(
+                                        primary_artist, db, song_title=song_title, user_agent=user_agent
+                                    )
                                     if primary_artist_mbid:
-                                        logger.debug(f"MBID from MusicBrainz for '{primary_artist}': {primary_artist_mbid} (verified: {primary_artist_verified_name})")
+                                        logger.debug(f"MBID from MusicBrainz for '{primary_artist}': {primary_artist_mbid} (verified: {primary_artist_verified_name}, method: {lookup_method})")
                                 except Exception as e:
                                     logger.warning(f"MBID lookup failed for '{primary_artist}': {e}")
                                     primary_artist_verified_name = None
@@ -864,14 +879,15 @@ def scrape_all_stations(db=None, station_ids=None):
                                 # Get the MBID of the first (primary) artist
                                 from radio_monitor.mbid import lookup_artist_mbid
                                 primary_name = validated_artists[0]
-                                primary_artist_mbid, primary_artist_verified_name = lookup_artist_mbid(
+                                primary_artist_mbid, primary_artist_verified_name, lookup_method = lookup_artist_mbid(
                                     artist_name=primary_name,
                                     db=db,
+                                    song_title=song_title,
                                     user_agent=user_agent
                                 )
 
                             if primary_artist_mbid and not primary_artist_mbid.startswith('PENDING'):
-                                logger.info(f"Multi-artist resolution successful for '{primary_artist}' -> '{primary_name}': {primary_artist_mbid} (verified: {primary_artist_verified_name})")
+                                logger.info(f"Multi-artist resolution successful for '{primary_artist}' -> '{primary_name}': {primary_artist_mbid} (verified: {primary_artist_verified_name}, method: {lookup_method})")
                             else:
                                 logger.debug(f"Multi-artist resolution failed for '{primary_artist}'")
                         except Exception as e:
@@ -893,8 +909,11 @@ def scrape_all_stations(db=None, station_ids=None):
                         try:
                             from radio_monitor.recording_validation import validate_recording_with_fallback
 
+                            # Use the verified MusicBrainz name for validation (not the split collaboration name)
+                            # This ensures we validate "KC & The Sunshine Band" not "Kc"
+                            artist_for_validation = primary_artist_verified_name if primary_artist_verified_name else primary_artist
                             recording_found, method = validate_recording_with_fallback(
-                                primary_artist_mbid, primary_artist, song_title
+                                primary_artist_mbid, artist_for_validation, song_title
                             )
 
                             if not recording_found:

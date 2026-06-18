@@ -330,8 +330,9 @@ def api_validate_batch():
                     mark_song_validated(db, song['id'], success=False, error_message='No match found', method=method)
                     logger.debug(f"No match found for song {song['id']} ({song['artist_name']} - {song['song_title']})")
 
-                # Rate limiting: small delay between requests to avoid 503 errors
-                time.sleep(0.2)
+                # Rate limiting: delay between requests to avoid MusicBrainz blocking
+                # MusicBrainz recommends 1 request per second
+                time.sleep(1)
 
             except Exception as e:
                 logger.error(f"Error validating song {song['id']}: {e}")
@@ -419,6 +420,53 @@ def api_messy_titles():
         }), 500
 
 
+@data_quality_bp.route('/api/data-quality/unvalidated-songs')
+@requires_auth
+def api_unvalidated_songs():
+    """Get list of songs that are not validated or failed validation
+
+    Query params:
+        limit: Maximum results (default: None for all)
+        sort_by: Column to sort by (play_count, song_title, artist_name, validation_status)
+        sort_dir: Sort direction (ASC or DESC, default: DESC)
+
+    Returns JSON:
+        {
+            "success": true,
+            "songs": [
+                {
+                    "id": 123,
+                    "song_title": "Song Name",
+                    "artist_name": "Artist Name",
+                    "artist_mbid": "uuid",
+                    "validation_status": "unvalidated",
+                    "play_count": 15
+                },
+                ...
+            ]
+        }
+    """
+    from radio_monitor.data_quality import get_unvalidated_songs
+
+    db = get_db()
+    limit = request.args.get('limit', type=int)
+    sort_by = request.args.get('sort_by', 'play_count')
+    sort_dir = request.args.get('sort_dir', 'DESC')
+
+    try:
+        songs = get_unvalidated_songs(db, limit=limit, sort_by=sort_by, sort_dir=sort_dir)
+        return jsonify({
+            'success': True,
+            'songs': songs
+        })
+    except Exception as e:
+        logger.error(f"Error getting unvalidated songs: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @data_quality_bp.route('/api/data-quality/revalidate-invalid', methods=['POST'])
 @requires_auth
 def api_revalidate_invalid():
@@ -492,7 +540,7 @@ def api_revalidate_invalid():
             processed += 1
 
             # Skip if PENDING MBID
-            if song['artist_mbid'].startswith('PENDING-'):
+            if song['artist_mbid'] and song['artist_mbid'].startswith('PENDING-'):
                 mark_song_validated(db, song['id'], success=False, error_message='PENDING MBID', method='pending')
                 skipped += 1
                 continue
@@ -513,8 +561,9 @@ def api_revalidate_invalid():
                     mark_song_validated(db, song['id'], success=False, error_message='No match found', method=method)
                     logger.warning(f"[{processed}/{len(songs_to_validate)}] ✗ No match: {song['artist_name']} - {song['song_title']}")
 
-                # Rate limiting: small delay between requests to avoid 503 errors
-                time.sleep(0.2)
+                # Rate limiting: delay between requests to avoid MusicBrainz blocking
+                # MusicBrainz recommends 1 request per second
+                time.sleep(1)
 
             except Exception as e:
                 logger.error(f"Error validating song {song['id']}: {e}")
@@ -536,6 +585,123 @@ def api_revalidate_invalid():
 
     except Exception as e:
         logger.error(f"Error in revalidate_invalid: {e}")
+        db.conn.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_quality_bp.route('/api/data-quality/validate-selected', methods=['POST'])
+@requires_auth
+def api_validate_selected():
+    """API endpoint to validate specific selected songs
+
+    Expects JSON body:
+        {
+            "song_ids": [1, 2, 3, ...]
+        }
+
+    Returns JSON:
+        {
+            "success": true,
+            "processed": 3,
+            "updated": 2,
+            "errors": 0,
+            "skipped": 1,
+            "message": "..."
+        }
+    """
+    import time
+    db = get_db()
+
+    from radio_monitor.data_quality import mark_song_validated
+    from radio_monitor.recording_validation import validate_recording_with_fallback
+
+    data = request.get_json() or {}
+    song_ids = data.get('song_ids', [])
+
+    if not song_ids:
+        return jsonify({
+            'success': False,
+            'error': 'No song IDs provided'
+        }), 400
+
+    cursor = db.get_cursor()
+
+    try:
+        # Get the songs to validate
+        placeholders = ','.join('?' * len(song_ids))
+        cursor.execute(f"""
+            SELECT id, artist_name, song_title, artist_mbid
+            FROM songs
+            WHERE id IN ({placeholders})
+        """, song_ids)
+
+        songs_to_validate = []
+        for row in cursor.fetchall():
+            songs_to_validate.append({
+                'id': row[0],
+                'artist_name': row[1],
+                'song_title': row[2],
+                'artist_mbid': row[3]
+            })
+        cursor.close()
+
+        processed = 0
+        updated = 0
+        errors = 0
+        skipped = 0
+
+        logger.info(f"Starting validation of {len(songs_to_validate)} selected songs")
+
+        for song in songs_to_validate:
+            processed += 1
+
+            # Skip if PENDING MBID
+            if song['artist_mbid'] and song['artist_mbid'].startswith('PENDING-'):
+                mark_song_validated(db, song['id'], success=False, error_message='PENDING MBID', method='pending')
+                skipped += 1
+                continue
+
+            try:
+                # Validate recording - returns tuple (found: bool, method: str)
+                found, method = validate_recording_with_fallback(
+                    artist_name=song['artist_name'],
+                    song_title=song['song_title'],
+                    artist_mbid=song['artist_mbid']
+                )
+
+                if found:
+                    updated += 1
+                    mark_song_validated(db, song['id'], success=True, method=method)
+                    logger.info(f"[{processed}/{len(songs_to_validate)}] ✓ Validated: {song['artist_name']} - {song['song_title']} (method: {method})")
+                else:
+                    mark_song_validated(db, song['id'], success=False, error_message='No match found', method=method)
+                    logger.warning(f"[{processed}/{len(songs_to_validate)}] ✗ No match: {song['artist_name']} - {song['song_title']}")
+
+                # Rate limiting: delay between requests to avoid MusicBrainz blocking
+                time.sleep(1)
+
+            except Exception as e:
+                logger.error(f"Error validating song {song['id']}: {e}")
+                mark_song_validated(db, song['id'], success=False, error_message=str(e), method='error')
+                errors += 1
+
+        result = {
+            'success': True,
+            'processed': processed,
+            'updated': updated,
+            'errors': errors,
+            'skipped': skipped,
+            'message': f'Validated {processed} selected songs: {updated} found, {errors} errors, {skipped} skipped'
+        }
+
+        logger.info(f"Selected validation complete: {result['message']}")
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Error in validate_selected: {e}")
         db.conn.rollback()
         return jsonify({
             'success': False,

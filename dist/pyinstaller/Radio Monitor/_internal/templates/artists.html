@@ -218,8 +218,16 @@
                                     Last Seen
                                     <span class="sort-indicator"></span>
                                 </th>
-                                <th>Recording</th>
-                                <th>Verification</th>
+                                <th class="sortable {% if sort == 'validated_count' %}sorted-{{ direction }}{% endif %}"
+                                    onclick="sortByColumn('validated_count')">
+                                    Recording
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th class="sortable {% if sort == 'verified_count' %}sorted-{{ direction }}{% endif %}"
+                                    onclick="sortByColumn('verified_count')">
+                                    Verification
+                                    <span class="sort-indicator"></span>
+                                </th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>

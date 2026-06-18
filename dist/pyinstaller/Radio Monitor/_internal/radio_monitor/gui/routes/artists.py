@@ -43,7 +43,7 @@ def artists_list():
         direction = 'asc'
 
     # Validate sort column (whitelist)
-    valid_columns = ['name', 'song_count', 'total_plays', 'last_seen', 'first_seen']
+    valid_columns = ['name', 'song_count', 'total_plays', 'last_seen', 'first_seen', 'validated_count', 'verified_count']
     if sort not in valid_columns:
         sort = 'name'
 
@@ -169,7 +169,7 @@ def api_artists():
         direction = 'asc'
 
     # Validate sort column (whitelist)
-    valid_columns = ['name', 'song_count', 'total_plays', 'last_seen', 'first_seen']
+    valid_columns = ['name', 'song_count', 'total_plays', 'last_seen', 'first_seen', 'validated_count', 'verified_count']
     if sort not in valid_columns:
         sort = 'name'
 

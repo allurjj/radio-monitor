@@ -1,220 +1,193 @@
-# Log file cleared at 2026-06-10T15:02:03.371234
-2026-06-11 02:19:56 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 02:19:56 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 02:19:56 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Eur: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 02:39:46 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 02:39:46 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 02:39:56 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Eurythmics Annie: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 02:39:56 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Lennox Dave Stewart: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 03:00:47 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Eurythmics Annie: The read operation timed out
-2026-06-11 03:04:53 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Eurythm: The read operation timed out
-2026-06-11 03:24:54 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Bowie: The read operation timed out
-2026-06-11 03:25:22 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Wallen: The read operation timed out
-2026-06-11 03:59:36 - ERROR - radio_monitor.data_quality - Error marking song validated: error return without exception set
-2026-06-11 03:59:38 - ERROR - radio_monitor.data_quality - Error marking song validated: error return without exception set
-2026-06-11 03:59:53 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-11 03:59:59 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Bryan: The read operation timed out
-2026-06-11 04:00:04 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-11 04:00:17 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-11 04:00:35 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-11 04:00:57 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-11 04:20:00 - ERROR - radio_monitor.gui - Error during scheduled database cleanup: FOREIGN KEY constraint failed
-2026-06-11 04:59:55 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 05:01:41 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Zakk Wylde: The read operation timed out
-2026-06-11 05:19:57 - ERROR - radio_monitor.data_quality - Error marking song validated: error return without exception set
-2026-06-11 05:59:38 - ERROR - radio_monitor.database.crud - Error recording play for song_id 167: cannot commit - no transaction is active
-2026-06-11 06:00:44 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Ella Langley Morgan: The read operation timed out
-2026-06-11 06:00:54 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Langley Morgan Wallen: The read operation timed out
-2026-06-11 06:29:44 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-11 06:29:56 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-11 06:39:53 - ERROR - radio_monitor.scrapers - Failed to scrape rocknation: cannot commit - no transaction is active
-2026-06-11 06:59:50 - ERROR - radio_monitor.data_quality - Error marking song validated: error return without exception set
-2026-06-11 07:00:45 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Dave Stewart: The read operation timed out
-2026-06-11 07:00:51 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Eurythmics Annie: The read operation timed out
-2026-06-11 07:19:45 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 07:19:45 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Eurythmics Annie Lennox Dave: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 07:20:31 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Eur Ythmics Annie: The read operation timed out
-2026-06-11 07:39:48 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Lennox Dave Stewart: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 07:39:48 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 07:39:48 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 07:39:58 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 07:47:01 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Eury Thmics Annie Lennox Dave: The read operation timed out
-2026-06-11 07:59:52 - ERROR - radio_monitor.database.crud - Error adding artist 'Ne‐Yo' and song 'So Sick': cannot commit - no transaction is active
-2026-06-11 07:59:56 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Eurythmics Annie Lennox: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 08:20:02 - ERROR - radio_monitor.scrapers - Failed to scrape litefm1067: cannot commit - no transaction is active
-2026-06-11 08:39:48 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-11 09:00:45 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Rihanna Jay Z: The read operation timed out
-2026-06-11 09:02:51 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Paisleyalison: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 09:19:42 - ERROR - radio_monitor.data_quality - Error marking song validated: error return without exception set
-2026-06-11 09:19:55 - ERROR - radio_monitor.data_quality - Error marking song validated: error return without exception set
-2026-06-11 09:39:51 - ERROR - radio_monitor.database.crud - Error adding artist 'John Mellencamp' and song 'Hurts So Good': cannot commit - no transaction is active
-2026-06-11 09:39:52 - ERROR - radio_monitor.data_quality - Error marking song validated: error return without exception set
-2026-06-11 09:59:50 - ERROR - radio_monitor.scrapers - Failed to scrape bigclassichits: cannot commit - no transaction is active
-2026-06-11 10:19:45 - ERROR - radio_monitor.data_quality - Error marking song validated: cannot commit - no transaction is active
-2026-06-11 10:40:15 - ERROR - radio_monitor.data_quality - Error marking song validated: error return without exception set
-2026-06-11 10:45:35 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Euryth: The read operation timed out
-2026-06-11 10:47:41 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Rogers: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 11:00:07 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-11 11:00:34 - ERROR - radio_monitor.data_quality - Error marking song validated: cannot commit - no transaction is active
-2026-06-11 11:01:00 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Chainsmokers: The read operation timed out
-2026-06-11 11:02:17 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Eur Ythmics Annie Lennox Dave: The read operation timed out
-2026-06-11 11:03:04 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Euryt: The read operation timed out
-2026-06-11 11:03:12 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Hmics Annie Lennox Dave Stewart: The read operation timed out
-2026-06-11 11:03:20 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Euryt Hmics: The read operation timed out
-2026-06-11 11:03:26 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Annie Lennox Dave Stewart: The read operation timed out
-2026-06-11 11:03:35 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Euryt Hmics Annie Lennox: The read operation timed out
-2026-06-11 11:03:42 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Euryth: The read operation timed out
-2026-06-11 11:22:00 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Eurythmics Annie Lennox Dave Stewart: The read operation timed out
-2026-06-11 11:22:25 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Ythmics Annie Lennox Dave Stewart: The read operation timed out
-2026-06-11 11:23:10 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Eury Thmics: The read operation timed out
-2026-06-11 11:23:24 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Euryt: The read operation timed out
-2026-06-11 11:24:12 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Euryth: The read operation timed out
-2026-06-11 11:24:29 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Euryth Mics: The read operation timed out
-2026-06-11 11:24:43 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Eurythm: The read operation timed out
-2026-06-11 11:24:49 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Ics Annie Lennox Dave Stewart: The read operation timed out
-2026-06-11 11:25:09 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Eurythm Ics: The read operation timed out
-2026-06-11 11:25:16 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Eurythm Ics Annie: The read operation timed out
-2026-06-11 11:30:03 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 11:39:31 - ERROR - radio_monitor.scrapers - Failed to scrape wlite: cannot commit - no transaction is active
-2026-06-11 11:39:47 - ERROR - radio_monitor.database.crud - Error adding artist 'Jason Aldean' and song 'How Far Does A Goodbye Go': cannot commit - no transaction is active
-2026-06-11 11:39:48 - ERROR - radio_monitor.data_quality - Error marking song validated: error return without exception set
-2026-06-11 11:59:39 - ERROR - radio_monitor.scrapers - Failed to scrape wls: cannot commit - no transaction is active
-2026-06-11 12:00:43 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Birge Luke Bryan: The read operation timed out
-2026-06-11 12:02:25 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Corey Kent Koe Wetzel: The read operation timed out
-2026-06-11 12:02:33 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Wetzel: The read operation timed out
-2026-06-11 12:19:52 - ERROR - radio_monitor.database.crud - Error recording play for song_id 5597: cannot commit - no transaction is active
-2026-06-11 12:22:28 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Hmics Annie Lennox Dave Stewart: The read operation timed out
-2026-06-11 12:59:38 - ERROR - radio_monitor.data_quality - Error marking song validated: cannot commit - no transaction is active
-2026-06-11 13:19:40 - ERROR - radio_monitor.data_quality - Error marking song validated: cannot commit - no transaction is active
-2026-06-11 13:20:04 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 13:20:44 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Pnk: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 13:43:22 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Eury Thmics: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 14:01:55 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Dave Stewart: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 14:20:02 - ERROR - radio_monitor.scrapers - Failed to scrape wiil: cannot commit - no transaction is active
-2026-06-11 15:01:06 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Falling In Reverse: The read operation timed out
-2026-06-11 15:01:12 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Falling In: The read operation timed out
-2026-06-11 15:01:18 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Reverse: The read operation timed out
-2026-06-11 15:03:07 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Carrie Underwood Jason: The read operation timed out
-2026-06-11 15:19:58 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-11 15:28:44 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Eurythm Ics: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 15:30:20 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Bill Medley Jennifer: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 15:40:13 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Eur Ythmics: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 16:00:54 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Eur Ythmics Annie Lennox Dave: The read operation timed out
-2026-06-11 16:04:55 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Eurythm Ics: The read operation timed out
-2026-06-11 16:05:48 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Eur Ythmics: The read operation timed out
-2026-06-11 16:05:55 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Annie Lennox Dave Stewart: The read operation timed out
-2026-06-11 16:06:02 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Lennox Dave Stewart: The read operation timed out
-2026-06-11 17:19:43 - ERROR - radio_monitor.data_quality - Error marking song validated: error return without exception set
-2026-06-11 17:19:44 - ERROR - radio_monitor.data_quality - Error marking song validated: error return without exception set
-2026-06-11 17:39:58 - ERROR - radio_monitor.scrapers - Failed to scrape rock955: cannot commit - no transaction is active
-2026-06-11 18:01:53 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Morgan Wallen Post Malone: The read operation timed out
-2026-06-11 18:39:53 - ERROR - radio_monitor.data_quality - Error marking song validated: error return without exception set
-2026-06-11 19:39:36 - ERROR - radio_monitor.scrapers - Failed to scrape wlite: cannot start a transaction within a transaction
-2026-06-11 19:39:49 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 19:39:49 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 19:39:50 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 19:39:50 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 19:39:50 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 19:39:51 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 19:40:02 - ERROR - radio_monitor.scrapers - Failed to scrape big955: cannot commit - no transaction is active
-2026-06-11 19:40:14 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-11 19:46:17 - ERROR - radio_monitor.scrapers - Failed to scrape iheartsoftrock: cannot commit - no transaction is active
-2026-06-11 19:59:51 - ERROR - radio_monitor.scrapers - Failed to scrape big955: cannot commit - no transaction is active
-2026-06-11 20:59:56 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Kent Koe Wetzel: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 21:21:18 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Marky Mark And The Funky Bunch Feat Loleatta Holloway: <urlopen error _ssl.c:999: The handshake operation timed out>
-2026-06-11 21:21:23 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Marky Mark And: <urlopen error [Errno 101] Network is unreachable>
-2026-06-11 21:21:31 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for The Funky Bunch Feat Loleatta Holloway: <urlopen error _ssl.c:999: The handshake operation timed out>
-2026-06-11 21:21:40 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Marky Mark And The Funky Bunch Feat: <urlopen error [Errno 101] Network is unreachable>
-2026-06-11 21:21:46 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Marky Mark And The Funky Bunch: <urlopen error [Errno 101] Network is unreachable>
-2026-06-11 21:22:00 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Wallen: <urlopen error [Errno 104] Connection reset by peer>
-2026-06-11 21:22:02 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Langley Morgan Wallen: <urlopen error [Errno 104] Connection reset by peer>
-2026-06-11 21:22:05 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Marshmello Kane: <urlopen error [Errno 104] Connection reset by peer>
-2026-06-11 21:22:05 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Brown: <urlopen error [Errno 104] Connection reset by peer>
-2026-06-11 21:22:06 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Kane: <urlopen error [Errno 104] Connection reset by peer>
-2026-06-11 21:22:10 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Brooks & Dunn: <urlopen error [Errno 104] Connection reset by peer>
-2026-06-11 21:22:11 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Brooks & Dunn: <urlopen error [Errno 104] Connection reset by peer>
-2026-06-11 21:22:22 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for George Birge Luke Bryan: <urlopen error [Errno 104] Connection reset by peer>
-2026-06-11 21:22:23 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for George Birge Luke: <urlopen error [Errno 104] Connection reset by peer>
-2026-06-11 21:22:24 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Bryan: <urlopen error [Errno 104] Connection reset by peer>
-2026-06-11 21:22:24 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for George: <urlopen error [Errno 104] Connection reset by peer>
-2026-06-11 21:22:25 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Birge Luke Bryan: <urlopen error [Errno 104] Connection reset by peer>
-2026-06-11 21:22:26 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Morgan Wallen Post Malone: <urlopen error [Errno 104] Connection reset by peer>
-2026-06-11 21:22:27 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Morgan Wallen Post: <urlopen error [Errno 104] Connection reset by peer>
-2026-06-11 21:22:36 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Morgan: <urlopen error [Errno 104] Connection reset by peer>
-2026-06-11 21:29:52 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-11 21:30:10 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-11 21:30:20 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-11 21:40:12 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-11 21:40:27 - ERROR - radio_monitor.scrapers - Failed to scrape rocknation: cannot commit - no transaction is active
-2026-06-11 22:01:06 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Normani: The read operation timed out
-2026-06-11 22:02:03 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Kimbra: The read operation timed out
-2026-06-11 22:02:15 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Lady Gaga Bruno Mars: The read operation timed out
-2026-06-11 22:02:21 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Lady Gaga Bruno: The read operation timed out
-2026-06-11 22:02:29 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Gaga Bruno Mars: The read operation timed out
-2026-06-11 22:03:21 - ERROR - radio_monitor.scrapers - Failed to scrape iheartcountry80s: cannot commit - no transaction is active
-2026-06-11 22:59:38 - ERROR - radio_monitor.scrapers - Failed to scrape wiil: cannot commit - no transaction is active
-2026-06-11 22:59:46 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 23:00:47 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for George Birge Luke: The read operation timed out
-2026-06-11 23:19:37 - ERROR - radio_monitor.scrapers - Failed to scrape wlite: cannot commit - no transaction is active
-2026-06-11 23:26:23 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Dj Snake Justin Bieber: The read operation timed out
-2026-06-11 23:39:48 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Morrison Sully Erna: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 23:39:49 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 23:39:49 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-11 23:39:49 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Billy Morrison Sully: HTTP Error 503: Service Temporarily Unavailable
-2026-06-11 23:59:43 - ERROR - radio_monitor.scrapers - Failed to scrape wls: cannot commit - no transaction is active
-2026-06-12 00:00:56 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Zakk Wylde: The read operation timed out
-2026-06-12 00:01:02 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Black Label: The read operation timed out
-2026-06-12 00:19:38 - ERROR - radio_monitor.scrapers - Failed to scrape wlite: cannot commit - no transaction is active
-2026-06-12 00:29:58 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
-2026-06-12 00:59:50 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-12 00:59:50 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-12 00:59:56 - ERROR - radio_monitor.scrapers - Failed to scrape big955: cannot commit - no transaction is active
-2026-06-12 01:19:37 - ERROR - radio_monitor.data_quality - Error marking song validated: cannot commit - no transaction is active
-2026-06-12 01:19:37 - ERROR - radio_monitor.data_quality - Error validating song 7223: error return without exception set
-2026-06-12 01:19:50 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
-2026-06-12 01:19:50 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Morrison Sully Erna: HTTP Error 503: Service Temporarily Unavailable
-2026-06-12 01:59:35 - ERROR - radio_monitor.data_quality - Error marking song validated: error return without exception set
-2026-06-12 02:09:35 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 02:26:32 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 02:36:32 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 02:46:32 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 02:56:35 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 02:59:55 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Euryth Mics: The read operation timed out
-2026-06-12 03:06:35 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 03:16:35 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 03:26:36 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 03:36:35 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 03:41:25 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for The Hu Jonny: The read operation timed out
-2026-06-12 03:46:36 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 03:56:36 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 04:06:35 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 04:16:37 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 04:20:00 - ERROR - radio_monitor.gui - Error during scheduled database cleanup: FOREIGN KEY constraint failed
-2026-06-12 04:26:36 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 04:36:42 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 04:46:36 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 04:56:42 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 05:06:36 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 05:16:42 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 05:26:36 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 05:36:43 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 05:42:17 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Eurythm Ics Annie Lennox Dave: The read operation timed out
-2026-06-12 05:46:29 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 05:56:42 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 06:06:29 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 06:16:43 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 06:26:29 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 06:36:42 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 06:46:29 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 06:56:44 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 07:06:29 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 07:16:43 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 07:26:29 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 07:36:42 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 07:46:29 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 07:56:43 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 08:06:29 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 08:16:42 - ERROR - radio_monitor.data_quality - Error in scheduled validation: 'NoneType' object has no attribute 'startswith'
-2026-06-12 08:20:24 - ERROR - radio_monitor.gui.routes.data_quality - Error in validate_batch: 'NoneType' object has no attribute 'startswith'
-2026-06-12 08:20:41 - ERROR - radio_monitor.gui.routes.data_quality - Error in validate_batch: 'NoneType' object has no attribute 'startswith'
-2026-06-12 08:22:57 - ERROR - radio_monitor.gui.routes.data_quality - Error in validate_batch: 'NoneType' object has no attribute 'startswith'
+2026-06-17 16:05:17 - ERROR - radio_monitor.mbid - MusicBrainz API request failed for Teddy Swims: HTTP Error 503: Service Temporarily Unavailable
+2026-06-17 16:19:08 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
+2026-06-17 22:37:51 - ERROR - radio_monitor.database.crud - Error adding playlist: table playlists has no column named enable_various_artists_fallback
+2026-06-17 22:37:51 - ERROR - radio_monitor.gui.routes.playlists - Error creating playlist: table playlists has no column named enable_various_artists_fallback
+Traceback (most recent call last):
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\gui\routes\playlists.py", line 155, in api_create_playlist
+    playlist_id = db.add_playlist(
+        name=data['name'],
+    ...<10 lines>...
+        various_artists_timeout_ms=va_timeout_ms
+    )
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\database\__init__.py", line 627, in add_playlist
+    return crud.add_playlist(cursor, self.conn, name, is_auto, interval_minutes, station_ids,
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           max_songs, mode, min_plays, max_plays, days, enabled,
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           enable_various_artists_fallback, various_artists_timeout_ms)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\database\crud.py", line 1218, in add_playlist
+    cursor.execute("""
+    ~~~~~~~~~~~~~~^^^^
+        INSERT INTO playlists (
+        ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<20 lines>...
+        various_artists_timeout_ms
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ))
+    ^^
+sqlite3.OperationalError: table playlists has no column named enable_various_artists_fallback
+2026-06-17 23:18:36 - ERROR - radio_monitor.database.crud - Error adding playlist: table playlists has no column named enable_various_artists_fallback
+2026-06-17 23:18:36 - ERROR - radio_monitor.gui.routes.playlists - Error creating playlist: table playlists has no column named enable_various_artists_fallback
+Traceback (most recent call last):
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\gui\routes\playlists.py", line 155, in api_create_playlist
+    playlist_id = db.add_playlist(
+        name=data['name'],
+    ...<10 lines>...
+        various_artists_timeout_ms=va_timeout_ms
+    )
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\database\__init__.py", line 627, in add_playlist
+    return crud.add_playlist(cursor, self.conn, name, is_auto, interval_minutes, station_ids,
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           max_songs, mode, min_plays, max_plays, days, enabled,
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           enable_various_artists_fallback, various_artists_timeout_ms)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\database\crud.py", line 1218, in add_playlist
+    cursor.execute("""
+    ~~~~~~~~~~~~~~^^^^
+        INSERT INTO playlists (
+        ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<20 lines>...
+        various_artists_timeout_ms
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ))
+    ^^
+sqlite3.OperationalError: table playlists has no column named enable_various_artists_fallback
+2026-06-17 23:18:40 - ERROR - radio_monitor.database.crud - Error adding playlist: table playlists has no column named enable_various_artists_fallback
+2026-06-17 23:18:40 - ERROR - radio_monitor.gui.routes.playlists - Error creating playlist: table playlists has no column named enable_various_artists_fallback
+Traceback (most recent call last):
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\gui\routes\playlists.py", line 155, in api_create_playlist
+    playlist_id = db.add_playlist(
+        name=data['name'],
+    ...<10 lines>...
+        various_artists_timeout_ms=va_timeout_ms
+    )
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\database\__init__.py", line 627, in add_playlist
+    return crud.add_playlist(cursor, self.conn, name, is_auto, interval_minutes, station_ids,
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           max_songs, mode, min_plays, max_plays, days, enabled,
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           enable_various_artists_fallback, various_artists_timeout_ms)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\database\crud.py", line 1218, in add_playlist
+    cursor.execute("""
+    ~~~~~~~~~~~~~~^^^^
+        INSERT INTO playlists (
+        ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<20 lines>...
+        various_artists_timeout_ms
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ))
+    ^^
+sqlite3.OperationalError: table playlists has no column named enable_various_artists_fallback
+2026-06-17 23:39:53 - ERROR - radio_monitor.database.crud - Error adding playlist: table playlists has no column named enable_various_artists_fallback
+2026-06-17 23:39:53 - ERROR - radio_monitor.gui.routes.playlists - Error creating playlist: table playlists has no column named enable_various_artists_fallback
+Traceback (most recent call last):
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\gui\routes\playlists.py", line 155, in api_create_playlist
+    playlist_id = db.add_playlist(
+        name=data['name'],
+    ...<10 lines>...
+        various_artists_timeout_ms=va_timeout_ms
+    )
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\database\__init__.py", line 627, in add_playlist
+    return crud.add_playlist(cursor, self.conn, name, is_auto, interval_minutes, station_ids,
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           max_songs, mode, min_plays, max_plays, days, enabled,
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           enable_various_artists_fallback, various_artists_timeout_ms)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\database\crud.py", line 1218, in add_playlist
+    cursor.execute("""
+    ~~~~~~~~~~~~~~^^^^
+        INSERT INTO playlists (
+        ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<20 lines>...
+        various_artists_timeout_ms
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ))
+    ^^
+sqlite3.OperationalError: table playlists has no column named enable_various_artists_fallback
+2026-06-17 23:41:38 - ERROR - radio_monitor.database.crud - Error adding playlist: table playlists has no column named enable_various_artists_fallback
+2026-06-17 23:41:38 - ERROR - radio_monitor.gui.routes.playlists - Error creating playlist: table playlists has no column named enable_various_artists_fallback
+Traceback (most recent call last):
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\gui\routes\playlists.py", line 155, in api_create_playlist
+    playlist_id = db.add_playlist(
+        name=data['name'],
+    ...<10 lines>...
+        various_artists_timeout_ms=va_timeout_ms
+    )
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\database\__init__.py", line 627, in add_playlist
+    return crud.add_playlist(cursor, self.conn, name, is_auto, interval_minutes, station_ids,
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           max_songs, mode, min_plays, max_plays, days, enabled,
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           enable_various_artists_fallback, various_artists_timeout_ms)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\database\crud.py", line 1218, in add_playlist
+    cursor.execute("""
+    ~~~~~~~~~~~~~~^^^^
+        INSERT INTO playlists (
+        ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<20 lines>...
+        various_artists_timeout_ms
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ))
+    ^^
+sqlite3.OperationalError: table playlists has no column named enable_various_artists_fallback
+2026-06-18 09:30:38 - ERROR - radio_monitor.database.crud - Error adding playlist: table playlists has no column named enable_various_artists_fallback
+2026-06-18 09:30:38 - ERROR - radio_monitor.gui.routes.playlists - Error creating playlist: table playlists has no column named enable_various_artists_fallback
+Traceback (most recent call last):
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\gui\routes\playlists.py", line 155, in api_create_playlist
+    playlist_id = db.add_playlist(
+        name=data['name'],
+    ...<10 lines>...
+        various_artists_timeout_ms=va_timeout_ms
+    )
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\database\__init__.py", line 627, in add_playlist
+    return crud.add_playlist(cursor, self.conn, name, is_auto, interval_minutes, station_ids,
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           max_songs, mode, min_plays, max_plays, days, enabled,
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           enable_various_artists_fallback, various_artists_timeout_ms)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\database\crud.py", line 1218, in add_playlist
+    cursor.execute("""
+    ~~~~~~~~~~~~~~^^^^
+        INSERT INTO playlists (
+        ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<20 lines>...
+        various_artists_timeout_ms
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ))
+    ^^
+sqlite3.OperationalError: table playlists has no column named enable_various_artists_fallback
+2026-06-18 11:42:44 - ERROR - radio_monitor.gui.routes.logs - Error clearing logs: [WinError 32] The process cannot access the file because it is being used by another process: 'radio_monitor.log' -> 'radio_monitor.log.backup_20260618_114244'
+2026-06-18 11:44:03 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
+2026-06-18 13:06:15 - ERROR - radio_monitor.gui.routes.plex_failures - Error retrying Plex failure: find_song_in_library() got an unexpected keyword argument 'plex_url'
+Traceback (most recent call last):
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\gui\routes\plex_failures.py", line 211, in api_retry_failure
+    result = find_song_in_library(
+        plex_url=plex_url,
+    ...<5 lines>...
+        enable_various_artists_fallback=settings.get('plex', {}).get('enable_various_artists_fallback', False)
+    )
+TypeError: find_song_in_library() got an unexpected keyword argument 'plex_url'
+2026-06-18 13:06:17 - ERROR - radio_monitor.gui.routes.plex_failures - Error retrying Plex failure: find_song_in_library() got an unexpected keyword argument 'plex_url'
+Traceback (most recent call last):
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\gui\routes\plex_failures.py", line 211, in api_retry_failure
+    result = find_song_in_library(
+        plex_url=plex_url,
+    ...<5 lines>...
+        enable_various_artists_fallback=settings.get('plex', {}).get('enable_various_artists_fallback', False)
+    )
+TypeError: find_song_in_library() got an unexpected keyword argument 'plex_url'
+2026-06-18 13:06:26 - ERROR - radio_monitor.gui.routes.plex_failures - Error retrying Plex failure: find_song_in_library() got an unexpected keyword argument 'plex_url'
+Traceback (most recent call last):
+  File "C:\Users\allurjj\Documents\Radio_Monitor\radio_monitor\gui\routes\plex_failures.py", line 211, in api_retry_failure
+    result = find_song_in_library(
+        plex_url=plex_url,
+    ...<5 lines>...
+        enable_various_artists_fallback=settings.get('plex', {}).get('enable_various_artists_fallback', False)
+    )
+TypeError: find_song_in_library() got an unexpected keyword argument 'plex_url'

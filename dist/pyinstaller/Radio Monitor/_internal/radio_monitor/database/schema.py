@@ -94,6 +94,9 @@ def create_tables(cursor):
             play_count INTEGER DEFAULT 1,
             verification_status TEXT DEFAULT 'UNVERIFIED',
             verification_date TIMESTAMP,
+            validated_at TIMESTAMP,
+            validation_status TEXT DEFAULT 'unvalidated',
+            validation_method TEXT,
             FOREIGN KEY (artist_mbid) REFERENCES artists(mbid),
             UNIQUE(artist_mbid, song_title)
         )
@@ -104,6 +107,7 @@ def create_tables(cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_songs_first_seen ON songs(first_seen_at DESC)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_songs_artist_title ON songs(artist_name, song_title)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_songs_artist_name ON songs(artist_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_songs_validation ON songs(validation_status, validated_at)")
 
     # 4. song_plays_daily table
     cursor.execute("""

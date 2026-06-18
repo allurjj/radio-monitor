@@ -21,7 +21,9 @@
   "monitor": {
     "database_file": "radio_songs.db",
     "scrape_interval_minutes": 20,
-    "auto_start": true
+    "auto_start": false,
+    "validate_recordings": true,
+    "skip_unvalidated_recordings": false
   },
   "data_quality": {
     "auto_validation_enabled": true,

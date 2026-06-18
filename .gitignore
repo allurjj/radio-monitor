@@ -103,13 +103,7 @@ VERSION.py             # Auto-generated version file (created by pyinstaller/bui
 # ------------------------------------------
 # Documentation (All documentation excluded - keep out of git until ready)
 # ------------------------------------------
-*.md
-docs/                  # Entire docs directory excluded
-!linux/**/*.md          # Allow .md files in linux/ subdirectory
-!docker/**/*.md         # Allow .md files in docker/ subdirectory
-!pyinstaller/**/*.md    # Allow .md files in pyinstaller/ subdirectory
-
-# User mappings documentation (allow these specific files)
+# First, allow specific documentation files
 !README.md
 !INSTALL.md
 !API.md
@@ -118,6 +112,17 @@ docs/                  # Entire docs directory excluded
 !USER_MAPPINGS_README.md
 !USER_MAPPINGS_QUICKSTART.md
 !CHANGELOG.md
+!docs/DATA_QUALITY_FEATURE.md
+!docs/AI_PLAYLISTS_FEATURE.md
+!docs/MANUAL_PLAYLIST_BUILDER.md
+!linux/**/*.md
+!docker/**/*.md
+!pyinstaller/**/*.md
+
+# Then, ignore the rest
+*.md
+docs/**/*.md
+!docs/**/*.md  # Re-allow specific .md files in docs subdirectories
 
 # ------------------------------------------
 # Development Tools (Playwright - for design/debugging only)
