@@ -472,6 +472,76 @@ def mark_song_validated(db, song_id: int, success: bool = True, error_message: s
         cursor.close()
 
 
+def get_unvalidated_songs(db, limit: int = None, sort_by: str = 'play_count', sort_dir: str = 'DESC') -> List[Dict[str, Any]]:
+    """Get songs that are not validated or failed validation
+
+    Args:
+        db: RadioDatabase instance
+        limit: Maximum number of songs to return (None for all)
+        sort_by: Column to sort by (play_count, song_title, artist_name, validation_status)
+        sort_dir: Sort direction (ASC or DESC)
+
+    Returns:
+        List of dictionaries with song data
+    """
+    cursor = db.get_cursor()
+
+    try:
+        # Validate sort column
+        valid_sort_columns = ['play_count', 'song_title', 'artist_name', 'validation_status']
+        if sort_by not in valid_sort_columns:
+            sort_by = 'play_count'
+
+        # Validate sort direction
+        sort_dir = sort_dir.upper() if sort_dir.upper() in ['ASC', 'DESC'] else 'DESC'
+
+        # Build query with parameterized sort
+        if sort_by == 'song_title':
+            order_by = f"s.song_title COLLATE NOCASE {sort_dir}"
+        elif sort_by == 'artist_name':
+            order_by = f"s.artist_name COLLATE NOCASE {sort_dir}"
+        else:
+            order_by = f"s.{sort_by} {sort_dir}"
+
+        limit_clause = f"LIMIT {limit}" if limit else ""
+
+        cursor.execute(f"""
+            SELECT
+                s.id,
+                s.song_title,
+                s.artist_name,
+                s.artist_mbid,
+                s.validation_status,
+                s.play_count
+            FROM songs s
+            WHERE s.validation_status IN ('unvalidated', 'invalid', NULL)
+            ORDER BY {order_by}
+            {limit_clause}
+        """)
+
+        songs = []
+        for row in cursor.fetchall():
+            # Normalize NULL status to 'unvalidated'
+            status = row[4] if row[4] else 'unvalidated'
+
+            songs.append({
+                'id': row[0],
+                'song_title': row[1],
+                'artist_name': row[2],
+                'artist_mbid': row[3],
+                'validation_status': status,
+                'play_count': row[5]
+            })
+
+        return songs
+
+    except Exception as e:
+        logger.error(f"Error getting unvalidated songs: {e}")
+        return []
+    finally:
+        cursor.close()
+
+
 def validate_batch_scheduled(db, batch_size: int = 50) -> Dict[str, Any]:
     """Validate a batch of songs for scheduled background validation
 
