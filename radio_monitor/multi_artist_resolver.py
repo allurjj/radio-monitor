@@ -289,7 +289,7 @@ def try_musicbrainz_search(
         # Second pass: Only query MusicBrainz for artists not found locally
         for artist_name in artists_needing_api:
             try:
-                mbid, verified_name = lookup_artist_mbid(
+                mbid, verified_name, method = lookup_artist_mbid(
                     artist_name=artist_name,
                     db=db,
                     user_agent=user_agent
@@ -297,10 +297,14 @@ def try_musicbrainz_search(
                 if mbid and not mbid.startswith('PENDING'):
                     results[artist_name] = mbid
                     cache[artist_name] = mbid  # Cache for future lookups
-                    logger.debug(f"[API] Found MBID for '{artist_name}': {mbid} (verified: {verified_name})")
+                    logger.debug(f"[API] Found MBID for '{artist_name}': {mbid} (verified: {verified_name}, method: {method})")
                 else:
                     results[artist_name] = None
                     logger.debug(f"[API] No MBID found for '{artist_name}'")
+                    # Log when API lookup fails - this could indicate a timeout or network issue
+                    # that might lead to incorrect split validation if other parts succeed
+                    if results.get(artist_name) is None:
+                        logger.warning(f"[API] Lookup failed for '{artist_name}' - this may cause split validation to fail")
             except Exception as e:
                 logger.warning(f"Error looking up '{artist_name}': {e}")
                 results[artist_name] = None
@@ -323,6 +327,9 @@ def try_split_and_validate(artist_name: str, db, user_agent: str, cache: Dict[st
     - 2 names: Try both together, then individually
     - 3 names: Try (first 2) + (last 1), then (first 1) + (last 2)
 
+    IMPORTANT: Always check full artist name FIRST before attempting any splits.
+    This prevents legitimate single artists with "&" from being split (e.g., "Big & Rich").
+
     Args:
         artist_name: The collaboration name to split
         db: Database instance
@@ -335,6 +342,24 @@ def try_split_and_validate(artist_name: str, db, user_agent: str, cache: Dict[st
     if cache is None:
         cache = {}
 
+    # CRITICAL: First, check if the full artist name exists as a single artist
+    # This prevents splitting legitimate single-artist names like "Big & Rich"
+    validation = try_musicbrainz_search([artist_name], db, user_agent, cache)
+    if validation.get(artist_name):
+        # Full name validates as a single artist - don't split
+        logger.info(f"Full name '{artist_name}' validates as single artist - not splitting")
+        return [artist_name]
+
+    # Fallback: Blacklist for edge cases where full-name check fails but we still don't want to split
+    # Use sparingly - only for artists that consistently cause problems (API timeouts, etc.)
+    SINGLE_ARTIST_BLACKLIST = {
+        'nine inch nails',  # Known issue: API timeouts caused incorrect "Nine" match
+    }
+
+    if artist_name.lower() in SINGLE_ARTIST_BLACKLIST:
+        logger.info(f"Artist '{artist_name}' is in blacklist (fallback) - skipping split")
+        return []
+
     all_valid_splits = []
 
     # Strategy 1: Smart grouping for 2-3 word collaborations (NEW!)
@@ -346,14 +371,7 @@ def try_split_and_validate(artist_name: str, db, user_agent: str, cache: Dict[st
         # Example: "Gotye Kimbra" -> try "Gotye Kimbra", then "Gotye" + "Kimbra"
         logger.debug(f"Trying 2-word smart grouping for: {artist_name}")
 
-        # Try both words together first
-        validation = try_musicbrainz_search([artist_name], db, user_agent, cache)
-        if validation.get(artist_name):
-            # It's a single artist with 2-word name
-            logger.info(f"Validated as single 2-word artist: {artist_name}")
-            return [artist_name]
-
-        # Try individual words
+        # Try individual words (full name already checked above)
         validation = try_musicbrainz_search(words, db, user_agent, cache)
         if all(validation.get(word) for word in words):
             logger.info(f"Validated 2-word split: {words}")
@@ -371,14 +389,23 @@ def try_split_and_validate(artist_name: str, db, user_agent: str, cache: Dict[st
         if validation.get(artist1) and validation.get(artist2):
             logger.info(f"Validated 3-word split (2+1): [{artist1}, {artist2}]")
             all_valid_splits.append([artist1, artist2])
+        else:
+            logger.debug(f"3-word split (2+1) failed validation: {artist1}={validation.get(artist1)}, {artist2}={validation.get(artist2)}")
 
         # Strategy 2: First 1 word + last 2 words
         artist1 = words[0]
         artist2 = ' '.join(words[1:])
         validation = try_musicbrainz_search([artist1, artist2], db, user_agent, cache)
         if validation.get(artist1) and validation.get(artist2):
-            logger.info(f"Validated 3-word split (1+2): [{artist1}, {artist2}]")
-            all_valid_splits.append([artist1, artist2])
+            # Extra validation: Reject if first part is a single word and it's a common word
+            # This prevents "Nine" from being accepted when "Nine Inch Nails" is the real artist
+            if len(words[0]) <= 4 and words[0].lower() in ['nine', 'the', 'and', 'for', 'but']:
+                logger.warning(f"Rejecting 3-word split (1+2) with common single word: [{artist1}, {artist2}] - likely incorrect split")
+            else:
+                logger.info(f"Validated 3-word split (1+2): [{artist1}, {artist2}]")
+                all_valid_splits.append([artist1, artist2])
+        else:
+            logger.debug(f"3-word split (1+2) failed validation: {artist1}={validation.get(artist1)}, {artist2}={validation.get(artist2)}")
 
         # Strategy 3: All individual words (fallback)
         validation = try_musicbrainz_search(words, db, user_agent, cache)

@@ -38,7 +38,7 @@ class TestMBIDLookup(unittest.TestCase):
         Note: This test requires internet connection to MusicBrainz API.
         Skipped if API is unreachable.
         """
-        mbid = lookup_artist_mbid("Taylor Swift", self.db)
+        mbid, _, _ = lookup_artist_mbid("Taylor Swift", self.db)
 
         # Skip test if API is unreachable
         if mbid is None:
@@ -53,7 +53,7 @@ class TestMBIDLookup(unittest.TestCase):
         Note: This test requires internet connection to MusicBrainz API.
         Skipped if API is unreachable.
         """
-        mbid = lookup_artist_mbid("Bad Bunny", self.db)
+        mbid, _, _ = lookup_artist_mbid("Bad Bunny", self.db)
 
         # Skip test if API is unreachable
         if mbid is None:
@@ -64,7 +64,7 @@ class TestMBIDLookup(unittest.TestCase):
 
     def test_mbid_lookup_not_found(self):
         """Test MBID lookup for nonexistent artist"""
-        mbid = lookup_artist_mbid("Nonexistent Artist 123456789", self.db)
+        mbid, _, _ = lookup_artist_mbid("Nonexistent Artist 123456789", self.db)
 
         self.assertIsNone(mbid, "MBID should be None for nonexistent artist")
 
@@ -75,14 +75,14 @@ class TestMBIDLookup(unittest.TestCase):
         Skipped if API is unreachable.
         """
         # First lookup (cache miss)
-        mbid1 = lookup_artist_mbid("Taylor Swift", self.db)
+        mbid1, _, _ = lookup_artist_mbid("Taylor Swift", self.db)
 
         # Skip if API unreachable
         if mbid1 is None:
             self.skipTest("MusicBrainz API unreachable - skipping cache test")
 
         # Second lookup (cache hit)
-        mbid2 = lookup_artist_mbid("Taylor Swift", self.db)
+        mbid2, _, _ = lookup_artist_mbid("Taylor Swift", self.db)
 
         self.assertEqual(mbid1, mbid2, "Cached MBID should match first lookup")
 
@@ -92,14 +92,14 @@ class TestMBIDLookup(unittest.TestCase):
         Note: This test requires internet connection to MusicBrainz API.
         Skipped if API is unreachable.
         """
-        mbid1 = lookup_artist_mbid("taylor swift", self.db)
+        mbid1, _, _ = lookup_artist_mbid("taylor swift", self.db)
 
         # Skip if API unreachable
         if mbid1 is None:
             self.skipTest("MusicBrainz API unreachable - skipping case test")
 
-        mbid2 = lookup_artist_mbid("TAYLOR SWIFT", self.db)
-        mbid3 = lookup_artist_mbid("TaYlOr SwIfT", self.db)
+        mbid2, _, _ = lookup_artist_mbid("TAYLOR SWIFT", self.db)
+        mbid3, _, _ = lookup_artist_mbid("TaYlOr SwIfT", self.db)
 
         self.assertIsNotNone(mbid1, "Lowercase lookup should work")
         self.assertIsNotNone(mbid2, "Uppercase lookup should work")
@@ -114,7 +114,7 @@ class TestMBIDLookup(unittest.TestCase):
         Skipped if API is unreachable.
         """
         # Test with artist that has special characters
-        mbid = lookup_artist_mbid("Carly Rae Jepsen", self.db)
+        mbid, _, _ = lookup_artist_mbid("Carly Rae Jepsen", self.db)
 
         # Skip if API unreachable
         if mbid is None:
@@ -143,7 +143,7 @@ class TestMBIDCache(unittest.TestCase):
         Note: This test requires internet connection to MusicBrainz API.
         Skipped if API is unreachable.
         """
-        mbid1 = lookup_artist_mbid("Taylor Swift", self.db)
+        mbid1, _, _ = lookup_artist_mbid("Taylor Swift", self.db)
 
         # Skip if API unreachable
         if mbid1 is None:
@@ -153,7 +153,7 @@ class TestMBIDCache(unittest.TestCase):
         self.db.add_artist(mbid1, "Taylor Swift", "test")
 
         # Second lookup should find in cache
-        mbid2 = lookup_artist_mbid("Taylor Swift", self.db)
+        mbid2, _, _ = lookup_artist_mbid("Taylor Swift", self.db)
 
         self.assertEqual(mbid1, mbid2, "First and second lookup should match")
 
@@ -163,13 +163,13 @@ class TestMBIDCache(unittest.TestCase):
         Note: This test requires internet connection to MusicBrainz API.
         Skipped if API is unreachable.
         """
-        mbid_taylor = lookup_artist_mbid("Taylor Swift", self.db)
+        mbid_taylor, _, _ = lookup_artist_mbid("Taylor Swift", self.db)
 
         # Skip if API unreachable
         if mbid_taylor is None:
             self.skipTest("MusicBrainz API unreachable - skipping different artists test")
 
-        mbid_bad_bunny = lookup_artist_mbid("Bad Bunny", self.db)
+        mbid_bad_bunny, _, _ = lookup_artist_mbid("Bad Bunny", self.db)
 
         # Skip if second lookup failed
         if mbid_bad_bunny is None:

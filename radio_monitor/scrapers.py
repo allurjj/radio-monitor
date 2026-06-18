@@ -851,9 +851,11 @@ def scrape_all_stations(db=None, station_ids=None):
                                     from radio_monitor.mbid import lookup_artist_mbid
                                     # Get user_agent from settings for MusicBrainz API
                                     user_agent = settings.get('musicbrainz', {}).get('user_agent') if settings else None
-                                    primary_artist_mbid, primary_artist_verified_name = lookup_artist_mbid(primary_artist, db, user_agent=user_agent)
+                                    primary_artist_mbid, primary_artist_verified_name, lookup_method = lookup_artist_mbid(
+                                        primary_artist, db, song_title=song_title, user_agent=user_agent
+                                    )
                                     if primary_artist_mbid:
-                                        logger.debug(f"MBID from MusicBrainz for '{primary_artist}': {primary_artist_mbid} (verified: {primary_artist_verified_name})")
+                                        logger.debug(f"MBID from MusicBrainz for '{primary_artist}': {primary_artist_mbid} (verified: {primary_artist_verified_name}, method: {lookup_method})")
                                 except Exception as e:
                                     logger.warning(f"MBID lookup failed for '{primary_artist}': {e}")
                                     primary_artist_verified_name = None
@@ -877,14 +879,15 @@ def scrape_all_stations(db=None, station_ids=None):
                                 # Get the MBID of the first (primary) artist
                                 from radio_monitor.mbid import lookup_artist_mbid
                                 primary_name = validated_artists[0]
-                                primary_artist_mbid, primary_artist_verified_name = lookup_artist_mbid(
+                                primary_artist_mbid, primary_artist_verified_name, lookup_method = lookup_artist_mbid(
                                     artist_name=primary_name,
                                     db=db,
+                                    song_title=song_title,
                                     user_agent=user_agent
                                 )
 
                             if primary_artist_mbid and not primary_artist_mbid.startswith('PENDING'):
-                                logger.info(f"Multi-artist resolution successful for '{primary_artist}' -> '{primary_name}': {primary_artist_mbid} (verified: {primary_artist_verified_name})")
+                                logger.info(f"Multi-artist resolution successful for '{primary_artist}' -> '{primary_name}': {primary_artist_mbid} (verified: {primary_artist_verified_name}, method: {lookup_method})")
                             else:
                                 logger.debug(f"Multi-artist resolution failed for '{primary_artist}'")
                         except Exception as e:
