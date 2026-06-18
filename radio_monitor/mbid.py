@@ -80,6 +80,10 @@ ARTIST_NAME_VARIATIONS = {
     'soulja boy tell\'em': 'Soulja Boy',
     'ke$ha': 'Kesha',
     'dht': 'D.H.T.',
+
+    # Tribute bands - map to real artists
+    'garth brooks tribute': 'Garth Brooks',
+    'garth brooks tribute band': 'Garth Brooks',
 }
 
 
