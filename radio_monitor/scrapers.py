@@ -904,10 +904,12 @@ def scrape_all_stations(db=None, station_ids=None):
                     # Optional recording validation (if enabled in settings)
                     # This validates that the artist+song combination exists in MusicBrainz
                     # Helps prevent invalid entries from being stored
-                    validate_recordings = settings.get('validate_recordings', False) if settings else False
+                    validate_recordings = settings.get('monitor', {}).get('validate_recordings', False) if settings else False
                     recording_found = False
                     method = 'not_validated'
+                    logger.info(f"[VALIDATION CHECK] validate_recordings={validate_recordings}, mbid={primary_artist_mbid[:30] if primary_artist_mbid else 'None'}...")
                     if validate_recordings and not primary_artist_mbid.startswith('PENDING-'):
+                        logger.info(f"[VALIDATION START] {primary_artist} - {song_title}")
                         try:
                             from radio_monitor.recording_validation import validate_recording_with_fallback
 
@@ -925,7 +927,7 @@ def scrape_all_stations(db=None, station_ids=None):
                                 )
 
                                 # Option: Skip storing this song if validation is strict
-                                skip_unvalidated = settings.get('skip_unvalidated_recordings', False) if settings else False
+                                skip_unvalidated = settings.get('monitor', {}).get('skip_unvalidated_recordings', False) if settings else False
                                 if skip_unvalidated:
                                     logger.info(f"Skipping unvalidated recording: {primary_artist} - {song_title}")
                                     continue
