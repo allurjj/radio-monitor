@@ -117,6 +117,7 @@ docs/                  # Entire docs directory excluded
 !ARCHITECTURE.md
 !USER_MAPPINGS_README.md
 !USER_MAPPINGS_QUICKSTART.md
+!CHANGELOG.md
 
 # ------------------------------------------
 # Development Tools (Playwright - for design/debugging only)
