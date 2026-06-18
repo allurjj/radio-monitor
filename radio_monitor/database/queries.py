@@ -528,7 +528,8 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
         'last_seen': 'a.last_seen_at',
         'first_seen': 'a.first_seen_at',
         'validated_count': 'validated_count',
-        'verified_count': 'verified_count'
+        'verified_count': 'verified_count',
+        'status': 'status'
     }
 
     # Get column name (default to name)
@@ -538,6 +539,14 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
     # Use COLLATE NOCASE for case-insensitive text sorting
     if sort in ['name']:
         order_by = f"{sort_column} COLLATE NOCASE {direction.upper()}"
+    elif sort == 'status':
+        # Custom sort order: imported(1) < needs_import(2) < no_import(3)
+        order_expr = """CASE
+            WHEN a.lidarr_imported_at IS NOT NULL THEN 1
+            WHEN a.needs_lidarr_import = 1 THEN 2
+            ELSE 3
+        END"""
+        order_by = f"{order_expr} {direction.upper()}"
     elif sort in ['validated_count', 'verified_count']:
         # For aggregate columns, repeat the aggregate expression in ORDER BY
         if sort == 'validated_count':
@@ -600,7 +609,12 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
             CASE
                 WHEN MAX(bl.id) IS NOT NULL THEN 1
                 ELSE 0
-            END as is_blocked
+            END as is_blocked,
+            CASE
+                WHEN a.lidarr_imported_at IS NOT NULL THEN 'imported'
+                WHEN a.needs_lidarr_import = 1 THEN 'needs_import'
+                ELSE 'no_import'
+            END as status
         FROM artists a
         LEFT JOIN songs s ON a.mbid = s.artist_mbid
         LEFT JOIN blocklist bl ON bl.entity_type = 'artist' AND bl.artist_mbid = a.mbid
@@ -616,7 +630,7 @@ def get_artists_paginated(cursor, page=1, limit=50, filters=None, sort='name', d
     columns = ['mbid', 'name', 'first_seen_station',
                'first_seen_at', 'last_seen_at', 'needs_lidarr_import',
                'lidarr_imported_at', 'total_plays', 'song_count', 'verified_count',
-               'verified_mb_count', 'verified_lidarr_count', 'validated_count', 'is_blocked']
+               'verified_mb_count', 'verified_lidarr_count', 'validated_count', 'is_blocked', 'status']
     items = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
     # Capitalize artist names properly

@@ -58,7 +58,7 @@ def api_get_failures():
         direction = 'desc'
 
     # Validate sort column
-    valid_columns = ['failure_date', 'song_title', 'artist_name', 'failure_reason', 'search_attempts']
+    valid_columns = ['failure_date', 'song_title', 'artist_name', 'retry_match_succeeded']
     if sort not in valid_columns:
         sort = 'failure_date'
 

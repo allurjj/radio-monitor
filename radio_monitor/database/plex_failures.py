@@ -97,8 +97,7 @@ def get_failures(cursor, limit: int = 100, offset: int = 0,
         'failure_date': 'f.failure_date',
         'song_title': 's.song_title',
         'artist_name': 's.artist_name',
-        'failure_reason': 'f.failure_reason',
-        'search_attempts': 'f.search_attempts'
+        'retry_match_succeeded': 'f.retry_match_succeeded'
     }
 
     # Get column name (default to failure_date)
@@ -106,7 +105,7 @@ def get_failures(cursor, limit: int = 100, offset: int = 0,
 
     # Build ORDER BY clause with direction
     # Use COLLATE NOCASE for case-insensitive text sorting
-    if sort in ['song_title', 'artist_name', 'failure_reason']:
+    if sort in ['song_title', 'artist_name']:
         order_by = f"{sort_column} COLLATE NOCASE {direction.upper()}"
     else:
         order_by = f"{sort_column} {direction.upper()}"
