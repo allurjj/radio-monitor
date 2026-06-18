@@ -211,8 +211,16 @@
                                     Last Seen
                                     <span class="sort-indicator"></span>
                                 </th>
-                                <th>Recording</th>
-                                <th>Verification</th>
+                                <th class="sortable {% if sort == 'validation_status' %}sorted-{{ direction }}{% endif %}"
+                                    onclick="sortByColumn('validation_status')">
+                                    Recording
+                                    <span class="sort-indicator"></span>
+                                </th>
+                                <th class="sortable {% if sort == 'verification' %}sorted-{{ direction }}{% endif %}"
+                                    onclick="sortByColumn('verification')">
+                                    Verification
+                                    <span class="sort-indicator"></span>
+                                </th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -655,6 +663,11 @@ function sortByColumn(column) {
     const currentSort = url.searchParams.get('sort') || 'title';
     const currentDirection = url.searchParams.get('direction') || 'asc';
 
+    // Debug logging
+    console.log('sortByColumn called with:', column);
+    console.log('Current sort:', currentSort);
+    console.log('Current direction:', currentDirection);
+
     // Determine new direction
     let newDirection = 'asc';
     if (column === currentSort) {
@@ -666,6 +679,8 @@ function sortByColumn(column) {
     // Update URL params
     url.searchParams.set('sort', column);
     url.searchParams.set('direction', newDirection);
+
+    console.log('New URL:', url.toString());
 
     // Navigate to new URL
     window.location.href = url.toString();
