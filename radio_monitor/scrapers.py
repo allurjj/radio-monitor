@@ -905,6 +905,8 @@ def scrape_all_stations(db=None, station_ids=None):
                     # This validates that the artist+song combination exists in MusicBrainz
                     # Helps prevent invalid entries from being stored
                     validate_recordings = settings.get('validate_recordings', False) if settings else False
+                    recording_found = False
+                    method = 'not_validated'
                     if validate_recordings and not primary_artist_mbid.startswith('PENDING-'):
                         try:
                             from radio_monitor.recording_validation import validate_recording_with_fallback
@@ -948,6 +950,33 @@ def scrape_all_stations(db=None, station_ids=None):
                     if song_added:
                         total_songs_added += 1
                         logger.info(f"New song: {song_title} by {primary_artist}")
+
+                        # Mark as validated if recording validation succeeded via MBID method
+                        # This prevents unnecessary re-validation later
+                        if recording_found and method == 'mbid':
+                            try:
+                                from radio_monitor.data_quality import mark_song_validated
+                                mark_song_validated(db, play_id, success=True, method='mbid')
+                                logger.debug(f"Marked song {play_id} as validated via MBID during scrape")
+                            except Exception as e:
+                                logger.warning(f"Failed to mark song {play_id} as validated: {e}")
+                    else:
+                        # Song already exists - check if we should mark it as validated
+                        # This handles the case where validation was previously disabled or skipped
+                        if recording_found and method == 'mbid':
+                            try:
+                                cursor = db.get_cursor()
+                                cursor.execute("""
+                                    SELECT validation_status FROM songs WHERE id = ?
+                                """, (play_id,))
+                                result = cursor.fetchone()
+                                if result and (result[0] == 'unvalidated' or result[0] is None):
+                                    from radio_monitor.data_quality import mark_song_validated
+                                    mark_song_validated(db, play_id, success=True, method='mbid')
+                                    logger.debug(f"Updated existing song {play_id} validation status to valid via MBID")
+                                cursor.close()
+                            except Exception as e:
+                                logger.warning(f"Failed to update validation for existing song {play_id}: {e}")
 
                     # Auto-import to Lidarr if enabled and artist meets threshold (check after song is added)
                     if auto_import_enabled and song_added:
