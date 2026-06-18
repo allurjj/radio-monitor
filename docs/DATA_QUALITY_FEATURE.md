@@ -1,7 +1,7 @@
 # Data Quality Feature
 
-**Version:** 1.4.10+
-**Last Updated:** 2026-06-08
+**Version:** 1.5.2+
+**Last Updated:** 2026-06-18
 
 ---
 
@@ -12,7 +12,8 @@ The Data Quality feature helps you monitor and maintain the health of your Radio
 1. **Health Checks** - Comprehensive analysis of data quality issues
 2. **Artist Name Corrections** - Fix known artist name issues automatically
 3. **Recording Validation** - Verify songs against MusicBrainz recording database
-4. **Issue Tracking** - Visual indicators on Songs and Artists pages
+4. **Not Validated Songs Table** - View and validate songs that haven't been checked
+5. **Issue Tracking** - Visual indicators on Songs and Artists pages
 
 ---
 
@@ -92,12 +93,24 @@ Songs that appear to be duplicates based on similar titles.
 
 ### Info Issues
 
-#### 1. Messy Song Titles
-Songs with parentheticals, features, or extra text (e.g., "Song (feat. Artist)").
+#### 1. Not Validated Songs (v1.5.2+)
+Songs that haven't been validated against MusicBrainz or failed validation.
 
-**Impact:** Low - Cosmetic only
+**Impact:** Medium - May not match correctly in Plex/Lidarr
 
-**Fix:** None needed - informational only
+**Features:**
+- Sortable table (Song, Artist, Status, Play Count)
+- Click links to view song/artist details
+- Bulk selection with checkboxes
+- "Validate Selected" button to check specific songs
+- "Refresh" button to reload the table
+
+**How to Use:**
+1. Navigate to **Data Quality** page
+2. View the "Not Validated Songs" table
+3. Select songs to validate using checkboxes
+4. Click "Validate Selected" to check against MusicBrainz
+5. View status badges: "Not Validated" (yellow) or "Failed" (red)
 
 ---
 
@@ -219,6 +232,32 @@ Content-Type: application/json
 }
 ```
 
+#### Get Unvalidated Songs (v1.5.2+)
+```http
+GET /api/data-quality/unvalidated-songs?limit=100&sort_by=play_count&sort_dir=DESC
+```
+
+Returns songs that haven't been validated or failed validation.
+
+#### Validate Selected Songs (v1.5.2+)
+```http
+POST /api/data-quality/validate-selected
+Content-Type: application/json
+
+{
+  "song_ids": [1, 2, 3, 4, 5]
+}
+```
+
+Validates specific selected songs against MusicBrainz.
+
+#### Re-validate Invalid Songs
+```http
+POST /api/data-quality/revalidate-invalid
+```
+
+Resets and re-validates all previously failed songs.
+
 ---
 
 ## Troubleshooting
@@ -263,8 +302,8 @@ Content-Type: application/json
 
 Planned improvements for future versions:
 
-- [ ] Automatic validation during idle time
-- [ ] Bulk invalid song review interface
+- [x] ~~Automatic validation during idle time~~ (Implemented in v1.4.10)
+- [x] ~~Bulk invalid song review interface~~ (Implemented in v1.5.2)
 - [ ] Export validation report
 - [ ] Integration with Plex to mark validated songs
-- [ ] Validation retry for previously invalid songs
+- [x] ~~Validation retry for previously invalid songs~~ (Implemented in v1.4.21)
