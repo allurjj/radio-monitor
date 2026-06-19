@@ -4,11 +4,6 @@
 
 {% block custom_css %}
 <style>
-.health-score-excellent { color: #198754; }
-.health-score-good { color: #0d6efd; }
-.health-score-fair { color: #ffc107; }
-.health-score-poor { color: #dc3545; }
-
 .issue-card {
     border-left: 4px solid #dee2e6;
 }
@@ -87,22 +82,20 @@
     </div>
 </div>
 
-<!-- Health Score Card -->
+<!-- Validation Coverage Cards -->
 <div class="row mb-4">
-    <div class="col-md-3">
+    <div class="col-md-4">
         <div class="card card-standard text-center">
             <div class="card-body">
-                <h5 class="card-title">Health Score</h5>
-                <p class="card-text stat-value {% if issues.summary.health_score >= 90 %}health-score-excellent
-                    {% elif issues.summary.health_score >= 75 %}health-score-good
-                    {% elif issues.summary.health_score >= 60 %}health-score-fair
-                    {% else %}health-score-poor{% endif %}">
-                    {{ "%.1f"|format(issues.summary.health_score) }}%
+                <h5 class="card-title">Validation Coverage</h5>
+                <p class="card-text stat-value text-primary">
+                    {{ "%.1f"|format(issues.summary.validation_coverage) }}%
                 </p>
+                <small class="text-muted">songs validated</small>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-4">
         <div class="card card-standard text-center">
             <div class="card-body">
                 <h5 class="card-title">Total Songs</h5>
@@ -110,17 +103,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card card-standard text-center">
-            <div class="card-body">
-                <h5 class="card-title">Issues Found</h5>
-                <p class="card-text stat-value {% if issues.summary.total_issues > 0 %}text-danger{% else %}text-success{% endif %}">
-                    {{ issues.summary.total_issues }}
-                </p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
+    <div class="col-md-4">
         <div class="card card-standard text-center">
             <div class="card-body">
                 <h5 class="card-title">Validated</h5>
@@ -286,27 +269,6 @@
                         </tbody>
                     </table>
                 </div>
-                {% elif issue.type == 'duplicates' and issue.duplicates %}
-                <div class="scrollable-table mt-3">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Artist</th>
-                                <th>Song 1</th>
-                                <th>Song 2</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for dupe in issue.duplicates %}
-                            <tr>
-                                <td>{{ dupe.artist }}</td>
-                                <td>{{ dupe.title1 }}</td>
-                                <td>{{ dupe.title2 }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
                 {% else %}
                 <p class="text-muted small mb-0">
                     These issues should be addressed but are not urgent.
@@ -380,7 +342,7 @@
     </div>
 </div>
 
-{% if issues.summary.total_issues == 0 %}
+{% if not issues.critical and not issues.warning %}
 <!-- No Issues -->
 <div class="row">
     <div class="col-12">

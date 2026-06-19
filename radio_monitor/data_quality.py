@@ -8,8 +8,6 @@ Key Functions:
 - run_health_check(): Comprehensive health check
 - get_pending_mbid_songs(): Get songs with PENDING MBIDs
 - get_known_bad_artists(): Find artists needing correction
-- get_messy_titles(): Find songs with messy titles
-- detect_potential_duplicates(): Find possible duplicate songs
 - get_validated_count(): Count validated songs
 
 Usage:
@@ -63,26 +61,6 @@ def run_health_check(db) -> Dict[str, Any]:
             'message': f'{len(bad_artists)} songs with known artist name issues'
         })
 
-    # Check 3: Messy song titles - with details
-    messy = get_messy_titles(db, limit=100)
-    if messy:
-        issues['info'].append({
-            'type': 'song_titles',
-            'count': len(messy),
-            'titles': messy,
-            'message': f'{len(messy)} songs with messy titles (parentheticals, etc.)'
-        })
-
-    # Check 4: Potential duplicates - with details
-    dupes = detect_potential_duplicates(db, limit=100)
-    if dupes:
-        issues['warning'].append({
-            'type': 'duplicates',
-            'count': len(dupes),
-            'duplicates': dupes,
-            'message': f'{len(dupes)} potential duplicate song pairs'
-        })
-
     # Get validation stats
     validated_count = get_validated_count(db)
     invalid_count = get_invalid_count(db)
@@ -90,12 +68,12 @@ def run_health_check(db) -> Dict[str, Any]:
     # Summary
     stats = db.get_stats()
     total_songs = stats.get('total_songs', 0)
+    validation_coverage = round((validated_count / total_songs * 100), 1) if total_songs > 0 else 0.0
     issues['summary'] = {
         'total_songs': total_songs,
-        'total_issues': sum(len(issues[k]) for k in ['critical', 'warning', 'info']),
-        'health_score': calculate_health_score(total_songs, issues),
         'validated_count': validated_count,
-        'invalid_count': invalid_count
+        'invalid_count': invalid_count,
+        'validation_coverage': validation_coverage
     }
 
     return issues
@@ -248,103 +226,11 @@ def get_known_bad_artists(db) -> List[Dict]:
     return bad_songs
 
 
-def get_messy_titles(db, limit: int = 100) -> List[Dict]:
-    """Find songs with messy titles (parentheticals, features, etc.)
-
-    Args:
-        db: RadioDatabase instance
-        limit: Maximum number of results (default: 100)
-
-    Returns:
-        List of dicts with song info
-    """
-    from radio_monitor.normalization import clean_song_title_for_query
-
-    messy_songs = []
-    cursor = db.get_cursor()
-
-    try:
-        # Find titles with parentheticals, brackets, etc.
-        cursor.execute("""
-            SELECT id, artist_name, song_title, play_count
-            FROM songs
-            WHERE song_title LIKE '%(%'
-               OR song_title LIKE '%[%'
-               OR song_title LIKE '%feat%'
-               OR song_title LIKE '%ft.%'
-               OR song_title LIKE '%featuring%'
-            ORDER BY play_count DESC
-            LIMIT ?
-        """, (limit,))
-
-        results = cursor.fetchall()
-        for row in results:
-            original = row[2]  # song_title
-            cleaned = clean_song_title_for_query(original)
-
-            messy_songs.append({
-                'song_id': row[0],
-                'artist_name': row[1],
-                'original_title': original,
-                'cleaned_title': cleaned,
-                'play_count': row[3]
-            })
-    finally:
-        cursor.close()
-
-    return messy_songs
-
-
-def detect_potential_duplicates(db, limit: int = 100) -> List[Dict]:
-    """Detect potential duplicate songs
-
-    Args:
-        db: RadioDatabase instance
-        limit: Maximum number of results (default: 100)
-
-    Returns:
-        List of potential duplicate groups
-    """
-    duplicates = []
-    cursor = db.get_cursor()
-
-    try:
-        # Find songs with same artist but very similar titles
-        cursor.execute("""
-            SELECT s1.id as id1, s1.song_title as title1,
-                   s2.id as id2, s2.song_title as title2,
-                   s1.artist_name
-            FROM songs s1
-            JOIN songs s2 ON s1.artist_name = s2.artist_name AND s1.id < s2.id
-            WHERE s1.artist_name = s2.artist_name
-              AND LENGTH(s1.song_title) > 3
-              AND LENGTH(s2.song_title) > 3
-            LIMIT ?
-        """, (limit,))
-
-        results = cursor.fetchall()
-        for row in results:
-            # Calculate similarity (indices: id1=0, title1=1, id2=2, title2=3, artist=4)
-            title1 = row[1].lower()
-            title2 = row[3].lower()
-
-            # Simple similarity check
-            if title1 in title2 or title2 in title1 or title1.startswith(title2[:5]):
-                duplicates.append({
-                    'song_id1': row[0],
-                    'song_id2': row[2],
-                    'title1': row[1],
-                    'title2': row[3],
-                    'artist': row[4]
-                })
-    finally:
-        cursor.close()
-
-    return duplicates
-
-
 def calculate_health_score(total_songs: int, issues: Dict) -> float:
     """Calculate overall health score (0-100)
+
+    DEPRECATED: This function is no longer used.
+    Health score has been replaced with validation_coverage.
 
     Args:
         total_songs: Total number of songs
