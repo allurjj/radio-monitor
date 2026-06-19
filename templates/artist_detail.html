@@ -96,10 +96,6 @@
                                 </td>
                             </tr>
                             <tr>
-                                <th>First Station</th>
-                                <td>{{ artist.station_name or 'Unknown' }}</td>
-                            </tr>
-                            <tr>
                                 <th>First Seen</th>
                                 <td>{{ artist.first_seen_at }}</td>
                             </tr>
@@ -177,7 +173,7 @@
                                     {% if songs %}
                                         {% for song in songs %}
                                         <tr>
-                                            <td>{{ song.song_title }}</td>
+                                            <td><a href="/songs/{{ song.id }}" class="text-decoration-none">{{ song.song_title }}</a></td>
                                             <td class="text-center">{{ song.play_count }}</td>
                                             <td>{{ song.first_seen_at[:10] if song.first_seen_at else 'N/A' }}</td>
                                             <td>{{ song.last_seen_at[:10] if song.last_seen_at else 'Never' }}</td>
