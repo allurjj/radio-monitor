@@ -387,39 +387,6 @@ def api_bad_artists():
         }), 500
 
 
-@data_quality_bp.route('/api/data-quality/messy-titles')
-@requires_auth
-def api_messy_titles():
-    """Get list of songs with messy titles
-
-    Query params:
-        limit: Maximum results (default: 100)
-
-    Returns JSON:
-        {
-            "success": true,
-            "songs": [...]
-        }
-    """
-    from radio_monitor.data_quality import get_messy_titles
-
-    db = get_db()
-    limit = request.args.get('limit', 100, type=int)
-
-    try:
-        messy_titles = get_messy_titles(db, limit=limit)
-        return jsonify({
-            'success': True,
-            'songs': messy_titles
-        })
-    except Exception as e:
-        logger.error(f"Error getting messy titles: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
 @data_quality_bp.route('/api/data-quality/unvalidated-songs')
 @requires_auth
 def api_unvalidated_songs():
