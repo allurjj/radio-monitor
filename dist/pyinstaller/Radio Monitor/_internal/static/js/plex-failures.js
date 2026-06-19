@@ -7,18 +7,27 @@
 
 class PlexFailuresView {
     constructor() {
-        this.failures = [];
-        this.currentOffset = 0;
-        this.pageSize = 50;
-        this.total = 0;
-        this.sortColumn = 'failure_date';
-        this.sortDirection = 'desc';
+        console.log('PlexFailuresView constructor starting...');
 
-        this.initElements();
-        this.bindEvents();
-        this.updateSortIndicators(); // Apply initial sort indicators
-        this.loadFailures();
-        this.loadStats();
+        try {
+            this.failures = [];
+            this.currentOffset = 0;
+            this.pageSize = 50;
+            this.total = 0;
+            this.sortColumn = 'failure_date';
+            this.sortDirection = 'desc';
+
+            this.initElements();
+            this.bindEvents();
+            this.updateSortIndicators(); // Apply initial sort indicators
+            this.loadFailures();
+            this.loadStats();
+
+            console.log('PlexFailuresView constructor completed');
+        } catch (error) {
+            console.error('Error in PlexFailuresView constructor:', error);
+            throw error;
+        }
     }
 
     initElements() {
@@ -90,7 +99,7 @@ class PlexFailuresView {
         if (this.failures.length === 0) {
             this.tableBody.innerHTML = `
                 <tr>
-                    <td colspan="7">
+                    <td colspan="6">
                         <div class="empty-state">
                             <i class="bi bi-check-circle empty-state-icon"></i>
                             <h5 class="empty-state-title">No Plex failures found</h5>
@@ -105,13 +114,24 @@ class PlexFailuresView {
         this.tableBody.innerHTML = this.failures.map(failure => {
             const song = failure.song || { song_title: 'Unknown', artist_name: 'Unknown' };
 
+            // Format retry status badge
+            let retryStatusBadge = '<span class="text-muted"><i class="bi bi-dash"></i></span>';
+            if (failure.retry_match_succeeded === true) {
+                retryStatusBadge = '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Matched</span>';
+            } else if (failure.retry_match_succeeded === false) {
+                retryStatusBadge = '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> Failed</span>';
+            }
+
             return `
                 <tr>
-                    <td>${this.escapeHtml(song.song_title)}</td>
-                    <td>${this.escapeHtml(song.artist_name)}</td>
-                    <td><span class="failure-badge ${failure.failure_reason}">${this.formatReason(failure.failure_reason)}</span></td>
+                    <td>${failure.song && failure.song.id
+                        ? `<a href="/songs/${failure.song.id}" class="text-decoration-none">${this.escapeHtml(song.song_title)}</a>`
+                        : this.escapeHtml(song.song_title)}</td>
+                    <td>${failure.song && failure.song.artist_mbid
+                        ? `<a href="/artists/${failure.song.artist_mbid}" class="text-decoration-none">${this.escapeHtml(song.artist_name)}</a>`
+                        : this.escapeHtml(song.artist_name)}</td>
                     <td>${this.formatDate(failure.failure_date)}</td>
-                    <td>${failure.search_attempts}</td>
+                    <td>${retryStatusBadge}</td>
                     <td><span class="resolved-badge ${failure.resolved}">${failure.resolved ? 'Yes' : 'No'}</span></td>
                     <td>
                         ${!failure.resolved ? `
@@ -183,12 +203,21 @@ class PlexFailuresView {
     }
 
     async dismissOne(failureId) {
-        const confirmed = await Confirm.confirm(
-            'Dismiss this failure? It will be removed from the list.',
-            'Dismiss Failure',
-            'Dismiss',
-            'btn-warning'
-        );
+        console.log('dismissOne called for failure:', failureId);
+
+        // Check if Confirm is available
+        let confirmed = false;
+        if (typeof Confirm === 'undefined' || !Confirm || !Confirm.confirm) {
+            console.error('Confirm not available, using browser confirm');
+            confirmed = confirm('Dismiss this failure? It will be removed from the list.');
+        } else {
+            confirmed = await Confirm.confirm(
+                'Dismiss this failure? It will be removed from the list.',
+                'Dismiss Failure',
+                'Dismiss',
+                'btn-warning'
+            );
+        }
 
         if (!confirmed) {
             return;
@@ -201,40 +230,96 @@ class PlexFailuresView {
             const data = await response.json();
 
             if (data.success) {
-                Toast.success('Failure dismissed');
+                if (typeof Toast !== 'undefined' && Toast && Toast.success) {
+                    Toast.success('Failure dismissed');
+                } else {
+                    console.log('Toast not available, using alert');
+                    alert('Failure dismissed');
+                }
                 this.loadFailures();
                 this.loadStats();
             } else {
-                Toast.error('Failed to dismiss: ' + (data.error || 'Unknown error'));
+                const errorMsg = 'Failed to dismiss: ' + (data.error || 'Unknown error');
+                if (typeof Toast !== 'undefined' && Toast && Toast.error) {
+                    Toast.error(errorMsg);
+                } else {
+                    alert(errorMsg);
+                }
             }
         } catch (error) {
             console.error('Failed to dismiss:', error);
-            Toast.error('Failed to dismiss failure');
+            if (typeof Toast !== 'undefined' && Toast && Toast.error) {
+                Toast.error('Failed to dismiss failure');
+            } else {
+                alert('Failed to dismiss failure: ' + error.message);
+            }
         }
     }
 
     async retryOne(failureId) {
+        // Safety check - log entry
+        console.log('retryOne called for failure:', failureId);
+
         try {
             const response = await fetch(`/plex-failures/api/failures/${failureId}/retry`, {
                 method: 'POST'
             });
+
+            console.log('Response status:', response.status);
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                const errorMsg = 'Failed to retry: ' + (errorData.error || 'Unknown error');
+                console.error(errorMsg);
+
+                if (typeof Toast !== 'undefined' && Toast && Toast.error) {
+                    Toast.error(errorMsg);
+                } else {
+                    console.error('Toast not available, using alert');
+                    alert(errorMsg);
+                }
+                return;
+            }
+
             const data = await response.json();
+            console.log('Response data:', data);
 
             if (data.success) {
                 if (data.found) {
-                    Toast.success(data.message);
+                    if (typeof Toast !== 'undefined' && Toast && Toast.success) {
+                        Toast.success(data.message, 15000);
+                    } else {
+                        console.log('Toast not available, using alert');
+                        alert('Success: ' + data.message);
+                    }
                     this.loadFailures();
                     this.loadStats();
                 } else {
-                    Toast.info(data.message);
+                    if (typeof Toast !== 'undefined' && Toast && Toast.info) {
+                        Toast.info(data.message, 15000);
+                    } else {
+                        console.log('Toast not available, using alert');
+                        alert('Info: ' + data.message);
+                    }
                     this.loadFailures(); // Update attempts counter
                 }
             } else {
-                Toast.error('Failed to retry: ' + (data.error || 'Unknown error'));
+                const errorMsg = 'Failed to retry: ' + (data.error || 'Unknown error');
+                console.error(errorMsg);
+
+                if (typeof Toast !== 'undefined' && Toast && Toast.error) {
+                    Toast.error(errorMsg);
+                } else {
+                    alert(errorMsg);
+                }
             }
         } catch (error) {
             console.error('Failed to retry:', error);
-            Toast.error('Failed to retry failure');
+            if (typeof Toast !== 'undefined' && Toast && Toast.error) {
+                Toast.error('Failed to retry failure');
+            } else {
+                alert('Failed to retry failure: ' + error.message);
+            }
         }
     }
 
@@ -514,5 +599,15 @@ class PlexFailuresView {
     }
 }
 
-// Initialize
-const plexFailures = new PlexFailuresView();
+// Initialize with error boundary
+try {
+    console.log('Initializing PlexFailuresView...');
+    const plexFailures = new PlexFailuresView();
+    console.log('PlexFailuresView initialized successfully:', !!plexFailures);
+
+    // Expose globally for debugging
+    window.plexFailures = plexFailures;
+} catch (error) {
+    console.error('Failed to initialize PlexFailuresView:', error);
+    alert('Error loading Plex Failures page: ' + error.message);
+}

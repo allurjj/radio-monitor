@@ -20,7 +20,7 @@
   },
   "monitor": {
     "database_file": "radio_songs.db",
-    "scrape_interval_minutes": 20,
+    "scrape_interval_minutes": 15,
     "auto_start": false,
     "validate_recordings": true,
     "skip_unvalidated_recordings": false

@@ -191,3 +191,35 @@ Traceback (most recent call last):
         enable_various_artists_fallback=settings.get('plex', {}).get('enable_various_artists_fallback', False)
     )
 TypeError: find_song_in_library() got an unexpected keyword argument 'plex_url'
+2026-06-18 14:12:29 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
+2026-06-18 14:29:05 - ERROR - radio_monitor.database.crud - Error adding artist 'The Escape Club' and song 'Wild, Wild West': bad parameter or other API misuse
+2026-06-18 14:29:05 - ERROR - radio_monitor.database.crud - Error adding artist 'Rockwell' and song 'Somebody's Watching Me': UNIQUE constraint failed: songs.artist_mbid, songs.song_title
+2026-06-18 14:29:09 - ERROR - radio_monitor.scrapers - Failed to scrape iheart90s: Unknown station: iheart90s. Available stations: iheart80s, wlite
+2026-06-18 14:29:09 - ERROR - radio_monitor.scrapers - Failed to scrape iheartcountry: Unknown station: iheartcountry. Available stations: iheart80s, wlite
+2026-06-18 14:29:09 - ERROR - radio_monitor.scrapers - Failed to scrape iheartcountry2000s: Unknown station: iheartcountry2000s. Available stations: iheart80s, wlite
+2026-06-18 14:29:09 - ERROR - radio_monitor.scrapers - Failed to scrape iheartcountry80s: Unknown station: iheartcountry80s. Available stations: iheart80s, wlite
+2026-06-18 14:29:09 - ERROR - radio_monitor.scrapers - Failed to scrape iheartcountry90s: Unknown station: iheartcountry90s. Available stations: iheart80s, wlite
+2026-06-18 14:29:09 - ERROR - radio_monitor.scrapers - Failed to scrape iheartcountryclassics: Unknown station: iheartcountryclassics. Available stations: iheart80s, wlite
+2026-06-18 14:29:09 - ERROR - radio_monitor.scrapers - Failed to scrape iheartcountryfavorites: Unknown station: iheartcountryfavorites. Available stations: iheart80s, wlite
+2026-06-18 14:51:12 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
+2026-06-18 14:51:12 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
+2026-06-18 14:51:13 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
+2026-06-18 14:51:34 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
+2026-06-18 14:51:44 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
+2026-06-18 14:53:33 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
+2026-06-18 14:53:49 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
+2026-06-18 15:01:43 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
+2026-06-18 15:02:00 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
+2026-06-18 15:02:24 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
+2026-06-18 15:02:48 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
+2026-06-18 15:02:58 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
+2026-06-18 15:03:09 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
+2026-06-18 15:03:42 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
+2026-06-18 15:04:17 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
+2026-06-18 15:06:06 - ERROR - radio_monitor.mbid - Unexpected error looking up MBID for Redbone: The read operation timed out
+2026-06-18 15:42:35 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
+2026-06-18 15:42:46 - ERROR - radio_monitor.recording_validation - Error querying MusicBrainz: The read operation timed out
+2026-06-18 15:44:00 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
+2026-06-18 15:51:39 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
+2026-06-18 15:51:59 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable
+2026-06-18 15:52:03 - ERROR - radio_monitor.recording_validation - HTTP error: 503 - Service Temporarily Unavailable

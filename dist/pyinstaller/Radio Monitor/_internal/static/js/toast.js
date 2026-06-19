@@ -32,11 +32,6 @@ class ToastManager {
         this.container.appendChild(toast);
         this.toasts.push(toast);
 
-        // Trigger animation
-        requestAnimationFrame(() => {
-            toast.classList.add('show');
-        });
-
         // Auto-hide after duration
         if (duration > 0) {
             setTimeout(() => {

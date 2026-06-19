@@ -228,7 +228,11 @@
                                     Verification
                                     <span class="sort-indicator"></span>
                                 </th>
-                                <th>Status</th>
+                                <th class="sortable {% if sort == 'status' %}sorted-{{ direction }}{% endif %}"
+    onclick="sortByColumn('status')">
+    Status
+    <span class="sort-indicator"></span>
+</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>

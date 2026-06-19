@@ -1133,6 +1133,8 @@ def get_station_top_songs(cursor, station_id, limit=50, days=30):
     """
     cursor.execute("""
         SELECT
+            s.id,
+            s.artist_mbid,
             s.song_title,
             s.artist_name,
             SUM(sp.play_count) as play_count,
@@ -1146,7 +1148,7 @@ def get_station_top_songs(cursor, station_id, limit=50, days=30):
         LIMIT ?
     """, (station_id, days, limit))
 
-    columns = ['song_title', 'artist_name', 'play_count', 'last_seen']
+    columns = ['id', 'artist_mbid', 'song_title', 'artist_name', 'play_count', 'last_seen']
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 # ==================== SONG QUERIES ====================

@@ -212,8 +212,8 @@
                                 {% for song in top_songs %}
                                 <tr>
                                     <td><strong>{{ loop.index }}</strong></td>
-                                    <td>{{ song.song_title }}</td>
-                                    <td>{{ song.artist_name }}</td>
+                                    <td><a href="/songs/{{ song.id }}" class="text-decoration-none">{{ song.song_title }}</a></td>
+                                    <td>{% if song.artist_mbid %}<a href="/artists/{{ song.artist_mbid }}" class="text-decoration-none">{{ song.artist_name }}</a>{% else %}{{ song.artist_name }}{% endif %}</td>
                                     <td class="text-center">{{ song.play_count }}</td>
                                     <td>{{ song.last_seen }}</td>
                                 </tr>

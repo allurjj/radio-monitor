@@ -3,55 +3,67 @@
  */
 
 .toast-container {
-    position: fixed;
-    top: var(--spacing-md);
-    right: var(--spacing-md);
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-sm);
-    max-width: 350px;
+    position: fixed !important;
+    top: 20px !important;
+    right: 310px !important;
+    left: auto !important;
+    width: 350px !important;
+    max-width: 350px !important;
+    z-index: 9999 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
 }
 
-.toast {
-    background: var(--bg-primary);
-    border-left: 4px solid var(--status-info);
-    padding: var(--spacing-md);
-    border-radius: var(--radius-md);
-    box-shadow: var(--card-hover-shadow);
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    animation: toast-slide-in 0.3s ease-out;
+/* Override Bootstrap's .toast class */
+div.toast {
+    background: #ffffff !important;
+    border: 1px solid #dee2e6 !important;
+    border-left: 4px solid #0d6efd !important;
+    padding: 12px 16px !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    min-width: 250px !important;
+    opacity: 1 !important;
+    position: relative !important;
+    visibility: visible !important;
 }
 
-@keyframes toast-slide-in {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-}
-
-.toast-success { border-color: var(--status-success); }
-.toast-error { border-color: var(--status-danger); }
-.toast-warning { border-color: var(--status-warning); }
-.toast-info { border-color: var(--status-info); }
+.toast-success { border-color: #198754; }
+.toast-error { border-color: #dc3545; }
+.toast-warning { border-color: #ffc107; }
+.toast-info { border-color: #0d6efd; }
 
 .toast-icon {
     font-size: 1.25rem;
     flex-shrink: 0;
 }
 
-.toast-message {
+.toast-content {
     flex: 1;
-    font-size: var(--font-sm);
+}
+
+.toast-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.toast-message {
+    font-size: 13px;
+    color: #6c757d;
 }
 
 .toast-close {
     background: none;
     border: none;
-    color: var(--text-muted);
+    color: #6c757d;
     cursor: pointer;
     padding: 0;
-    font-size: var(--font-base);
+    font-size: 16px;
     opacity: 0.6;
     transition: opacity 0.2s;
 }

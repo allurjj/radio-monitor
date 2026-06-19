@@ -904,8 +904,12 @@ def scrape_all_stations(db=None, station_ids=None):
                     # Optional recording validation (if enabled in settings)
                     # This validates that the artist+song combination exists in MusicBrainz
                     # Helps prevent invalid entries from being stored
-                    validate_recordings = settings.get('validate_recordings', False) if settings else False
+                    validate_recordings = settings.get('monitor', {}).get('validate_recordings', False) if settings else False
+                    recording_found = False
+                    method = 'not_validated'
+                    logger.info(f"[VALIDATION CHECK] validate_recordings={validate_recordings}, mbid={primary_artist_mbid[:30] if primary_artist_mbid else 'None'}...")
                     if validate_recordings and not primary_artist_mbid.startswith('PENDING-'):
+                        logger.info(f"[VALIDATION START] {primary_artist} - {song_title}")
                         try:
                             from radio_monitor.recording_validation import validate_recording_with_fallback
 
@@ -923,7 +927,7 @@ def scrape_all_stations(db=None, station_ids=None):
                                 )
 
                                 # Option: Skip storing this song if validation is strict
-                                skip_unvalidated = settings.get('skip_unvalidated_recordings', False) if settings else False
+                                skip_unvalidated = settings.get('monitor', {}).get('skip_unvalidated_recordings', False) if settings else False
                                 if skip_unvalidated:
                                     logger.info(f"Skipping unvalidated recording: {primary_artist} - {song_title}")
                                     continue
@@ -948,6 +952,33 @@ def scrape_all_stations(db=None, station_ids=None):
                     if song_added:
                         total_songs_added += 1
                         logger.info(f"New song: {song_title} by {primary_artist}")
+
+                        # Mark as validated if recording validation succeeded via MBID method
+                        # This prevents unnecessary re-validation later
+                        if recording_found and method == 'mbid':
+                            try:
+                                from radio_monitor.data_quality import mark_song_validated
+                                mark_song_validated(db, play_id, success=True, method='mbid')
+                                logger.debug(f"Marked song {play_id} as validated via MBID during scrape")
+                            except Exception as e:
+                                logger.warning(f"Failed to mark song {play_id} as validated: {e}")
+                    else:
+                        # Song already exists - check if we should mark it as validated
+                        # This handles the case where validation was previously disabled or skipped
+                        if recording_found and method == 'mbid':
+                            try:
+                                cursor = db.get_cursor()
+                                cursor.execute("""
+                                    SELECT validation_status FROM songs WHERE id = ?
+                                """, (play_id,))
+                                result = cursor.fetchone()
+                                if result and (result[0] == 'unvalidated' or result[0] is None):
+                                    from radio_monitor.data_quality import mark_song_validated
+                                    mark_song_validated(db, play_id, success=True, method='mbid')
+                                    logger.debug(f"Updated existing song {play_id} validation status to valid via MBID")
+                                cursor.close()
+                            except Exception as e:
+                                logger.warning(f"Failed to update validation for existing song {play_id}: {e}")
 
                     # Auto-import to Lidarr if enabled and artist meets threshold (check after song is added)
                     if auto_import_enabled and song_added:
