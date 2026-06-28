@@ -1180,7 +1180,7 @@ def increment_play_count(cursor, conn, date, hour, song_id, station_id):
 # ==================== PLAYLIST CRUD ====================
 
 def add_playlist(cursor, conn, name, is_auto, interval_minutes=None, station_ids=None, max_songs=None, mode=None,
-                 min_plays=1, max_plays=None, days=None, enabled=True,
+                 min_plays=1, max_plays=None, days=None, year_from=None, year_to=None, enabled=True,
                  enable_various_artists_fallback=False, various_artists_timeout_ms=5000):
     """Add a new playlist (manual or auto)
 
@@ -1218,10 +1218,10 @@ def add_playlist(cursor, conn, name, is_auto, interval_minutes=None, station_ids
         cursor.execute("""
             INSERT INTO playlists (
                 name, is_auto, interval_minutes, station_ids, max_songs, mode,
-                min_plays, max_plays, days, enabled,
+                min_plays, max_plays, days, year_from, year_to, enabled,
                 last_updated, next_update, plex_playlist_name, created_at,
                 enable_various_artists_fallback, various_artists_timeout_ms
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)
         """, (
             name,
             is_auto,
@@ -1232,6 +1232,8 @@ def add_playlist(cursor, conn, name, is_auto, interval_minutes=None, station_ids
             min_plays,
             max_plays,
             days,
+            year_from,
+            year_to,
             enabled,
             next_update,
             name,  # plex_playlist_name same as playlist name
@@ -1250,7 +1252,7 @@ def add_playlist(cursor, conn, name, is_auto, interval_minutes=None, station_ids
 
 def update_playlist(cursor, conn, playlist_id, name=None, is_auto=None, interval_minutes=None,
                    station_ids=None, max_songs=None, mode=None,
-                   min_plays=None, max_plays=None, days=None,
+                   min_plays=None, max_plays=None, days=None, year_from=None, year_to=None,
                    enable_various_artists_fallback=None, various_artists_timeout_ms=None):
     """Update playlist (manual or auto)
 
@@ -1319,6 +1321,14 @@ def update_playlist(cursor, conn, playlist_id, name=None, is_auto=None, interval
         if days is not None:
             updates.append("days = ?")
             params.append(days)
+
+        if year_from is not None:
+            updates.append("year_from = ?")
+            params.append(year_from)
+
+        if year_to is not None:
+            updates.append("year_to = ?")
+            params.append(year_to)
 
         if enable_various_artists_fallback is not None:
             updates.append("enable_various_artists_fallback = ?")

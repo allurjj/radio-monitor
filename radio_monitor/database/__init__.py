@@ -620,13 +620,13 @@ class RadioDatabase:
     # ==================== PLAYLISTS (Unified: Manual + Auto) ====================
 
     def add_playlist(self, name, is_auto, interval_minutes=None, station_ids=None, max_songs=None, mode=None,
-                     min_plays=1, max_plays=None, days=None, enabled=True,
+                     min_plays=1, max_plays=None, days=None, year_from=None, year_to=None, enabled=True,
                      enable_various_artists_fallback=False, various_artists_timeout_ms=5000):
         """Add a new playlist (manual or auto)"""
         cursor = self.conn.cursor()
         try:
             return crud.add_playlist(cursor, self.conn, name, is_auto, interval_minutes, station_ids,
-                                   max_songs, mode, min_plays, max_plays, days, enabled,
+                                   max_songs, mode, min_plays, max_plays, days, year_from, year_to, enabled,
                                    enable_various_artists_fallback, various_artists_timeout_ms)
         finally:
             cursor.close()
@@ -649,13 +649,13 @@ class RadioDatabase:
 
     def update_playlist(self, playlist_id, name=None, is_auto=None, interval_minutes=None,
                        station_ids=None, max_songs=None, mode=None,
-                       min_plays=None, max_plays=None, days=None,
+                       min_plays=None, max_plays=None, days=None, year_from=None, year_to=None,
                        enable_various_artists_fallback=None, various_artists_timeout_ms=None):
         """Update playlist (manual or auto)"""
         cursor = self.conn.cursor()
         try:
             return crud.update_playlist(cursor, self.conn, playlist_id, name, is_auto, interval_minutes,
-                                       station_ids, max_songs, mode, min_plays, max_plays, days,
+                                       station_ids, max_songs, mode, min_plays, max_plays, days, year_from, year_to,
                                        enable_various_artists_fallback, various_artists_timeout_ms)
         finally:
             cursor.close()

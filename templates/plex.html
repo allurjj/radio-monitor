@@ -232,6 +232,24 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="playlist-year-from" class="form-label fw-bold">Year From</label>
+                                        <input type="number" class="form-control" id="playlist-year-from"
+                                               placeholder="Any" min="1900" max="{{ config.get('CURRENT_YEAR', 2026) }}">
+                                        <div class="form-text">Minimum release year</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="playlist-year-to" class="form-label fw-bold">Year To</label>
+                                        <input type="number" class="form-control" id="playlist-year-to"
+                                               placeholder="Any" min="1900" max="{{ config.get('CURRENT_YEAR', 2026) }}">
+                                        <div class="form-text">Maximum release year</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -739,6 +757,8 @@ function editPlaylist(id) {
     document.getElementById('playlist-min-plays').value = playlist.min_plays || 1;
     document.getElementById('playlist-max-plays-input').value = playlist.max_plays || '';
     document.getElementById('playlist-days').value = playlist.days || '';
+    document.getElementById('playlist-year-from').value = playlist.year_from || '';
+    document.getElementById('playlist-year-to').value = playlist.year_to || '';
     document.getElementById('playlist-is-auto').checked = playlist.is_auto;
 
     // Show/hide interval row based on is_auto
@@ -800,6 +820,10 @@ function savePlaylist() {
     const maxPlays = maxPlaysStr ? parseInt(maxPlaysStr) : null;
     const daysStr = document.getElementById('playlist-days').value;
     const days = daysStr ? parseInt(daysStr) : null;
+    const yearFromStr = document.getElementById('playlist-year-from').value;
+    const yearFrom = yearFromStr ? parseInt(yearFromStr) : null;
+    const yearToStr = document.getElementById('playlist-year-to').value;
+    const yearTo = yearToStr ? parseInt(yearToStr) : null;
     const isAuto = document.getElementById('playlist-is-auto').checked;
 
     let intervalMinutes = null;
@@ -817,6 +841,21 @@ function savePlaylist() {
     // Validate Various Artists timeout
     if (enableVaFallback && (vaTimeoutMs < 1000 || vaTimeoutMs > 30000)) {
         Toast.warning('Various Artists timeout must be between 1000 and 30000 milliseconds');
+        return;
+    }
+
+    // Validate year range
+    const currentYear = new Date().getFullYear();
+    if (yearFrom && (yearFrom < 1900 || yearFrom > currentYear)) {
+        Toast.warning(`Year From must be between 1900 and ${currentYear}`);
+        return;
+    }
+    if (yearTo && (yearTo < 1900 || yearTo > currentYear)) {
+        Toast.warning(`Year To must be between 1900 and ${currentYear}`);
+        return;
+    }
+    if (yearFrom && yearTo && yearFrom > yearTo) {
+        Toast.warning('Year To must be greater than or equal to Year From');
         return;
     }
 
@@ -842,6 +881,8 @@ function savePlaylist() {
         min_plays: minPlays,
         max_plays: maxPlays,
         days: days,
+        year_from: yearFrom,
+        year_to: yearTo,
         is_auto: isAuto,
         interval_minutes: intervalMinutes,
         enabled: true,

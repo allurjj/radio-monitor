@@ -86,6 +86,8 @@ def api_create_playlist():
             "min_plays": 5,
             "max_plays": 100,  // optional
             "days": 30,
+            "year_from": 2000,  // optional
+            "year_to": 2010,  // optional
             "enabled": true,
             "enable_various_artists_fallback": false,  // optional
             "various_artists_timeout_ms": 5000  // optional
@@ -162,6 +164,8 @@ def api_create_playlist():
             min_plays=min_plays,
             max_plays=max_plays,
             days=data.get('days'),
+            year_from=data.get('year_from'),
+            year_to=data.get('year_to'),
             enabled=data.get('enabled', True),
             enable_various_artists_fallback=data.get('enable_various_artists_fallback', False),
             various_artists_timeout_ms=va_timeout_ms
@@ -331,6 +335,8 @@ def api_update_playlist(playlist_id):
             min_plays=data.get('min_plays'),
             max_plays=data.get('max_plays'),
             days=data.get('days'),
+            year_from=data.get('year_from'),
+            year_to=data.get('year_to'),
             enable_various_artists_fallback=data.get('enable_various_artists_fallback'),
             various_artists_timeout_ms=data.get('various_artists_timeout_ms')
         )

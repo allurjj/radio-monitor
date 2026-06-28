@@ -144,6 +144,8 @@ class AutoPlaylistManager:
             filters = {
                 'station_ids': playlist['station_ids'],
                 'days': playlist.get('days'),
+                'year_from': playlist.get('year_from'),
+                'year_to': playlist.get('year_to'),
                 'limit': playlist['max_songs'],
                 'min_plays': playlist.get('min_plays', 1),
                 'max_plays': playlist.get('max_plays')
@@ -217,7 +219,9 @@ class AutoPlaylistManager:
                 mode=playlist['mode'],
                 min_plays=playlist.get('min_plays', 1),
                 max_plays=playlist.get('max_plays'),
-                days=playlist.get('days')
+                days=playlist.get('days'),
+                year_from=playlist.get('year_from'),
+                year_to=playlist.get('year_to')
             )
 
             # Calculate initial next_update (method calculates from interval)
@@ -275,7 +279,9 @@ class AutoPlaylistManager:
                 mode=updates.get('mode'),
                 min_plays=updates.get('min_plays'),
                 max_plays=updates.get('max_plays'),
-                days=updates.get('days')
+                days=updates.get('days'),
+                year_from=updates.get('year_from'),
+                year_to=updates.get('year_to')
             )
 
             # Reschedule if interval or enabled status changed

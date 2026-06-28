@@ -1245,6 +1245,8 @@ def create_playlist(db, plex, playlist_name, mode='merge', filters=None,
         mode: Playlist mode ('merge', 'replace', 'append', 'create', 'snapshot', 'recent', 'random')
         filters: Dict with filter criteria:
             - days: Only include songs from last N days
+            - year_from: Only include songs from this year onwards (optional)
+            - year_to: Only include songs up to this year (optional)
             - limit: Maximum number of songs
             - station_ids: Array of station IDs to filter by (optional)
             - min_plays: Minimum play count (default: 1)
@@ -1264,6 +1266,8 @@ def create_playlist(db, plex, playlist_name, mode='merge', filters=None,
         filters = {'days': 7, 'limit': 50, 'min_plays': 1}
 
     days = filters.get('days', 7)
+    year_from = filters.get('year_from', None)
+    year_to = filters.get('year_to', None)
     limit = filters.get('limit', 50)
     station_ids = filters.get('station_ids', None)
     min_plays = filters.get('min_plays', 1)
@@ -1299,6 +1303,8 @@ def create_playlist(db, plex, playlist_name, mode='merge', filters=None,
                 min_plays=min_plays,
                 max_plays=max_plays,
                 days=days,
+                year_from=year_from,
+                year_to=year_to,
                 limit=over_query_limit
             )
         else:
@@ -1306,19 +1312,21 @@ def create_playlist(db, plex, playlist_name, mode='merge', filters=None,
                 min_plays=min_plays,
                 max_plays=max_plays,
                 days=days,
+                year_from=year_from,
+                year_to=year_to,
                 limit=over_query_limit
             )
     elif mode == 'recent':
         if station_ids:
-            songs = db.get_recent_songs(days=days, station_ids=station_ids, limit=over_query_limit)
+            songs = db.get_recent_songs(days=days, station_ids=station_ids, year_from=year_from, year_to=year_to, limit=over_query_limit)
         else:
-            songs = db.get_recent_songs(days=days, limit=over_query_limit)
+            songs = db.get_recent_songs(days=days, year_from=year_from, year_to=year_to, limit=over_query_limit)
     else:
         # Top songs mode (merge, replace, append, create, snapshot)
         if station_ids:
-            songs = db.get_top_songs(days=days, station_ids=station_ids, limit=over_query_limit)
+            songs = db.get_top_songs(days=days, station_ids=station_ids, year_from=year_from, year_to=year_to, limit=over_query_limit)
         else:
-            songs = db.get_top_songs(days=days, limit=over_query_limit)
+            songs = db.get_top_songs(days=days, year_from=year_from, year_to=year_to, limit=over_query_limit)
 
     logger.info(f"Found {len(songs)} songs in database matching criteria")
 

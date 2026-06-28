@@ -1207,7 +1207,7 @@ def get_all_songs(cursor, station_id=None):
 
     return cursor.fetchall()
 
-def get_top_songs(cursor, days=None, station_id=None, station_ids=None, limit=50):
+def get_top_songs(cursor, days=None, station_id=None, station_ids=None, year_from=None, year_to=None, limit=50):
     """Get top songs by play count
 
     Args:
@@ -1215,6 +1215,8 @@ def get_top_songs(cursor, days=None, station_id=None, station_ids=None, limit=50
         days: Only include plays from last N days (None = all time)
         station_id: Filter by single station (None = all stations)
         station_ids: Filter by multiple stations (None = all stations)
+        year_from: Only include songs from this year onwards (NULL = all years)
+        year_to: Only include songs up to this year (NULL = all years)
         limit: Maximum number of results
 
     Returns:
@@ -1223,6 +1225,18 @@ def get_top_songs(cursor, days=None, station_id=None, station_ids=None, limit=50
     # Handle backward compatibility - if station_id is provided, convert to station_ids
     if station_id and not station_ids:
         station_ids = [station_id]
+
+    # Build year conditions
+    year_conditions = []
+    year_params = []
+    if year_from is not None:
+        year_conditions.append("s.year >= ?")
+        year_params.append(year_from)
+    if year_to is not None:
+        year_conditions.append("s.year <= ?")
+        year_params.append(year_to)
+
+    year_where = " AND " + " AND ".join(year_conditions) if year_conditions else ""
 
     if days and station_ids:
         # Build IN clause for multiple stations
@@ -1233,35 +1247,41 @@ def get_top_songs(cursor, days=None, station_id=None, station_ids=None, limit=50
             JOIN songs s ON d.song_id = s.id
             WHERE d.station_id IN ({placeholders})
               AND d.date >= DATE('now', '-' || ? || ' days')
+              {year_where}
             GROUP BY s.id
             ORDER BY total_plays DESC
             LIMIT ?
-        """, station_ids + [days, limit])
+        """, station_ids + [days] + year_params + [limit])
     elif days:
-        cursor.execute("""
+        year_params.append(limit)
+        cursor.execute(f"""
             SELECT s.id, s.song_title, s.artist_name, SUM(d.play_count) as total_plays
             FROM song_plays_daily d
             JOIN songs s ON d.song_id = s.id
             WHERE d.date >= DATE('now', '-' || ? || ' days')
+              {year_where}
             GROUP BY s.id
             ORDER BY total_plays DESC
             LIMIT ?
-        """, (days, limit))
+        """, [days] + year_params)
     elif station_ids:
         # For multiple stations without days filter
         # Aggregate plays from song_plays_daily for all selected stations
         placeholders = ','.join(['?' for _ in station_ids])
+        year_params.append(limit)
         cursor.execute(f"""
             SELECT s.id, s.song_title, s.artist_name, SUM(d.play_count) as total_plays
             FROM song_plays_daily d
             JOIN songs s ON d.song_id = s.id
             WHERE d.station_id IN ({placeholders})
+              {year_where}
             GROUP BY s.id
             ORDER BY total_plays DESC
             LIMIT ?
-        """, station_ids + [limit])
+        """, station_ids + year_params)
     elif station_id:
         # Backward compatibility - single station without days
+        # Note: year filtering not applied here for backward compatibility with legacy code
         cursor.execute("""
             SELECT id, song_title, artist_name, play_count
             FROM songs
@@ -1272,27 +1292,50 @@ def get_top_songs(cursor, days=None, station_id=None, station_ids=None, limit=50
             LIMIT ?
         """, (station_id, limit))
     else:
-        cursor.execute("""
+        year_params.append(limit)
+        cursor.execute(f"""
             SELECT id, song_title, artist_name, play_count
             FROM songs
+            WHERE {year_conditions[0] if year_conditions else '1=1'}
             ORDER BY play_count DESC
             LIMIT ?
-        """, (limit,))
+        """, year_params)
 
     return cursor.fetchall()
 
-def get_recent_songs(cursor, days=None, station_ids=None, limit=50):
+def get_recent_songs(cursor, days=None, station_ids=None, year_from=None, year_to=None, limit=50):
     """Get most recently played songs (ordered by last_seen_at)
 
     Args:
         cursor: SQLite cursor object
         days: Only include plays from last N days (None = all time)
         station_ids: Filter by multiple stations (None = all stations)
+        year_from: Only include songs from this year onwards (NULL = all years)
+        year_to: Only include songs up to this year (NULL = all years)
         limit: Maximum number of results
 
     Returns:
         List of tuples: (song_id, song_title, artist_name, play_count)
     """
+    # Build WHERE conditions
+    conditions = []
+    params = []
+
+    if days:
+        conditions.append("s.last_seen_at >= datetime('now', '-' || ? || ' days')")
+        params.append(days)
+
+    if year_from is not None:
+        conditions.append("s.year >= ?")
+        params.append(year_from)
+
+    if year_to is not None:
+        conditions.append("s.year <= ?")
+        params.append(year_to)
+
+    # Build WHERE clause
+    where_clause = " AND ".join(conditions) if conditions else "1=1"
+
     if days and station_ids:
         # Build IN clause for multiple stations
         placeholders = ','.join(['?' for _ in station_ids])
@@ -1301,19 +1344,11 @@ def get_recent_songs(cursor, days=None, station_ids=None, limit=50):
             FROM songs s
             JOIN song_plays_daily d ON d.song_id = s.id
             WHERE d.station_id IN ({placeholders})
-              AND s.last_seen_at >= datetime('now', '-' || ? || ' days')
+              AND {where_clause}
             GROUP BY s.id
             ORDER BY s.last_seen_at DESC
             LIMIT ?
-        """, station_ids + [days, limit])
-    elif days:
-        cursor.execute("""
-            SELECT s.id, s.song_title, s.artist_name, s.play_count
-            FROM songs s
-            WHERE s.last_seen_at >= datetime('now', '-' || ? || ' days')
-            ORDER BY s.last_seen_at DESC
-            LIMIT ?
-        """, (days, limit))
+        """, station_ids + params + [limit])
     elif station_ids:
         # Build IN clause for multiple stations
         placeholders = ','.join(['?' for _ in station_ids])
@@ -1322,17 +1357,20 @@ def get_recent_songs(cursor, days=None, station_ids=None, limit=50):
             FROM songs s
             JOIN song_plays_daily d ON d.song_id = s.id
             WHERE d.station_id IN ({placeholders})
+              AND {where_clause}
             GROUP BY s.id
             ORDER BY s.last_seen_at DESC
             LIMIT ?
-        """, station_ids + [limit])
+        """, station_ids + params + [limit])
     else:
-        cursor.execute("""
+        params.append(limit)
+        cursor.execute(f"""
             SELECT id, song_title, artist_name, play_count
             FROM songs
+            WHERE {where_clause}
             ORDER BY last_seen_at DESC
             LIMIT ?
-        """, (limit,))
+        """, params)
 
     return cursor.fetchall()
 
@@ -1648,7 +1686,7 @@ def get_playlist(cursor, playlist_id):
     cursor.execute("""
         SELECT
             id, name, is_auto, interval_minutes, station_ids, max_songs, mode,
-            min_plays, max_plays, days, enabled, last_updated, next_update,
+            min_plays, max_plays, days, year_from, year_to, enabled, last_updated, next_update,
             plex_playlist_name, consecutive_failures, created_at
         FROM playlists
         WHERE id = ?
@@ -1669,12 +1707,14 @@ def get_playlist(cursor, playlist_id):
         'min_plays': row[7],
         'max_plays': row[8],
         'days': row[9],
-        'enabled': bool(row[10]),
-        'last_updated': row[11],
-        'next_update': row[12],
-        'plex_playlist_name': row[13],
-        'consecutive_failures': row[14],
-        'created_at': row[15]
+        'year_from': row[10],
+        'year_to': row[11],
+        'enabled': bool(row[12]),
+        'last_updated': row[13],
+        'next_update': row[14],
+        'plex_playlist_name': row[15],
+        'consecutive_failures': row[16],
+        'created_at': row[17]
     }
 
 def get_playlists(cursor):
@@ -1691,7 +1731,7 @@ def get_playlists(cursor):
     cursor.execute("""
         SELECT
             id, name, is_auto, interval_minutes, station_ids, max_songs, mode,
-            min_plays, max_plays, days, enabled, last_updated, next_update,
+            min_plays, max_plays, days, year_from, year_to, enabled, last_updated, next_update,
             plex_playlist_name, consecutive_failures, created_at
         FROM playlists
         ORDER BY created_at DESC
@@ -1710,12 +1750,14 @@ def get_playlists(cursor):
             'min_plays': row[7],
             'max_plays': row[8],
             'days': row[9],
-            'enabled': bool(row[10]),
-            'last_updated': row[11],
-            'next_update': row[12],
-            'plex_playlist_name': row[13],
-            'consecutive_failures': row[14],
-            'created_at': row[15]
+            'year_from': row[10],
+            'year_to': row[11],
+            'enabled': bool(row[12]),
+            'last_updated': row[13],
+            'next_update': row[14],
+            'plex_playlist_name': row[15],
+            'consecutive_failures': row[16],
+            'created_at': row[17]
         }
         playlists.append(playlist)
 
@@ -1760,7 +1802,7 @@ def get_due_playlists(cursor):
 
     return playlists
 
-def get_random_songs(cursor, station_ids=None, min_plays=1, max_plays=None, days=None, limit=50):
+def get_random_songs(cursor, station_ids=None, min_plays=1, max_plays=None, days=None, year_from=None, year_to=None, limit=50):
     """Get random songs from filtered results
 
     Args:
@@ -1769,6 +1811,8 @@ def get_random_songs(cursor, station_ids=None, min_plays=1, max_plays=None, days
         min_plays: Minimum play count (default: 1)
         max_plays: Maximum play count (NULL = no maximum)
         days: Only include songs from last N days (NULL = all time)
+        year_from: Only include songs from this year onwards (NULL = all years)
+        year_to: Only include songs up to this year (NULL = all years)
         limit: Maximum songs to return
 
     Returns:
@@ -1800,7 +1844,7 @@ def get_random_songs(cursor, station_ids=None, min_plays=1, max_plays=None, days
         having_clause += " AND total_plays <= ?"
         params.append(max_plays)
 
-    # Build complete query
+    # Build complete query with year filtering
     query = f"""
         SELECT s.id, s.song_title, s.artist_name, SUM(d.play_count) as total_plays
         FROM song_plays_daily d
@@ -1808,9 +1852,21 @@ def get_random_songs(cursor, station_ids=None, min_plays=1, max_plays=None, days
         WHERE {where_clause}
         GROUP BY s.id
         {having_clause}
-        ORDER BY RANDOM()
-        LIMIT ?
     """
+
+    # Apply year filtering (using WHERE instead of HAVING since year is in songs table)
+    year_conditions = []
+    if year_from is not None:
+        year_conditions.append("s.year >= ?")
+        params.append(year_from)
+    if year_to is not None:
+        year_conditions.append("s.year <= ?")
+        params.append(year_to)
+
+    if year_conditions:
+        query += f" HAVING {' AND '.join(year_conditions)}"
+
+    query += " ORDER BY RANDOM() LIMIT ?"
     params.append(limit)
 
     cursor.execute(query, params)
