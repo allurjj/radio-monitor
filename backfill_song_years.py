@@ -40,6 +40,7 @@ import sys
 import json
 from datetime import datetime
 from pathlib import Path
+from collections import Counter
 
 # Configuration
 DB_PATH = Path(__file__).parent / "radio_songs.db"
@@ -132,15 +133,20 @@ def get_songs_without_year(cursor):
 def get_song_year_from_musicbrainz(artist_mbid, song_title):
     """Query MusicBrainz for song's first-release-date
 
-    Gets multiple recordings and finds the OLDEST release date.
-    This handles remixes, re-releases, and live versions correctly.
+    Gets multiple recordings and uses CLUSTER_MODE algorithm:
+    - Find the oldest year
+    - Look at all years within 5 years of the oldest
+    - Pick the most common year in that cluster
+
+    This eliminates single-occurrence bad data while still preferring
+    original releases.
 
     Args:
         artist_mbid: Artist's MusicBrainz ID
         song_title: Song title
 
     Returns:
-        Year as integer (oldest found), or None if not found
+        Year as integer (cluster mode result), or None if not found
     """
     try:
         # Clean song title for query (remove suffixes like "Remix", "Live", etc.)
@@ -176,9 +182,11 @@ def get_song_year_from_musicbrainz(artist_mbid, song_title):
             recordings = data.get('recordings', [])
 
             if recordings and len(recordings) > 0:
-                # Find the OLDEST release date among ALL recordings
-                oldest_year = None
+                # CLUSTER_MODE: Find the most common year within 5 years of the oldest
+                # This eliminates single-occurrence bad data while still preferring original releases
 
+                # Collect all valid years
+                years = []
                 for recording in recordings:
                     first_release_date = recording.get('first-release-date')
                     if first_release_date:
@@ -188,11 +196,25 @@ def get_song_year_from_musicbrainz(artist_mbid, song_title):
                             year = int(year_str)
                             # Sanity check: year should be reasonable
                             if 1900 <= year <= datetime.now().year + 1:
-                                # Keep the oldest year
-                                if oldest_year is None or year < oldest_year:
-                                    oldest_year = year
+                                years.append(year)
 
-                return oldest_year
+                if years:
+                    # Find the oldest year
+                    min_year = min(years)
+
+                    # Get all years within 5 years of the oldest
+                    cluster_years = [y for y in years if y <= min_year + 5]
+
+                    # Find the most common year in the cluster
+                    if cluster_years:
+                        year_counts = Counter(cluster_years)
+                        cluster_mode_year = year_counts.most_common(1)[0][0]
+                        return cluster_mode_year
+                    else:
+                        # Fallback: use oldest year
+                        return min_year
+
+                return None
 
         return None
 

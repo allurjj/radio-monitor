@@ -453,9 +453,12 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
                     recordings = data.get('recordings', [])
 
                     if recordings:
-                        # Find the OLDEST release date among ALL matching recordings
-                        # This handles remixes, re-releases, and live versions correctly
-                        oldest_year = None
+                        # CLUSTER_MODE: Find the most common year within 5 years of the oldest
+                        # This eliminates single-occurrence bad data while still preferring original releases
+                        from collections import Counter
+
+                        # First, collect all valid years and their associated artist info
+                        years_data = []  # List of (year, mbid, verified_name)
                         best_mbid = None
                         best_verified_name = None
 
@@ -476,16 +479,40 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
                                         if year_str.isdigit() and len(year_str) == 4:
                                             year = int(year_str)
 
-                                    # Keep the recording with the oldest year
+                                    # Store year data if valid
                                     if year is not None:
-                                        if oldest_year is None or year < oldest_year:
-                                            oldest_year = year
-                                            best_mbid = mbid
-                                            best_verified_name = verified_name
-                                    # If no year found yet, use first valid MBID
+                                        years_data.append((year, mbid, verified_name))
+                                    # Keep first valid MBID as fallback
                                     elif best_mbid is None:
                                         best_mbid = mbid
                                         best_verified_name = verified_name
+
+                        # Now apply CLUSTER_MODE algorithm
+                        if years_data:
+                            # Find the oldest year
+                            min_year = min(y[0] for y in years_data)
+
+                            # Get all years within 5 years of the oldest
+                            cluster_years = [y[0] for y in years_data if y[0] <= min_year + 5]
+
+                            # Find the most common year in the cluster
+                            if cluster_years:
+                                year_counts = Counter(cluster_years)
+                                cluster_mode_year = year_counts.most_common(1)[0][0]
+
+                                # Use the MBID and name from a recording with the cluster_mode year
+                                for year, mbid, verified_name in years_data:
+                                    if year == cluster_mode_year:
+                                        best_mbid = mbid
+                                        best_verified_name = verified_name
+                                        break
+
+                                oldest_year = cluster_mode_year
+                            else:
+                                # Fallback: use oldest year
+                                oldest_year = min_year
+                        else:
+                            oldest_year = None
 
                         if best_mbid and best_verified_name:
                             logger.info(f"Combined lookup found: {best_verified_name} - {song_title} ({oldest_year})")
