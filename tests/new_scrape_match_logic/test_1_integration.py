@@ -24,7 +24,7 @@ def test_lookup_uses_station_mbid():
     db.connect()
 
     # Just verify function doesn't crash with basic input
-    mbid, verified_name, method = lookup_artist_mbid("Test Artist", db, max_retries=1)
+    mbid, verified_name, _, method = lookup_artist_mbid("Test Artist", db, max_retries=1)
 
     # Should return None for non-existent artist
     assert mbid is None or mbid.startswith("PENDING-")
@@ -130,7 +130,7 @@ def test_lookup_uses_match_key():
     cursor.close()
 
     # Search with slightly different name (should still find via match_key)
-    mbid, verified_name, method = lookup_artist_mbid("Brooks Dunn", db)
+    mbid, verified_name, _, method = lookup_artist_mbid("Brooks Dunn", db)
 
     # Should find via match_key lookup
     assert mbid == test_mbid
@@ -164,7 +164,7 @@ def test_database_cache_hit_rate():
     # Look up all artists - should use database cache
     cache_hits = 0
     for artist_name, expected_mbid in test_artists:
-        mbid, _, _ = lookup_artist_mbid(artist_name, db)
+        mbid, _, _, _ = lookup_artist_mbid(artist_name, db)
         if mbid == expected_mbid:
             cache_hits += 1
 

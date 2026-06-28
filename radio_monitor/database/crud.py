@@ -1693,7 +1693,7 @@ def add_artist_if_new(cursor, conn, mbid, name):
         conn.rollback()
         raise
 
-def add_artist_and_song_if_new(cursor, conn, artist_mbid, artist_name, song_title):
+def add_artist_and_song_if_new(cursor, conn, artist_mbid, artist_name, song_title, year=None):
     """Add artist and song to database atomically - prevents orphaned artists
 
     This function ensures that if the song creation fails, the artist is also rolled back.
@@ -1717,6 +1717,7 @@ def add_artist_and_song_if_new(cursor, conn, artist_mbid, artist_name, song_titl
         artist_mbid: Artist's MusicBrainz ID (can be PENDING-xxx or valid MBID)
         artist_name: Artist name (will be normalized)
         song_title: Song title (will be normalized)
+        year: Song release year (optional, extracted from MusicBrainz)
 
     Returns:
         Tuple of (artist_added: bool, song_added: bool, song_id: int or None)
@@ -1893,9 +1894,9 @@ def add_artist_and_song_if_new(cursor, conn, artist_mbid, artist_name, song_titl
 
         # Add new song
         cursor.execute("""
-            INSERT INTO songs (artist_mbid, artist_name, song_title, play_count)
-            VALUES (?, ?, ?, 0)
-        """, (effective_mbid, effective_name, normalized_song_title))
+            INSERT INTO songs (artist_mbid, artist_name, song_title, year, play_count)
+            VALUES (?, ?, ?, ?, 0)
+        """, (effective_mbid, effective_name, normalized_song_title, year))
 
         song_id = cursor.lastrowid
 

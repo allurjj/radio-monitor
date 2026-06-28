@@ -158,6 +158,10 @@
                                             Song Title
                                             <span class="sort-indicator"></span>
                                         </th>
+                                        <th class="sortable" data-column="year" data-type="number">
+                                            Year
+                                            <span class="sort-indicator"></span>
+                                        </th>
                                         <th class="sortable text-center" data-column="plays" data-type="number">
                                             Plays
                                             <span class="sort-indicator"></span>
@@ -177,6 +181,7 @@
                                         {% for song in songs %}
                                         <tr>
                                             <td><a href="/songs/{{ song.id }}" class="text-decoration-none">{{ song.song_title }}</a></td>
+                                            <td>{% if song.get('year') %}{{ song.year }}{% else %}<span class="text-muted">-</span>{% endif %}</td>
                                             <td class="text-center">{{ song.play_count }}</td>
                                             <td>{{ song.first_seen_at[:10] if song.first_seen_at else 'N/A' }}</td>
                                             <td>{{ song.last_seen_at[:10] if song.last_seen_at else 'Never' }}</td>
@@ -184,7 +189,7 @@
                                         {% endfor %}
                                     {% else %}
                                         <tr>
-                                            <td colspan="4" class="text-center text-muted py-5">
+                                            <td colspan="5" class="text-center text-muted py-5">
                                                 <i class="bi bi-inbox fs-1 d-block mb-3"></i>
                                                 <p>No songs found for this artist.</p>
                                             </td>

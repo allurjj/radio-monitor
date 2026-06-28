@@ -25,8 +25,9 @@ Tables:
 - spotiflac_downloads: SpotiFLAC download job tracking (v19)
 - artist_song_verification: Song verification tracking (v21)
 - validation tracking: validated_at, validation_status, validation_method (v22)
+- song year: year column for release year tracking (v23)
 
-Schema Version: 22
+Schema Version: 23
 """
 
 import logging
@@ -89,6 +90,7 @@ def create_tables(cursor):
             artist_mbid TEXT,
             artist_name TEXT NOT NULL,
             song_title TEXT NOT NULL,
+            year INTEGER,
             first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             play_count INTEGER DEFAULT 1,
@@ -108,6 +110,7 @@ def create_tables(cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_songs_artist_title ON songs(artist_name, song_title)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_songs_artist_name ON songs(artist_name)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_songs_validation ON songs(validation_status, validated_at)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_songs_year ON songs(year)")
 
     # 4. song_plays_daily table
     cursor.execute("""
@@ -149,6 +152,8 @@ def create_tables(cursor):
             min_plays INTEGER DEFAULT 1,
             max_plays INTEGER,
             days INTEGER,
+            year_from INTEGER,
+            year_to INTEGER,
             enabled BOOLEAN DEFAULT 1,
             last_updated DATETIME,
             next_update DATETIME,

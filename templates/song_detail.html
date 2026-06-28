@@ -86,6 +86,16 @@
                                 <td>{{ song.song_title }}</td>
                             </tr>
                             <tr>
+                                <th>Release Year</th>
+                                <td>
+                                    {% if song.year %}
+                                        {{ song.year }}
+                                    {% else %}
+                                        <span class="text-muted">Unknown</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
                                 <th>Artist Name</th>
                                 <td>
                                     {% if song.artist_mbid %}

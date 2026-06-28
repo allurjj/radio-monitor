@@ -22,6 +22,9 @@ This module handles all database migrations:
 - v17 → v18 (add retry_match_succeeded column)
 - v18 → v19 (add spotiflac_downloads table)
 - v19 → v20 (add match_key column for duplicate detection)
+- v20 → v21 (add song verification tracking)
+- v21 → v22 (add recording-level validation tracking)
+- v22 → v23 (add year column to songs table and year range filtering to playlists)
 
 Migrations are applied automatically when the database is opened.
 """
@@ -156,6 +159,10 @@ def _initialize_schema(cursor, conn, db_path, SCHEMA_VERSION):
             # Migrate to version 22 (add recording-level validation tracking)
             if current_version < 22:
                 _migrate_to_v22(cursor, conn)
+
+            # Migrate to version 23 (add year column to songs table and year range filtering to playlists)
+            if current_version < 23:
+                _migrate_to_v23(cursor, conn)
 
             # REPAIR: Ensure all expected columns exist (defensive check for corrupted migrations)
             _repair_missing_columns(cursor, conn)
@@ -1590,3 +1597,37 @@ def _migrate_to_v22(cursor, conn):
 
     conn.commit()
     print("Migration to version 22 complete!")
+
+
+def _migrate_to_v23(cursor, conn):
+    """Migrate database from v22 to v23 (add year column to songs table and year range filtering to playlists)
+
+    This migration adds song release year support:
+    - year column to songs table (INTEGER, nullable)
+    - year_from and year_to columns to playlists table (INTEGER, nullable)
+    - idx_songs_year index for efficient year-based filtering
+    """
+    from pathlib import Path
+
+    print("Migrating from schema v22 to v23...")
+    print("  - Adding year column to songs table...")
+
+    # Execute migration SQL
+    migration_file = Path(__file__).parent / 'migrations' / 'migrate_v22_to_v23.sql'
+    with open(migration_file, 'r') as f:
+        sql = f.read()
+
+    cursor.executescript(sql)
+
+    print("  - Added year column to songs table")
+    print("  - Added year_from and year_to columns to playlists table")
+    print("  - Created idx_songs_year index")
+
+    # Log migration completion
+    cursor.execute("""
+        INSERT INTO activity_log (event_type, title, description, event_severity, source)
+        VALUES ('system', 'success', 'Database Migration', 'Migrated from schema v22 to v23: added year column to songs table and year range filtering to playlists', 'system')
+    """)
+
+    conn.commit()
+    print("Migration to version 23 complete!")

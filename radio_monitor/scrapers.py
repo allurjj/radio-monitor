@@ -826,6 +826,7 @@ def scrape_all_stations(db=None, station_ids=None):
 
                     # Initialize verified name (will be set by MusicBrainz lookup)
                     primary_artist_verified_name = None
+                    song_year = None  # Initialize year (will be set by MusicBrainz lookup)
 
                     # Get MBID with manual override support
                     # Priority: Station MBID > Manual override > MusicBrainz API > PENDING
@@ -851,11 +852,11 @@ def scrape_all_stations(db=None, station_ids=None):
                                     from radio_monitor.mbid import lookup_artist_mbid
                                     # Get user_agent from settings for MusicBrainz API
                                     user_agent = settings.get('musicbrainz', {}).get('user_agent') if settings else None
-                                    primary_artist_mbid, primary_artist_verified_name, lookup_method = lookup_artist_mbid(
+                                    primary_artist_mbid, primary_artist_verified_name, song_year, lookup_method = lookup_artist_mbid(
                                         primary_artist, db, song_title=song_title, user_agent=user_agent
                                     )
                                     if primary_artist_mbid:
-                                        logger.debug(f"MBID from MusicBrainz for '{primary_artist}': {primary_artist_mbid} (verified: {primary_artist_verified_name}, method: {lookup_method})")
+                                        logger.debug(f"MBID from MusicBrainz for '{primary_artist}': {primary_artist_mbid} (verified: {primary_artist_verified_name}, year: {song_year}, method: {lookup_method})")
                                 except Exception as e:
                                     logger.warning(f"MBID lookup failed for '{primary_artist}': {e}")
                                     primary_artist_verified_name = None
@@ -879,7 +880,7 @@ def scrape_all_stations(db=None, station_ids=None):
                                 # Get the MBID of the first (primary) artist
                                 from radio_monitor.mbid import lookup_artist_mbid
                                 primary_name = validated_artists[0]
-                                primary_artist_mbid, primary_artist_verified_name, lookup_method = lookup_artist_mbid(
+                                primary_artist_mbid, primary_artist_verified_name, song_year, lookup_method = lookup_artist_mbid(
                                     artist_name=primary_name,
                                     db=db,
                                     song_title=song_title,
@@ -887,7 +888,7 @@ def scrape_all_stations(db=None, station_ids=None):
                                 )
 
                             if primary_artist_mbid and not primary_artist_mbid.startswith('PENDING'):
-                                logger.info(f"Multi-artist resolution successful for '{primary_artist}' -> '{primary_name}': {primary_artist_mbid} (verified: {primary_artist_verified_name}, method: {lookup_method})")
+                                logger.info(f"Multi-artist resolution successful for '{primary_artist}' -> '{primary_name}': {primary_artist_mbid} (verified: {primary_artist_verified_name}, year: {song_year}, method: {lookup_method})")
                             else:
                                 logger.debug(f"Multi-artist resolution failed for '{primary_artist}'")
                         except Exception as e:
@@ -942,7 +943,7 @@ def scrape_all_stations(db=None, station_ids=None):
                     # This prevents artist name corruption in the artists table
                     artist_name_for_db = primary_artist_verified_name if primary_artist_verified_name else primary_artist
                     artist_added, song_added, play_id = db.add_artist_and_song_if_new(
-                        primary_artist_mbid, artist_name_for_db, song_title
+                        primary_artist_mbid, artist_name_for_db, song_title, year=song_year
                     )
 
                     if artist_added:

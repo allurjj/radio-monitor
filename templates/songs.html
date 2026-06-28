@@ -195,6 +195,11 @@
                                     Title
                                     <span class="sort-indicator"></span>
                                 </th>
+                                <th class="sortable {% if sort == 'year' %}sorted-{{ direction }}{% endif %}"
+                                    onclick="sortByColumn('year')">
+                                    Year
+                                    <span class="sort-indicator"></span>
+                                </th>
                                 <th class="sortable {% if sort == 'artist_name' %}sorted-{{ direction }}{% endif %}"
                                     onclick="sortByColumn('artist_name')">
                                     Artist
@@ -232,6 +237,13 @@
                                         <a href="/songs/{{ song.id }}" class="text-decoration-none">
                                             <strong>{{ song.song_title }}</strong>
                                         </a>
+                                    </td>
+                                    <td>
+                                        {% if song.get('year') %}
+                                            {{ song.year }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         {% if song.artist_mbid %}

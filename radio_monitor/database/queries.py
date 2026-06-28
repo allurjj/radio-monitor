@@ -714,6 +714,7 @@ def get_artist_songs(cursor, mbid, limit=50):
         SELECT
             s.id,
             s.song_title,
+            s.year,
             s.play_count,
             s.first_seen_at,
             s.last_seen_at
@@ -723,7 +724,7 @@ def get_artist_songs(cursor, mbid, limit=50):
         LIMIT ?
     """, (mbid, limit))
 
-    columns = ['id', 'song_title', 'play_count', 'first_seen_at', 'last_seen_at']
+    columns = ['id', 'song_title', 'year', 'play_count', 'first_seen_at', 'last_seen_at']
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 def get_artist_play_history(cursor, mbid, days=30):
@@ -844,6 +845,7 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
     # Map sort parameter to database column
     sort_column_mapping = {
         'title': 's.song_title',
+        'year': 's.year',
         'artist_name': 's.artist_name',
         'play_count': 's.play_count',
         'last_seen': 's.last_seen_at',
@@ -898,6 +900,7 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
         SELECT
             s.id,
             s.song_title,
+            s.year,
             s.artist_name,
             a.mbid as artist_mbid,
             a.lidarr_imported_at,
@@ -926,7 +929,7 @@ def get_songs_paginated(cursor, page=1, limit=50, filters=None, sort='title', di
     params.extend([limit, offset])
     cursor.execute(query, params)
 
-    columns = ['id', 'song_title', 'artist_name', 'artist_mbid', 'lidarr_imported_at',
+    columns = ['id', 'song_title', 'year', 'artist_name', 'artist_mbid', 'lidarr_imported_at',
                'play_count', 'first_seen_at', 'last_seen_at', 'verification_status', 'verification_date',
                'validation_status', 'validated_at', 'validation_method',
                'verified_mb', 'verified_lidarr', 'is_blocked']
@@ -988,6 +991,7 @@ def get_song_detail(cursor, song_id):
         SELECT
             s.id,
             s.song_title,
+            s.year,
             s.artist_name,
             a.mbid as artist_mbid,
             a.name as artist_name_canonical,
@@ -1004,7 +1008,7 @@ def get_song_detail(cursor, song_id):
     if not row:
         return None
 
-    columns = ['id', 'song_title', 'artist_name', 'artist_mbid',
+    columns = ['id', 'song_title', 'year', 'artist_name', 'artist_mbid',
                'artist_name_canonical', 'play_count', 'first_seen_at',
                'last_seen_at', 'lidarr_imported_at']
     result = dict(zip(columns, row))

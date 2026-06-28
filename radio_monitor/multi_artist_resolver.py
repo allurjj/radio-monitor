@@ -289,7 +289,7 @@ def try_musicbrainz_search(
         # Second pass: Only query MusicBrainz for artists not found locally
         for artist_name in artists_needing_api:
             try:
-                mbid, verified_name, method = lookup_artist_mbid(
+                mbid, verified_name, year, method = lookup_artist_mbid(
                     artist_name=artist_name,
                     db=db,
                     user_agent=user_agent
@@ -297,7 +297,7 @@ def try_musicbrainz_search(
                 if mbid and not mbid.startswith('PENDING'):
                     results[artist_name] = mbid
                     cache[artist_name] = mbid  # Cache for future lookups
-                    logger.debug(f"[API] Found MBID for '{artist_name}': {mbid} (verified: {verified_name}, method: {method})")
+                    logger.debug(f"[API] Found MBID for '{artist_name}': {mbid} (verified: {verified_name}, year: {year}, method: {method})")
                 else:
                     results[artist_name] = None
                     logger.debug(f"[API] No MBID found for '{artist_name}'")

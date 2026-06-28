@@ -12,7 +12,7 @@ This package provides a modular database interface with:
 The main RadioDatabase class (below) provides a unified interface
 to all database operations with backward compatibility.
 
-Schema Version: 22 (Recording-Level Validation Support)
+Schema Version: 23 (Song Year Support)
 """
 
 import sqlite3
@@ -60,10 +60,11 @@ class RadioDatabase:
     - spotiflac_downloads: SpotiFLAC download job tracking (v19)
     - artist_song_verification: Song verification tracking (v21)
     - recording_validation: Recording-level validation tracking (v22)
+    - song_year: Song release year tracking (v23)
     """
 
     # Current schema version
-    SCHEMA_VERSION = 22
+    SCHEMA_VERSION = 23
 
     def __init__(self, db_path):
         self.db_path = db_path

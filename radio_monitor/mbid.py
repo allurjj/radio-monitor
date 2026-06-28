@@ -353,9 +353,10 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
         auto_retry_pending: Auto-retry PENDING MBIDs (default: True)
 
     Returns:
-        Tuple of (mbid: str or None, verified_name: str or None, method: str)
+        Tuple of (mbid: str or None, verified_name: str or None, year: int or None, method: str)
         - mbid: MusicBrainz ID if found, None if not found
         - verified_name: Canonical artist name from MusicBrainz (or database), None if not found
+        - year: Song release year (from MusicBrainz recording), None if not available
         - method: One of 'cache', 'combined', 'artist_only', 'not_found'
 
     Flow:
@@ -363,13 +364,13 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
         2. If exists and has real MBID → return cached MBID and database name
         3. If exists and has PENDING MBID → auto-retry lookup
         4. If exists but MBID is NULL → retry lookup
-        5. If not in database and song_title provided → use combined lookup
+        5. If not in database and song_title provided → use combined lookup (with year extraction)
         6. If not in database → query MusicBrainz API (artist-only)
         7. On connection error: retry quickly (0.7s, 0.9s, 1.1s, 1.3s... increasing)
         8. Rate limit: 1 second between requests (0.5s before + 0.5s after)
         9. Short timeout (5s) - fail fast on connection issues
         10. Validate artist name with fuzzy matching (80% threshold)
-        11. Return (MBID, verified_name, method) or (None, None, 'not_found')
+        11. Return (MBID, verified_name, year, method) or (None, None, None, 'not_found')
     """
     # Check cache first (exact name match)
     artist = db.get_artist_by_name(artist_name)
@@ -388,8 +389,8 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
             else:
                 # Valid cached MBID found
                 logger.debug(f"Using cached MBID for {artist_name}: {artist_mbid}")
-                # Return cached MBID and the artist's name from database
-                return artist_mbid, artist.get('name'), 'cache'
+                # Return cached MBID and the artist's name from database (year not available in cache)
+                return artist_mbid, artist.get('name'), None, 'cache'
         else:
             # Artist exists but MBID is NULL - retry lookup
             logger.info(f"Retrying MBID lookup for {artist_name}")
@@ -408,7 +409,7 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
             if artist_mbid and not artist_mbid.startswith('PENDING-'):
                 # Found valid MBID via match_key
                 logger.debug(f"Using cached MBID via match_key for {artist_name}: {artist_mbid}")
-                return artist_mbid, artist_by_match_key.get('name'), 'cache'
+                return artist_mbid, artist_by_match_key.get('name'), None, 'cache'
             else:
                 # Artist found by match_key but has PENDING or NULL MBID - retry lookup
                 logger.info(f"Found artist by match_key but MBID is {artist_mbid or 'NULL'} - retrying lookup")
@@ -460,14 +461,23 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
                                 verified_name = artist_obj.get('name')
 
                                 if mbid and verified_name:
-                                    logger.info(f"Combined lookup found: {verified_name} - {song_title}")
+                                    # Extract year from first-release-date
+                                    first_release_date = recording.get('first-release-date')
+                                    year = None
+                                    if first_release_date:
+                                        # Handle formats: "2012", "2012-05-15", "2012-05"
+                                        year_str = first_release_date.split('-')[0]
+                                        if year_str.isdigit() and len(year_str) == 4:
+                                            year = int(year_str)
+
+                                    logger.info(f"Combined lookup found: {verified_name} - {song_title} ({year})")
 
                                     # Check if artist already exists in DB
                                     existing_with_mbid = db.get_artist_by_mbid(mbid)
                                     if existing_with_mbid:
                                         # MBID already exists - use existing
                                         logger.debug(f"Artist already exists in database: {existing_with_mbid['name']}")
-                                        return mbid, existing_with_mbid['name'], 'combined'
+                                        return mbid, existing_with_mbid['name'], year, 'combined'
 
                                     # Update or create artist in database
                                     if artist and artist['mbid'] and artist['mbid'].startswith('PENDING-'):
@@ -475,7 +485,7 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
                                     else:
                                         db.add_artist(mbid, verified_name, None)
 
-                                    return mbid, verified_name, 'combined'
+                                    return mbid, verified_name, year, 'combined'
 
         except Exception as e:
             logger.warning(f"Combined lookup failed for {artist_name} - {song_title}: {e}")
@@ -598,17 +608,17 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
                                         if merge_success:
                                             logger.info(f"Successfully merged {artist_name} into {existing_with_mbid['name']}")
                                             # Return the existing artist's MBID and name
-                                            return existing_with_mbid['mbid'], existing_with_mbid['name'], 'artist_only'
+                                            return existing_with_mbid['mbid'], existing_with_mbid['name'], None, 'artist_only'
                                         else:
                                             logger.warning(f"Merge failed for {artist_name}, returning existing artist info")
                                             # Return the existing artist's MBID and name anyway
-                                            return existing_with_mbid['mbid'], existing_with_mbid['name'], 'artist_only'
+                                            return existing_with_mbid['mbid'], existing_with_mbid['name'], None, 'artist_only'
 
                                     # Safe to update - MBID doesn't exist yet
                                     db.update_artist_mbid_from_pending(artist_name, mbid)
                                     logger.debug(f"Updated MBID in database for {artist_name}")
 
-                            return mbid, matched_name, 'artist_only'
+                            return mbid, matched_name, None, 'artist_only'
 
                         elif best_similarity >= NAME_SIMILARITY_THRESHOLD:
                             # Potential match - verify with safety checks
@@ -664,7 +674,7 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
                                         db.update_artist_mbid_from_pending(artist_name, mbid)
                                         logger.debug(f"Updated MBID in database for {artist_name}")
 
-                                return mbid, matched_name, 'artist_only'
+                                return mbid, matched_name, None, 'artist_only'
 
                             else:
                                 # Failed safety check - try collaboration matching
@@ -720,7 +730,7 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
                                             db.update_artist_mbid_from_pending(artist_name, mbid)
                                             logger.debug(f"Updated MBID in database for {artist_name}")
 
-                                    return mbid, matched_name, 'artist_only'
+                                    return mbid, matched_name, None, 'artist_only'
 
                                 else:
                                     # All matching attempts failed
@@ -735,13 +745,13 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
                                 f"No good match found for {artist_name} "
                                 f"(best: {best_match[1] if best_match else 'N/A'} at {best_similarity:.1%})"
                             )
-                            return None, None, 'not_found'
+                            return None, None, None, 'not_found'
 
                 elif response.status == 404:
                     # Not found - this means the artist truly doesn't exist in MusicBrainz
                     # Return None so multi-artist resolver can be tried
                     logger.warning(f"No MBID found for {artist_name} (HTTP 404)")
-                    return None, None, 'not_found'
+                    return None, None, None, 'not_found'
                 elif response.status == 503:
                     # Service Temporarily Unavailable - retry with exponential backoff
                     # This is a temporary error, not a "not found" error
@@ -752,7 +762,7 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
                         break  # Break out of response handling, continue retry loop
                     else:
                         logger.error(f"MusicBrainz API 503 for {artist_name} after {max_retries} attempts")
-                        return None, None, 'not_found'
+                        return None, None, None, 'not_found'
                 elif response.status == 429:
                     # Rate limit - retry with longer delay
                     if attempt < max_retries - 1:
@@ -762,11 +772,11 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
                         break  # Break out of response handling, continue retry loop
                     else:
                         logger.error(f"MusicBrainz API rate limit (429) for {artist_name} after {max_retries} attempts")
-                        return None, None, 'not_found'
+                        return None, None, None, 'not_found'
                 else:
                     # Other HTTP error - don't retry
                     logger.error(f"MusicBrainz API error for {artist_name}: HTTP {response.status}")
-                    return None, None, 'not_found'
+                    return None, None, None, 'not_found'
 
         except urllib.error.URLError as e:
             # SSL, EOF, connection, and timeout errors - retry with exponential backoff
@@ -780,17 +790,17 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
                     time.sleep(wait_time)
                 else:
                     logger.error(f"MusicBrainz connection/timeout error for {artist_name} after {max_retries} attempts: {e}")
-                    return None, None, 'not_found'
+                    return None, None, None, 'not_found'
             else:
                 # Other URL errors - don't retry
                 logger.error(f"MusicBrainz API request failed for {artist_name}: {e}")
-                return None, None, 'not_found'
+                return None, None, None, 'not_found'
 
         except Exception as e:
             logger.error(f"Unexpected error looking up MBID for {artist_name}: {e}")
-            return None, None, 'not_found'
+            return None, None, None, 'not_found'
 
-    return None, None, 'not_found'
+    return None, None, None, 'not_found'
 
 
 def batch_lookup_mbids(artist_names, db, user_agent=None):
@@ -807,7 +817,7 @@ def batch_lookup_mbids(artist_names, db, user_agent=None):
     results = {}
 
     for artist_name in artist_names:
-        mbid, verified_name, _ = lookup_artist_mbid(artist_name, db, user_agent)
+        mbid, verified_name, _, _ = lookup_artist_mbid(artist_name, db, user_agent)
         results[artist_name] = (mbid, verified_name)
 
     return results
@@ -878,7 +888,7 @@ def retry_pending_artists(db, user_agent=None, max_artists=None):
                 logger.info(f"  Trying: {primary_artist}")
 
             # Look up MBID (auto_retry_pending=False to avoid infinite loop)
-            mbid = lookup_artist_mbid(primary_artist, db, user_agent, auto_retry_pending=False)
+            mbid, verified_name, year, method = lookup_artist_mbid(primary_artist, db, user_agent, auto_retry_pending=False)
 
             if mbid:
                 logger.info(f"  Found MBID for {primary_artist}: {mbid}")

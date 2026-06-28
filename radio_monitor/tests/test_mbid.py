@@ -38,7 +38,7 @@ class TestMBIDLookup(unittest.TestCase):
         Note: This test requires internet connection to MusicBrainz API.
         Skipped if API is unreachable.
         """
-        mbid, _, _ = lookup_artist_mbid("Taylor Swift", self.db)
+        mbid, _, _, _ = lookup_artist_mbid("Taylor Swift", self.db)
 
         # Skip test if API is unreachable
         if mbid is None:
@@ -53,7 +53,7 @@ class TestMBIDLookup(unittest.TestCase):
         Note: This test requires internet connection to MusicBrainz API.
         Skipped if API is unreachable.
         """
-        mbid, _, _ = lookup_artist_mbid("Bad Bunny", self.db)
+        mbid, _, _, _ = lookup_artist_mbid("Bad Bunny", self.db)
 
         # Skip test if API is unreachable
         if mbid is None:
@@ -64,7 +64,7 @@ class TestMBIDLookup(unittest.TestCase):
 
     def test_mbid_lookup_not_found(self):
         """Test MBID lookup for nonexistent artist"""
-        mbid, _, _ = lookup_artist_mbid("Nonexistent Artist 123456789", self.db)
+        mbid, _, _, _ = lookup_artist_mbid("Nonexistent Artist 123456789", self.db)
 
         self.assertIsNone(mbid, "MBID should be None for nonexistent artist")
 
@@ -114,7 +114,7 @@ class TestMBIDLookup(unittest.TestCase):
         Skipped if API is unreachable.
         """
         # Test with artist that has special characters
-        mbid, _, _ = lookup_artist_mbid("Carly Rae Jepsen", self.db)
+        mbid, _, _, _ = lookup_artist_mbid("Carly Rae Jepsen", self.db)
 
         # Skip if API unreachable
         if mbid is None:
