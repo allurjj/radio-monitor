@@ -132,6 +132,9 @@
                             </button>
                             {% endif %}
                             {% endif %}
+                            <button class="btn btn-outline-danger" id="btn-delete-artist" data-mbid="{{ artist.mbid }}" data-name="{{ artist.name }}" data-song-count="{{ artist.song_count }}">
+                                <i class="bi bi-trash"></i> Delete Artist
+                            </button>
                             <a href="/artists" class="btn btn-outline-secondary">
                                 <i class="bi bi-arrow-left"></i> Back to Artists
                             </a>
@@ -593,5 +596,78 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(initHistorySorting, 100);
     }
 });
+
+// ========== Delete Artist Functionality ==========
+const deleteButton = document.getElementById('btn-delete-artist');
+if (deleteButton) {
+    deleteButton.addEventListener('click', function() {
+        const mbid = this.getAttribute('data-mbid');
+        const name = this.getAttribute('data-name');
+        const songCount = this.getAttribute('data-song-count');
+
+        // Show confirmation dialog
+        const confirmed = confirm(
+            `Are you sure you want to delete the artist "${name}"?\n\n` +
+            `This will permanently delete:\n` +
+            `• ${songCount} song(s) by this artist\n` +
+            `• All play history for these songs\n` +
+            `• Any Plex match failures\n` +
+            `• Any manual MBID overrides\n\n` +
+            `This action CANNOT be undone!`
+        );
+
+        if (!confirmed) return;
+
+        // Disable button and show loading
+        this.disabled = true;
+        const originalHTML = this.innerHTML;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deleting...';
+
+        // Call delete API
+        fetch(`/api/artists/${mbid}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(async response => {
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Authentication required or session expired. Please refresh the page.');
+            }
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Delete failed');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Show success message
+            if (typeof showToast === 'function') {
+                showToast(data.message || 'Deleted artist', 'success');
+            } else {
+                Toast.success(data.message || 'Deleted artist');
+            }
+
+            // Redirect to artists page after short delay
+            setTimeout(() => {
+                window.location.href = '/artists';
+            }, 1000);
+        })
+        .catch(error => {
+            // Show error message
+            if (typeof showToast === 'function') {
+                showToast(error.message || 'Failed to delete artist', 'error');
+            } else {
+                Toast.error(error.message || 'Failed to delete artist');
+            }
+
+            // Re-enable button
+            this.disabled = false;
+            this.innerHTML = originalHTML;
+        });
+    });
+}
 </script>
 {% endblock %}
