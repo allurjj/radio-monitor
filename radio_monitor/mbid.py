@@ -426,9 +426,10 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
         cleaned_title = clean_song_title_for_query(song_title)
 
         # Build combined query: recording:"Song Title" AND artist:"Artist Name"
+        # Use limit=100 for artists with huge catalogs (AC/DC, Aerosmith, etc.)
         encoded_title = quote(f'"{cleaned_title}"', safe='')
         encoded_artist = quote(f'"{normalized_artist}"', safe='')
-        url = f'https://musicbrainz.org/ws/2/recording/?query=recording:{encoded_title}%20AND%20artist:{encoded_artist}&fmt=json&limit=20'
+        url = f'https://musicbrainz.org/ws/2/recording/?query=recording:{encoded_title}%20AND%20artist:{encoded_artist}&fmt=json&limit=100'
 
         # Rate limiting before request
         time.sleep(0.5)
@@ -452,7 +453,12 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
                     recordings = data.get('recordings', [])
 
                     if recordings:
-                        # Extract artist MBID from best recording
+                        # Find the OLDEST release date among ALL matching recordings
+                        # This handles remixes, re-releases, and live versions correctly
+                        oldest_year = None
+                        best_mbid = None
+                        best_verified_name = None
+
                         for recording in recordings:
                             artist_credits = recording.get('artist-credit', [])
                             if artist_credits:
@@ -470,22 +476,34 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
                                         if year_str.isdigit() and len(year_str) == 4:
                                             year = int(year_str)
 
-                                    logger.info(f"Combined lookup found: {verified_name} - {song_title} ({year})")
+                                    # Keep the recording with the oldest year
+                                    if year is not None:
+                                        if oldest_year is None or year < oldest_year:
+                                            oldest_year = year
+                                            best_mbid = mbid
+                                            best_verified_name = verified_name
+                                    # If no year found yet, use first valid MBID
+                                    elif best_mbid is None:
+                                        best_mbid = mbid
+                                        best_verified_name = verified_name
 
-                                    # Check if artist already exists in DB
-                                    existing_with_mbid = db.get_artist_by_mbid(mbid)
-                                    if existing_with_mbid:
-                                        # MBID already exists - use existing
-                                        logger.debug(f"Artist already exists in database: {existing_with_mbid['name']}")
-                                        return mbid, existing_with_mbid['name'], year, 'combined'
+                        if best_mbid and best_verified_name:
+                            logger.info(f"Combined lookup found: {best_verified_name} - {song_title} ({oldest_year})")
 
-                                    # Update or create artist in database
-                                    if artist and artist['mbid'] and artist['mbid'].startswith('PENDING-'):
-                                        db.update_artist_mbid_from_pending(artist_name, mbid)
-                                    else:
-                                        db.add_artist(mbid, verified_name, None)
+                            # Check if artist already exists in DB
+                            existing_with_mbid = db.get_artist_by_mbid(best_mbid)
+                            if existing_with_mbid:
+                                # MBID already exists - use existing
+                                logger.debug(f"Artist already exists in database: {existing_with_mbid['name']}")
+                                return best_mbid, existing_with_mbid['name'], oldest_year, 'combined'
 
-                                    return mbid, verified_name, year, 'combined'
+                            # Update or create artist in database
+                            if artist and artist['mbid'] and artist['mbid'].startswith('PENDING-'):
+                                db.update_artist_mbid_from_pending(artist_name, best_mbid)
+                            else:
+                                db.add_artist(best_mbid, best_verified_name, None)
+
+                            return best_mbid, best_verified_name, oldest_year, 'combined'
 
         except Exception as e:
             logger.warning(f"Combined lookup failed for {artist_name} - {song_title}: {e}")
