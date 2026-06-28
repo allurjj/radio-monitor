@@ -746,6 +746,8 @@ def _execute_playlist_immediate(playlist_id, db_path, plex_config):
         filters = {
             'station_ids': playlist['station_ids'],
             'days': playlist.get('days'),
+            'year_from': playlist.get('year_from'),
+            'year_to': playlist.get('year_to'),
             'limit': playlist['max_songs'],
             'min_plays': playlist.get('min_plays', 1),
             'max_plays': playlist.get('max_plays'),
