@@ -410,12 +410,21 @@ class RadioDatabase:
         finally:
             cursor.close()
 
-    def get_top_songs(self, days=None, station_id=None, station_ids=None, limit=50):
-        """Get top songs by play count"""
+    def get_top_songs(self, days=None, station_id=None, station_ids=None, year_from=None, year_to=None, limit=50):
+        """Get top songs by play count
+
+        Args:
+            days: Only include plays from last N days (None = all time)
+            station_id: Filter by single station (None = all stations)
+            station_ids: Filter by multiple stations (None = all stations)
+            year_from: Only include songs from this year onwards (None = all years)
+            year_to: Only include songs up to this year (None = all years)
+            limit: Maximum number of results
+        """
         # Use a fresh cursor to avoid 'Recursive use of cursors' error in multi-threaded Flask
         cursor = self.conn.cursor()
         try:
-            return queries.get_top_songs(cursor, days, station_id, station_ids, limit)
+            return queries.get_top_songs(cursor, days, station_id, station_ids, year_from, year_to, limit)
         finally:
             cursor.close()
 

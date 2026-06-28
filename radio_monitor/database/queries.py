@@ -1295,7 +1295,7 @@ def get_top_songs(cursor, days=None, station_id=None, station_ids=None, year_fro
         year_params.append(limit)
         cursor.execute(f"""
             SELECT id, song_title, artist_name, play_count
-            FROM songs
+            FROM songs s
             WHERE {year_conditions[0] if year_conditions else '1=1'}
             ORDER BY play_count DESC
             LIMIT ?
