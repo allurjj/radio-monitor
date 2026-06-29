@@ -417,14 +417,119 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
             logger.debug(f"Artist not found by match_key: {match_key}")
 
     # COMBINED LOOKUP (NEW - when song_title available)
-    # Queries MusicBrainz recordings API with both artist and song to find correct artist
+    # Queries MusicBrainz with both artist and song to find correct artist
+    # HYBRID APPROACH: Try releases first (accurate), fall back to recordings (album tracks)
     if song_title and len(song_title.strip()) >= 3:
         from radio_monitor.normalization import normalize_artist_name, clean_song_title_for_query
         from urllib.parse import quote
+        from datetime import datetime
 
         normalized_artist = normalize_artist_name(artist_name)
         cleaned_title = clean_song_title_for_query(song_title)
 
+        # SSL context (Windows compatibility)
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+
+        # STEP 1: Try releases endpoint first (more accurate for singles/albums)
+        # This prevents false matches from compilations and re-releases
+        try:
+            # Build query for releases endpoint
+            encoded_title = quote(f'"{cleaned_title}"', safe='')
+            encoded_artist = quote(f'"{normalized_artist}"', safe='')
+            url = f'https://musicbrainz.org/ws/2/release/?query=release:{encoded_title}%20AND%20artist:{encoded_artist}&fmt=json&limit=100'
+
+            # Rate limiting before request
+            time.sleep(0.5)
+
+            req = urllib.request.Request(url, headers={
+                'User-Agent': user_agent or 'RadioMonitor/1.0.0 (https://github.com/allurjj/radio-monitor)'
+            })
+
+            with urllib.request.urlopen(req, timeout=10, context=ssl_context) as response:
+                # Rate limiting after request
+                time.sleep(0.5)
+
+                if response.status == 200:
+                    data = json.loads(response.read().decode('utf-8'))
+                    releases = data.get('releases', [])
+
+                    if releases:
+                        # Filter to Album/Single with no secondary types
+                        # This prevents compilations, live albums, remixes from interfering
+                        from collections import Counter
+
+                        years_data = []
+                        best_mbid = None
+                        best_verified_name = None
+
+                        for release in releases:
+                            release_title = release.get('title', '')
+                            release_group = release.get('release-group', {})
+
+                            if not release_group:
+                                continue
+
+                            # Only include Album and Single types with no secondary types
+                            primary_type = release_group.get('primary-type', '')
+                            secondary_types = release_group.get('secondary-types', [])
+
+                            if primary_type not in ['Album', 'Single'] or secondary_types:
+                                continue
+
+                            # Extract artist from release artist-credit
+                            artist_credits = release.get('artist-credit', [])
+                            if artist_credits:
+                                artist_obj = artist_credits[0].get('artist', {})
+                                mbid = artist_obj.get('id')
+                                verified_name = artist_obj.get('name')
+
+                                if mbid and verified_name:
+                                    # Extract year from release date
+                                    release_date = release.get('date')
+                                    year = None
+                                    if release_date:
+                                        year_str = release_date.split('-')[0]
+                                        if year_str.isdigit() and len(year_str) == 4:
+                                            year = int(year_str)
+
+                                    # Store year data if valid
+                                    if year is not None and 1900 <= year <= datetime.now().year + 1:
+                                        years_data.append((year, mbid, verified_name))
+                                    # Keep first valid MBID as fallback
+                                    elif best_mbid is None:
+                                        best_mbid = mbid
+                                        best_verified_name = verified_name
+
+                        if years_data:
+                            # Find the oldest year (most accurate for original release)
+                            years_data.sort(key=lambda x: x[0])
+                            oldest_year = years_data[0][0]
+                            best_mbid = years_data[0][1]
+                            best_verified_name = years_data[0][2]
+
+                            logger.info(f"Releases lookup found: {best_verified_name} - {song_title} ({oldest_year})")
+
+                            # Check if artist already exists in DB
+                            existing_with_mbid = db.get_artist_by_mbid(best_mbid)
+                            if existing_with_mbid:
+                                # MBID already exists - use existing
+                                logger.debug(f"Artist already exists in database: {existing_with_mbid['name']}")
+                                return best_mbid, existing_with_mbid['name'], oldest_year, 'combined'
+
+                            # Update or create artist in database
+                            if artist and artist['mbid'] and artist['mbid'].startswith('PENDING-'):
+                                db.update_artist_mbid_from_pending(artist_name, best_mbid)
+                            else:
+                                db.add_artist(best_mbid, best_verified_name, None)
+
+                            return best_mbid, best_verified_name, oldest_year, 'combined'
+
+        except Exception as e:
+            logger.debug(f"Releases lookup failed for {artist_name} - {song_title}: {e}")
+
+        # STEP 2: Fall back to recordings endpoint (for album tracks)
         # Build combined query: recording:"Song Title" AND artist:"Artist Name"
         # Use limit=100 for artists with huge catalogs (AC/DC, Aerosmith, etc.)
         encoded_title = quote(f'"{cleaned_title}"', safe='')
@@ -433,11 +538,6 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
 
         # Rate limiting before request
         time.sleep(0.5)
-
-        # SSL context (Windows compatibility)
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
 
         try:
             req = urllib.request.Request(url, headers={
