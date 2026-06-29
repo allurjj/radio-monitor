@@ -433,7 +433,6 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
         ssl_context.verify_mode = ssl.CERT_NONE
 
         # STEP 1: Try releases endpoint first (more accurate for singles/albums)
-        # This prevents false matches from compilations and re-releases
         try:
             # Build query for releases endpoint
             encoded_title = quote(f'"{cleaned_title}"', safe='')
@@ -458,8 +457,6 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
                     if releases:
                         # Filter to Album/Single with no secondary types
                         # This prevents compilations, live albums, remixes from interfering
-                        from collections import Counter
-
                         years_data = []
                         best_mbid = None
                         best_verified_name = None
