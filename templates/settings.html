@@ -448,6 +448,13 @@
                         </button>
                     </div>
                 </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-md-3">
+                        <label for="play-history-retention" class="form-label form-label-sm">Play History Retention (days)</label>
+                        <input type="number" class="form-control form-control-sm" id="play-history-retention" min="1" max="3650" value="365">
+                        <small class="text-muted">Days to keep play history (max 10 years)</small>
+                    </div>
+                </div>
                 <!-- Backup List (hidden by default) -->
                 <div id="backup-list" style="display: none;" class="mt-3">
                     <h6>Available Backups:</h6>
@@ -843,6 +850,7 @@ function populateForm(settings) {
         document.getElementById('db-backup-enabled').checked = settings.database.backup_enabled || false;
         document.getElementById('db-retention').value = settings.database.backup_retention_days || 7;
         document.getElementById('db-backup-path').value = settings.database.backup_path || 'backups/';
+        document.getElementById('play-history-retention').value = settings.database.play_history_retention_days || 365;
     }
 
     // Data Quality
@@ -1215,7 +1223,8 @@ function getFormSettings() {
         database: {
             backup_enabled: document.getElementById('db-backup-enabled').checked,
             backup_retention_days: parseInt(document.getElementById('db-retention').value),
-            backup_path: document.getElementById('db-backup-path').value
+            backup_path: document.getElementById('db-backup-path').value,
+            play_history_retention_days: parseInt(document.getElementById('play-history-retention').value) || 365
         },
         data_quality: {
             auto_validation_enabled: document.getElementById('dq-auto-validation-enabled').checked,

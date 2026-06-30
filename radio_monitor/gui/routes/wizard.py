@@ -282,6 +282,7 @@ def api_wizard_save():
             'database': {
                 'backup_enabled': True,
                 'backup_retention_days': 7,
+                'play_history_retention_days': 365,
                 'backup_path': 'backups/'
             },
             'logging': {

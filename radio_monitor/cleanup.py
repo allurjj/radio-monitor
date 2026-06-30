@@ -108,6 +108,43 @@ def cleanup_old_backups(backup_path='backups/', retention_days=7):
         return 0
 
 
+def cleanup_play_history(db, days=365):
+    """Clean up old play history entries from song_plays_daily table
+
+    Args:
+        db: RadioDatabase instance
+        days: Retention period in days (default: 365)
+
+    Returns:
+        int: Number of entries deleted
+    """
+    if not db:
+        logger.warning("Database not provided for play history cleanup")
+        return 0
+
+    try:
+        with db.conn:
+            cursor = db.get_cursor()
+            cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
+
+            cursor.execute("""
+                DELETE FROM song_plays_daily
+                WHERE date < ?
+            """, (cutoff_date,))
+
+            deleted = cursor.rowcount
+            cursor.close()
+
+        if deleted > 0:
+            logger.info(f"Cleaned up {deleted} old play history entries (older than {days} days)")
+
+        return deleted
+
+    except Exception as e:
+        logger.error(f"Error during play history cleanup: {e}")
+        return 0
+
+
 def run_all_cleanup(db, settings=None):
     """Run all cleanup jobs
 
@@ -127,11 +164,13 @@ def run_all_cleanup(db, settings=None):
     log_retention = settings.get('logging', {}).get('log_retention_days', 30) if settings else 30
     backup_retention = settings.get('database', {}).get('backup_retention_days', 7) if settings else 7
     backup_path = settings.get('database', {}).get('backup_path', 'backups/') if settings else 'backups/'
+    play_history_retention = settings.get('database', {}).get('play_history_retention_days', 365) if settings else 365
 
     results = {
         'activity_deleted': 0,
         'log_files_deleted': 0,
         'backups_deleted': 0,
+        'play_history_deleted': 0,
         'timestamp': datetime.now().isoformat()
     }
 
@@ -140,6 +179,12 @@ def run_all_cleanup(db, settings=None):
         results['activity_deleted'] = cleanup_activity_logs(db, days=activity_retention)
     except Exception as e:
         logger.error(f"Error in activity cleanup: {e}")
+
+    # Clean up play history
+    try:
+        results['play_history_deleted'] = cleanup_play_history(db, days=play_history_retention)
+    except Exception as e:
+        logger.error(f"Error in play history cleanup: {e}")
 
     # Clean up log files
     try:

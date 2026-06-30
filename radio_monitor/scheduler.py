@@ -229,14 +229,15 @@ class RadioScheduler:
             logger.error(f"Error removing backup job: {e}")
             return False
 
-    def add_cleanup_jobs(self, activity_cleanup_func, log_cleanup_func, plex_cleanup_func=None, database_cleanup_func=None, hour=4, minute=0):
-        """Add daily cleanup jobs for activity logs, log files, Plex failures, and database corruption
+    def add_cleanup_jobs(self, activity_cleanup_func, log_cleanup_func, plex_cleanup_func=None, database_cleanup_func=None, play_history_cleanup_func=None, hour=4, minute=0):
+        """Add daily cleanup jobs for activity logs, log files, Plex failures, database corruption, and play history
 
         Args:
             activity_cleanup_func: Function to call for activity cleanup (should take no args)
             log_cleanup_func: Function to call for log cleanup (should take no args)
             plex_cleanup_func: Function to call for Plex failure cleanup (should take no args, optional)
             database_cleanup_func: Function to call for database cleanup (should take no args, optional)
+            play_history_cleanup_func: Function to call for play history cleanup (should take no args, optional)
             hour: Hour to run cleanup (default: 4 AM - after backup at 3 AM)
             minute: Minute to run cleanup (default: 0)
 
@@ -306,6 +307,22 @@ class RadioScheduler:
                 else:
                     logger.info("Database cleanup job already exists")
 
+            # Add play history cleanup job (25 minutes after activity cleanup)
+            if play_history_cleanup_func:
+                play_history_job_id = 'play_history_cleanup_job'
+                if not self.scheduler.get_job(play_history_job_id):
+                    self.scheduler.add_job(
+                        play_history_cleanup_func,
+                        'cron',
+                        hour=hour,
+                        minute=minute + 25,
+                        id=play_history_job_id,
+                        name='Play History Cleanup Job'
+                    )
+                    logger.info(f"Play history cleanup job scheduled for daily at {hour:02d}:{minute + 25:02d}")
+                else:
+                    logger.info("Play history cleanup job already exists")
+
             return True
 
         except Exception as e:
@@ -340,6 +357,13 @@ class RadioScheduler:
             if self.scheduler.get_job(log_job_id):
                 self.scheduler.remove_job(log_job_id)
                 logger.info("Log cleanup job removed")
+                removed = True
+
+            # Remove play history cleanup job
+            play_history_job_id = 'play_history_cleanup_job'
+            if self.scheduler.get_job(play_history_job_id):
+                self.scheduler.remove_job(play_history_job_id)
+                logger.info("Play history cleanup job removed")
                 removed = True
 
             return removed

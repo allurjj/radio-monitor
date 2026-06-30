@@ -239,8 +239,20 @@ def init_gui(database=None, background_scheduler=None):
             except Exception as e:
                 logger.error(f"Error during scheduled database cleanup: {e}")
 
-        scheduler.add_cleanup_jobs(activity_cleanup_job_func, log_cleanup_job_func, plex_cleanup_job_func, database_cleanup_job_func)
-        logger.info("Cleanup jobs added to scheduler (daily at 4 AM, Plex cleanup at 4:10 AM, DB cleanup at 4:20 AM)")
+        def play_history_cleanup_job_func():
+            try:
+                logger.info("Starting scheduled play history cleanup")
+                from radio_monitor.cleanup import cleanup_play_history
+                deleted = cleanup_play_history(database)
+                if deleted > 0:
+                    logger.info(f"Scheduled play history cleanup complete: {deleted} entries deleted")
+                elif deleted == 0:
+                    logger.info("Scheduled play history cleanup complete: no old entries to delete")
+            except Exception as e:
+                logger.error(f"Error during scheduled play history cleanup: {e}")
+
+        scheduler.add_cleanup_jobs(activity_cleanup_job_func, log_cleanup_job_func, plex_cleanup_job_func, database_cleanup_job_func, play_history_cleanup_job_func)
+        logger.info("Cleanup jobs added to scheduler (daily at 4 AM, Plex cleanup at 4:10 AM, DB cleanup at 4:20 AM, Play History cleanup at 4:25 AM)")
 
         # Add recording validation job (runs periodically as idle-time validation)
         from radio_monitor.data_quality import validate_batch_scheduled
