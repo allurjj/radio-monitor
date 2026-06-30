@@ -657,6 +657,59 @@ def api_vacuum_status():
     return jsonify(response)
 
 
+@settings_bp.route('/api/settings/cleanup', methods=['POST'])
+@requires_auth
+def api_cleanup_play_history():
+    """Manually trigger cleanup of old play history
+
+    This endpoint runs the play history cleanup immediately using the
+    current retention settings, rather than waiting for the scheduled job.
+
+    Returns JSON:
+        {
+            "success": true/false,
+            "message": "Cleanup complete",
+            "deleted": 123,
+            "retention_days": 365
+        }
+    """
+    from flask import current_app
+    from radio_monitor.cleanup import cleanup_play_history
+
+    try:
+        # Get database and settings
+        db = current_app.config.get('db')
+        settings = load_settings()
+
+        if not db:
+            return jsonify({
+                'success': False,
+                'message': 'Database not available'
+            }), 503
+
+        # Get retention setting
+        retention_days = settings.get('database', {}).get('play_history_retention_days', 365)
+
+        # Run cleanup
+        deleted = cleanup_play_history(db, days=retention_days)
+
+        logger.info(f"Manual cleanup triggered: {deleted} play history entries deleted (older than {retention_days} days)")
+
+        return jsonify({
+            'success': True,
+            'message': f'Cleanup complete. Deleted {deleted} old play history entries.',
+            'deleted': deleted,
+            'retention_days': retention_days
+        })
+
+    except Exception as e:
+        logger.error(f"Manual cleanup failed: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Cleanup failed: {str(e)}'
+        }), 500
+
+
 @settings_bp.route('/api/spotiflac/validate-path', methods=['POST'])
 @requires_auth
 def api_validate_spotiflac_path():

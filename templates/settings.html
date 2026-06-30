@@ -454,6 +454,11 @@
                         <input type="number" class="form-control form-control-sm" id="play-history-retention" min="1" max="3650" value="365">
                         <small class="text-muted">Days to keep play history (max 10 years)</small>
                     </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100" id="btn-cleanup-play-history">
+                            <i class="bi bi-trash"></i> Cleanup Now
+                        </button>
+                    </div>
                 </div>
                 <!-- Backup List (hidden by default) -->
                 <div id="backup-list" style="display: none;" class="mt-3">
@@ -1663,6 +1668,54 @@ document.getElementById('btn-vacuum-db').addEventListener('click', async functio
     } catch (error) {
         console.error('Error starting vacuum:', error);
         Toast.error('Error: ' + error.message);
+        button.disabled = false;
+        button.innerHTML = originalContent;
+    }
+});
+
+// Cleanup play history button
+document.getElementById('btn-cleanup-play-history').addEventListener('click', async function() {
+    const button = this;
+    const originalContent = button.innerHTML;
+
+    // Get current retention setting
+    const retentionDays = document.getElementById('play-history-retention').value;
+
+    if (!await Confirm.confirm(
+        `🗑️ CLEANUP PLAY HISTORY\n\n` +
+        `This will delete play history entries older than ${retentionDays} days.\n\n` +
+        `⚠️ This action cannot be undone!\n\n` +
+        `Continue?`,
+        'Cleanup Play History',
+        'Cleanup',
+        'btn-outline-danger'
+    )) {
+        return;
+    }
+
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Cleaning...';
+
+    try {
+        const response = await fetch('/api/settings/cleanup', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            Toast.success(`${data.message} (Retention: ${data.retention_days} days)`);
+        } else {
+            Toast.error('Cleanup failed: ' + data.message);
+        }
+
+    } catch (error) {
+        console.error('Error cleaning play history:', error);
+        Toast.error('Error: ' + error.message);
+    } finally {
         button.disabled = false;
         button.innerHTML = originalContent;
     }
