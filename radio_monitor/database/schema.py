@@ -159,7 +159,9 @@ def create_tables(cursor):
             next_update DATETIME,
             plex_playlist_name TEXT,
             consecutive_failures INTEGER DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            enable_various_artists_fallback BOOLEAN DEFAULT 0,
+            various_artists_timeout_ms INTEGER DEFAULT 5000
         )
     """)
 
@@ -291,7 +293,9 @@ def create_tables(cursor):
             name TEXT NOT NULL UNIQUE,
             plex_playlist_name TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            enable_various_artists_fallback BOOLEAN DEFAULT 0,
+            various_artists_timeout_ms INTEGER DEFAULT 5000
         )
     """)
 
