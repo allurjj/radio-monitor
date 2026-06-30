@@ -442,6 +442,14 @@ def verify_song_api(song_id):
                 json.dumps(lidarr_result)
             )
 
+            # Mark artist as imported in Lidarr if verification succeeded
+            if lidarr_result.get('is_verified') and lidarr_result.get('lidarr_artist_id'):
+                try:
+                    db.mark_artist_imported_to_lidarr(song[2])  # song[2] = artist_mbid
+                    logger.info(f"Marked artist {song[3]} (MBID: {song[2][:20]}...) as imported to Lidarr after verification")
+                except Exception as e:
+                    logger.warning(f"Failed to mark artist as imported: {e}")
+
         # Update overall status
         update_song_verification_status(cursor, song_id, result['overall_status'])
 
@@ -521,6 +529,16 @@ def verify_artist_all_songs(artist_mbid):
                     lidarr_result['is_verified'],
                     json.dumps(lidarr_result)
                 )
+
+                # Mark artist as imported in Lidarr if verification succeeded
+                if lidarr_result.get('is_verified') and lidarr_result.get('lidarr_artist_id'):
+                    try:
+                        db.mark_artist_imported_to_lidarr(artist_mbid)
+                        logger.info(f"Marked artist {song[3]} (MBID: {artist_mbid[:20]}...) as imported to Lidarr after verification")
+                        # Only need to mark once per artist, so we could break here
+                        # but we'll continue to verify all songs
+                    except Exception as e:
+                        logger.warning(f"Failed to mark artist as imported: {e}")
 
             # Update overall status
             update_song_verification_status(cursor, song[0], result['overall_status'])
@@ -742,6 +760,14 @@ def bulk_verify_songs():
                     lidarr_result['is_verified'],
                     json.dumps(lidarr_result)
                 )
+
+                # Mark artist as imported in Lidarr if verification succeeded
+                if lidarr_result.get('is_verified') and lidarr_result.get('lidarr_artist_id'):
+                    try:
+                        db.mark_artist_imported_to_lidarr(song[2])  # song[2] = artist_mbid
+                        logger.info(f"Marked artist {song[3]} (MBID: {song[2][:20]}...) as imported to Lidarr after bulk verification")
+                    except Exception as e:
+                        logger.warning(f"Failed to mark artist as imported: {e}")
 
             # Update overall status
             update_song_verification_status(cursor, song[0], result['overall_status'])

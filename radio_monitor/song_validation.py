@@ -42,8 +42,9 @@ def verify_artist_song_musicbrainz(artist_name, song_title, artist_mbid, user_ag
     """
     Verify artist-song relationship using MusicBrainz Recording API.
 
-    This searches MusicBrainz for the recording and checks if the artist
-    appears in the recording credits.
+    This searches MusicBrainz for the recording using arid: query (artist MBID)
+    which is the same method used during scraping. This ensures consistency
+    between scraping validation and manual verification.
 
     Args:
         artist_name: Artist name to verify
@@ -75,14 +76,22 @@ def verify_artist_song_musicbrainz(artist_name, song_title, artist_mbid, user_ag
     logger.info(f"[MusicBrainz] Verifying: {artist_name} - {song_title}")
 
     try:
+        # Import clean function for query (same as scraping validation)
+        from radio_monitor.normalization import clean_song_title_for_query
+
+        # Clean title for query (removes features, etc.)
+        cleaned_title = clean_song_title_for_query(song_title)
+
         # Rate limiting
         time_since_last = time.time() - _last_musicbrainz_request
         if time_since_last < MUSICBRAINZ_RATE_LIMIT:
             time.sleep(MUSICBRAINZ_RATE_LIMIT - time_since_last)
 
-        # Search for the recording
-        encoded_song = quote(song_title, safe='')
-        url = f"https://musicbrainz.org/ws/2/recording/?query=recording:{encoded_song}&fmt=json&limit=100"
+        # Use arid: query (same method as scraping validation)
+        # This queries by artist MBID directly, which is more precise
+        query = f'arid:{artist_mbid} AND recording:"{cleaned_title}"'
+        encoded_query = quote(query, safe='')
+        url = f"https://musicbrainz.org/ws/2/recording/?query={encoded_query}&fmt=json&limit=100"
 
         headers = {
             'User-Agent': user_agent or 'RadioMonitor/1.0.0 (https://github.com/allurjj/radio-monitor)'
@@ -110,60 +119,55 @@ def verify_artist_song_musicbrainz(artist_name, song_title, artist_mbid, user_ag
             recordings = data.get('recordings', [])
 
             if not recordings:
-                logger.warning(f"No recordings found for '{song_title}'")
+                logger.warning(f"No recordings found for '{song_title}' with arid:{artist_mbid}")
                 return {
                     'is_verified': False,
                     'status': NOT_FOUND,
                     'reason': f'No recordings found for song'
                 }
 
-            logger.info(f"Found {len(recordings)} recordings for '{song_title}'")
+            logger.info(f"Found {len(recordings)} recordings for '{song_title}' (arid:{artist_mbid})")
 
-            # Check each recording for artist match
+            # Results are already filtered to our artist (arid: query)
+            # Just need to check song similarity and get the first match
             for recording in recordings:
                 recording_title = recording.get('title', '')
                 recording_mbid = recording.get('id', '')
 
-                # Check song similarity first (higher threshold)
+                # Check song similarity (clean both titles for fair comparison)
+                recording_title_clean = clean_song_title_for_query(recording_title)
+                song_title_clean = clean_song_title_for_query(song_title)
+
                 song_similarity = SequenceMatcher(
                     None,
-                    song_title.lower(),
-                    recording_title.lower()
+                    song_title_clean.lower(),
+                    recording_title_clean.lower()
                 ).ratio()
 
-                if song_similarity < SONG_SIMILARITY_THRESHOLD:
-                    continue  # Skip if song title doesn't match well enough
+                if song_similarity >= SONG_SIMILARITY_THRESHOLD:
+                    # Get artist name from first artist credit (for display)
+                    artist_credits = recording.get('artist-credit', [])
+                    artist_credit_name = artist_credits[0].get('name', artist_name) if artist_credits else artist_name
 
-                # Get artist credit(s) from the recording
-                artist_credits = recording.get('artist-credit', [])
+                    logger.info(
+                        f"✅ VERIFIED_MB: {artist_name} - {song_title} "
+                        f"(recording: {recording_title}, similarity: {song_similarity:.1%})"
+                    )
+                    return {
+                        'is_verified': True,
+                        'status': VERIFIED_MB,
+                        'recording_mbid': recording_mbid,
+                        'artist_credit': artist_credit_name,
+                        'song_similarity': song_similarity,
+                        'verified_at': datetime.now().isoformat()
+                    }
 
-                for credit in artist_credits:
-                    if 'artist' in credit:
-                        result_artist = credit['artist']
-                        result_mbid = result_artist.get('id', '')
-                        result_name = result_artist.get('name', '')
-
-                        # Match by MBID (most reliable)
-                        if result_mbid == artist_mbid:
-                            logger.info(
-                                f"✅ VERIFIED_MB: {artist_name} - {song_title} "
-                                f"(recording: {recording_title}, similarity: {song_similarity:.1%})"
-                            )
-                            return {
-                                'is_verified': True,
-                                'status': VERIFIED_MB,
-                                'recording_mbid': recording_mbid,
-                                'artist_credit': result_name,
-                                'song_similarity': song_similarity,
-                                'verified_at': datetime.now().isoformat()
-                            }
-
-            # No MBID match found in any recording
-            logger.warning(f"Artist MBID {artist_mbid} not found in any recording credits for '{song_title}'")
+            # No similarity match found
+            logger.warning(f"No recordings met similarity threshold for '{song_title}'")
             return {
                 'is_verified': False,
                 'status': NOT_FOUND,
-                'reason': 'Artist not found in recording credits'
+                'reason': f'No recordings met {SONG_SIMILARITY_THRESHOLD:.0%} similarity threshold'
             }
 
     except urllib.error.URLError as e:
@@ -305,6 +309,7 @@ def verify_artist_song_lidarr(artist_name, song_title, artist_mbid, settings):
                             'track_title': track_title,
                             'album_title': album_title,
                             'track_similarity': track_similarity,
+                            'lidarr_artist_id': artist_id,  # Include for marking as imported
                             'verified_at': datetime.now().isoformat()
                         }
 
