@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.6] - 2026-06-29
+
+### Fixed
+- **Releases endpoint for accurate song year extraction** - Added hybrid approach (releases → recordings fallback) to get accurate original release dates
+  - Queries MusicBrainz releases endpoint first (Album/Single only) for accurate years
+  - Falls back to recordings endpoint for album tracks not in releases
+  - Prevents false matches from compilations, live albums, and remasters
+  - Examples: "Every Rose Has Its Thorn" now correctly returns 1988 (not 1991), "Smooth Criminal" returns 1987 (not 1992)
+- **Database method missing year parameter** - Fixed `RadioDatabase.add_artist_and_song_if_new()` to accept and pass through year parameter
+  - Previously ignored year parameter, preventing songs from being stored with release years
+  - Now properly stores song years in database during scraping
+- **Artist cache preventing year extraction** - Fixed cache lookup to always query MusicBrainz for years when song_title is provided
+  - Previously: Artist cached → return immediately with `year=None`
+  - Now: Artist cached + song_title → continue to combined lookup → get year
+  - Fix ensures 2nd, 3rd, etc. songs per artist also get years (not just first song)
+
+### Technical Details
+- **Hybrid approach**: Try releases endpoint (accurate for singles/albums) → fall back to recordings endpoint (for album tracks)
+- **Filtering**: Only Album and Single types, no secondary types (prevents compilations, live, remixes)
+- **Query format**: `release:"{title}" AND artist:"{artist}"` (both title and artist for accuracy)
+- **Cache behavior**: When `song_title` is provided, bypass cache return to query MusicBrainz for year
+
+---
+
 ## [1.5.2] - 2026-06-18
 
 ### Added
