@@ -471,6 +471,193 @@ def delete_artist(cursor, conn, mbid):
             'overrides_deleted': 0
         }
 
+def delete_song(cursor, conn, song_id):
+    """Delete a song and all related data (cascade)
+
+    This function performs a cascading delete for a single song:
+    1. Deletes song_plays_daily records
+    2. Deletes plex_match_failures records
+    3. Deletes artist_song_verification records
+    4. Deletes manual_playlist_songs associations
+    5. Deletes the song record
+
+    Uses transaction for atomicity - all deletions succeed or all fail.
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        song_id: ID of the song to delete
+
+    Returns:
+        dict: Deletion statistics
+            {
+                'success': True/False,
+                'song_id': int,
+                'song_title': str,
+                'artist_mbid': str,
+                'plays_deleted': int,
+                'plex_failures_deleted': int,
+                'verifications_deleted': int,
+                'playlist_associations_deleted': int,
+                'error': str (if success=False)
+            }
+    """
+    try:
+        # Get song details first (for logging/response)
+        cursor.execute("""
+            SELECT id, song_title, artist_mbid
+            FROM songs
+            WHERE id = ?
+        """, (song_id,))
+        song_result = cursor.fetchone()
+
+        if not song_result:
+            logger.warning(f"Song not found for deletion: {song_id}")
+            return {
+                'success': False,
+                'error': f'Song not found: {song_id}',
+                'song_id': song_id,
+                'plays_deleted': 0,
+                'plex_failures_deleted': 0,
+                'verifications_deleted': 0,
+                'playlist_associations_deleted': 0
+            }
+
+        song_id_actual, song_title, artist_mbid = song_result
+
+        # Step 1: Delete song_plays_daily records
+        cursor.execute("DELETE FROM song_plays_daily WHERE song_id = ?", (song_id,))
+        plays_deleted = cursor.rowcount
+
+        # Step 2: Delete plex_match_failures records
+        cursor.execute("DELETE FROM plex_match_failures WHERE song_id = ?", (song_id,))
+        plex_failures_deleted = cursor.rowcount
+
+        # Step 3: Delete artist_song_verification records
+        cursor.execute("DELETE FROM artist_song_verification WHERE song_id = ?", (song_id,))
+        verifications_deleted = cursor.rowcount
+
+        # Step 4: Delete manual_playlist_songs associations
+        cursor.execute("DELETE FROM manual_playlist_songs WHERE song_id = ?", (song_id,))
+        playlist_associations_deleted = cursor.rowcount
+
+        # Step 5: Delete the song record
+        cursor.execute("DELETE FROM songs WHERE id = ?", (song_id,))
+
+        logger.info(f"Deleted song '{song_title}' (ID: {song_id}): "
+                   f"{plays_deleted} plays, "
+                   f"{plex_failures_deleted} Plex failures, "
+                   f"{verifications_deleted} verifications, "
+                   f"{playlist_associations_deleted} playlist associations")
+
+        return {
+            'success': True,
+            'song_id': song_id_actual,
+            'song_title': song_title,
+            'artist_mbid': artist_mbid,
+            'plays_deleted': plays_deleted,
+            'plex_failures_deleted': plex_failures_deleted,
+            'verifications_deleted': verifications_deleted,
+            'playlist_associations_deleted': playlist_associations_deleted
+        }
+
+    except Exception as e:
+        # Error handling - caller will handle rollback if needed
+        logger.error(f"Error deleting song {song_id}: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'song_id': song_id,
+            'plays_deleted': 0,
+            'plex_failures_deleted': 0,
+            'verifications_deleted': 0,
+            'playlist_associations_deleted': 0
+        }
+
+
+def cleanup_artist_if_no_songs(cursor, conn, artist_mbid):
+    """Delete artist if they have no remaining songs
+
+    Checks if the artist has any songs left in the database.
+    If song count is 0, deletes the artist and all remaining related data.
+
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        artist_mbid: Artist MBID (MusicBrainz ID) to check and potentially delete
+
+    Returns:
+        dict: Cleanup result
+            {
+                'success': True/False,
+                'artist_deleted': True/False,
+                'artist_name': str or None,
+                'songs_remaining': int,
+                'error': str (if success=False)
+            }
+    """
+    try:
+        # Check if artist has any songs remaining
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM songs
+            WHERE artist_mbid = ?
+        """, (artist_mbid,))
+        song_count = cursor.fetchone()[0]
+
+        if song_count > 0:
+            # Artist still has songs, don't delete
+            return {
+                'success': True,
+                'artist_deleted': False,
+                'songs_remaining': song_count,
+                'artist_name': None
+            }
+
+        # No songs remaining, get artist name for logging
+        cursor.execute("SELECT name FROM artists WHERE mbid = ?", (artist_mbid,))
+        artist_result = cursor.fetchone()
+
+        if not artist_result:
+            # Artist already deleted or doesn't exist
+            return {
+                'success': True,
+                'artist_deleted': False,
+                'songs_remaining': 0,
+                'artist_name': None
+            }
+
+        artist_name = artist_result[0]
+
+        # Delete the artist (which cascades to remaining related data)
+        result = delete_artist(cursor, conn, artist_mbid)
+
+        if result['success']:
+            logger.info(f"Cleaned up orphaned artist '{artist_name}' (MBID: {artist_mbid})")
+            return {
+                'success': True,
+                'artist_deleted': True,
+                'artist_name': artist_name,
+                'songs_remaining': 0
+            }
+        else:
+            return {
+                'success': False,
+                'error': result.get('error', 'Unknown error'),
+                'artist_deleted': False,
+                'songs_remaining': 0
+            }
+
+    except Exception as e:
+        logger.error(f"Error cleaning up artist {artist_mbid}: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'artist_deleted': False,
+            'songs_remaining': 0
+        }
+
+
 def reset_all_lidarr_import_status(cursor, conn):
     """Reset all artists to "Needs Import" status
 

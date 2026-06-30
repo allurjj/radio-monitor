@@ -548,3 +548,237 @@ def verify_artist_all_songs(artist_mbid):
         'not_found': not_found_count,
         'results': results
     })
+
+
+@songs_bp.route('/api/songs/bulk-delete', methods=['POST'])
+@requires_auth
+def bulk_delete_songs():
+    """Delete multiple songs and cleanup orphaned artists
+
+    Request JSON:
+        { song_ids: [1, 2, 3] }
+
+    Returns:
+        JSON response with deletion statistics
+    """
+    from radio_monitor.database.crud import delete_song, cleanup_artist_if_no_songs
+    from radio_monitor.database.activity import log_activity
+
+    db = get_db()
+
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    data = request.get_json()
+    song_ids = data.get('song_ids', [])
+
+    if not song_ids:
+        return jsonify({'error': 'song_ids is required'}), 400
+
+    # Track artists to check for cleanup
+    artists_to_check = set()
+
+    cursor = db.get_cursor()
+    try:
+        # Get song details before deletion
+        placeholders = ','.join(['?'] * len(song_ids))
+        cursor.execute(f"""
+            SELECT id, song_title, artist_mbid, artist_name
+            FROM songs s
+            JOIN artists a ON s.artist_mbid = a.mbid
+            WHERE s.id IN ({placeholders})
+        """, song_ids)
+        songs_to_delete = cursor.fetchall()
+
+        if not songs_to_delete:
+            cursor.close()
+            return jsonify({'error': 'No songs found'}), 404
+
+        # Delete each song
+        total_plays_deleted = 0
+        total_plex_failures_deleted = 0
+        total_verifications_deleted = 0
+        total_playlist_associations_deleted = 0
+
+        for song_id in song_ids:
+            result = delete_song(cursor, db.conn, song_id)
+
+            if result['success']:
+                total_plays_deleted += result['plays_deleted']
+                total_plex_failures_deleted += result['plex_failures_deleted']
+                total_verifications_deleted += result['verifications_deleted']
+                total_playlist_associations_deleted += result['playlist_associations_deleted']
+
+                # Track artist for potential cleanup
+                if result['artist_mbid']:
+                    artists_to_check.add(result['artist_mbid'])
+            else:
+                logger.warning(f"Failed to delete song {song_id}: {result.get('error')}")
+
+        # Cleanup artists with no remaining songs
+        artists_deleted = 0
+        for artist_mbid in artists_to_check:
+            cleanup_result = cleanup_artist_if_no_songs(cursor, db.conn, artist_mbid)
+            if cleanup_result.get('artist_deleted'):
+                artists_deleted += 1
+
+        db.conn.commit()
+
+        # Log activity
+        log_activity(
+            cursor=cursor,
+            event_type='songs_deleted',
+            title=f"Bulk deleted {len(song_ids)} song(s)",
+            description=f"Deleted {len(song_ids)} song(s), {total_plays_deleted} play(s), {artists_deleted} artist(s)",
+            metadata={
+                'song_ids': song_ids,
+                'songs_deleted': len(songs_to_delete),
+                'plays_deleted': total_plays_deleted,
+                'artists_deleted': artists_deleted
+            },
+            severity='info',
+            source='user'
+        )
+
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'songs_deleted': len(songs_to_delete),
+            'plays_deleted': total_plays_deleted,
+            'plex_failures_deleted': total_plex_failures_deleted,
+            'verifications_deleted': total_verifications_deleted,
+            'playlist_associations_deleted': total_playlist_associations_deleted,
+            'artists_deleted': artists_deleted
+        })
+
+    except Exception as e:
+        logger.error(f"Bulk delete error: {e}")
+        db.conn.rollback()
+        cursor.close()
+        return jsonify({'error': str(e)}), 500
+
+
+@songs_bp.route('/api/songs/bulk-verify', methods=['POST'])
+@requires_auth
+def bulk_verify_songs():
+    """Verify multiple songs using MusicBrainz + Lidarr
+
+    Request JSON:
+        { song_ids: [1, 2, 3] }
+
+    Returns:
+        JSON response with verification results for each song
+    """
+    import json
+    from radio_monitor.song_validation import verify_artist_song
+    from radio_monitor.database.crud import (
+        add_song_verification,
+        update_song_verification_status
+    )
+
+    db = get_db()
+    settings = current_app.config.get('settings')
+
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    data = request.get_json()
+    song_ids = data.get('song_ids', [])
+
+    if not song_ids:
+        return jsonify({'error': 'song_ids is required'}), 400
+
+    # Get song details
+    placeholders = ','.join(['?'] * len(song_ids))
+    cursor = db.get_cursor()
+    cursor.execute(f"""
+        SELECT s.id, s.song_title, s.artist_mbid, a.name as artist_name
+        FROM songs s
+        JOIN artists a ON s.artist_mbid = a.mbid
+        WHERE s.id IN ({placeholders})
+    """, song_ids)
+    songs = cursor.fetchall()
+
+    if not songs:
+        cursor.close()
+        return jsonify({'error': 'No songs found'}), 404
+
+    results = []
+    verified_count = 0
+    not_found_count = 0
+    unverified_count = 0
+
+    for song in songs:
+        try:
+            # Run verification
+            # song is a tuple: (id, song_title, artist_mbid, artist_name)
+            result = verify_artist_song(
+                artist_name=song[3],  # artist_name
+                song_title=song[1],    # song_title
+                artist_mbid=song[2],   # artist_mbid
+                settings=settings,
+                sources=['musicbrainz', 'lidarr']
+            )
+
+            # Store MusicBrainz verification
+            if 'musicbrainz' in result['sources']:
+                mb_result = result['sources']['musicbrainz']
+                add_song_verification(
+                    cursor,
+                    song[0],  # song id
+                    'musicbrainz',
+                    mb_result['is_verified'],
+                    json.dumps(mb_result)
+                )
+
+            # Store Lidarr verification
+            if 'lidarr' in result['sources']:
+                lidarr_result = result['sources']['lidarr']
+                add_song_verification(
+                    cursor,
+                    song[0],  # song id
+                    'lidarr',
+                    lidarr_result['is_verified'],
+                    json.dumps(lidarr_result)
+                )
+
+            # Update overall status
+            update_song_verification_status(cursor, song[0], result['overall_status'])
+
+            if result['overall_status'] in ['VERIFIED_MB', 'VERIFIED_LIDARR']:
+                verified_count += 1
+            elif result['overall_status'] == 'NOT_FOUND':
+                not_found_count += 1
+            else:
+                unverified_count += 1
+
+            results.append({
+                'song_id': song[0],
+                'title': song[1],
+                'artist': song[3],
+                'status': result['overall_status'],
+                'sources': result.get('sources', {})
+            })
+
+        except Exception as e:
+            logger.error(f"Verification failed for song {song[0]}: {e}")
+            results.append({
+                'song_id': song[0],
+                'title': song[1],
+                'artist': song[3],
+                'status': 'ERROR',
+                'error': str(e)
+            })
+
+    db.conn.commit()
+    cursor.close()
+
+    return jsonify({
+        'success': True,
+        'total': len(songs),
+        'verified': verified_count,
+        'not_found': not_found_count,
+        'unverified': unverified_count,
+        'results': results
+    })

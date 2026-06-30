@@ -174,6 +174,12 @@
                     <span class="badge bg-secondary ms-2">{{ pagination.total }} total</span>
                 </h5>
                 <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-outline-danger btn-sm" id="bulk-delete-btn" disabled>
+                        <i class="bi bi-trash"></i> Bulk Delete
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" id="bulk-verify-btn" disabled>
+                        <i class="bi bi-check-circle"></i> Reverify
+                    </button>
                     <button class="btn btn-outline-primary btn-sm" id="export-csv">
                         <i class="bi bi-download"></i> Export CSV
                     </button>
@@ -190,6 +196,9 @@
                     <table class="table table-hover table-standard mb-0">
                         <thead class="table-light">
                             <tr>
+                                <th class="text-center" style="width: 40px;">
+                                    <input type="checkbox" id="select-all-songs" aria-label="Select all songs">
+                                </th>
                                 <th class="sortable {% if sort == 'title' %}sorted-{{ direction }}{% endif %}"
                                     onclick="sortByColumn('title')">
                                     Title
@@ -233,6 +242,13 @@
                             {% if songs %}
                                 {% for song in songs %}
                                 <tr data-mbid="{{ song.artist_mbid }}">
+                                    <td class="text-center">
+                                        <input type="checkbox" class="song-checkbox"
+                                               data-song-id="{{ song.id }}"
+                                               data-song-title="{{ song.song_title }}"
+                                               data-artist-name="{{ song.artist_name }}"
+                                               aria-label="Select song">
+                                    </td>
                                     <td>
                                         <a href="/songs/{{ song.id }}" class="text-decoration-none">
                                             <strong>{{ song.song_title }}</strong>
@@ -359,7 +375,7 @@
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="7">
+                                    <td colspan="8">
                                         <div class="empty-state">
                                             <i class="bi bi-music-note empty-state-icon"></i>
                                             <h3 class="empty-state-title">No songs found</h3>
@@ -853,6 +869,140 @@ document.addEventListener('click', function(e) {
                 `<div class="alert alert-danger">Error: ${error}</div>`;
         });
     }
+});
+
+// ==================== Bulk Actions for Songs ====================
+
+// Setup checkbox handlers
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAllCheckbox = document.getElementById('select-all-songs');
+    const songCheckboxes = document.querySelectorAll('.song-checkbox');
+    const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
+    const bulkVerifyBtn = document.getElementById('bulk-verify-btn');
+
+    if (!selectAllCheckbox || songCheckboxes.length === 0) {
+        return; // No checkboxes on this page
+    }
+
+    // Select all functionality
+    selectAllCheckbox.addEventListener('change', function() {
+        songCheckboxes.forEach(cb => cb.checked = this.checked);
+        updateBulkButtons();
+    });
+
+    // Individual checkbox functionality
+    songCheckboxes.forEach(cb => {
+        cb.addEventListener('change', function() {
+            // Update select all checkbox state
+            const allChecked = Array.from(songCheckboxes).every(c => c.checked);
+            const someChecked = Array.from(songCheckboxes).some(c => c.checked);
+            selectAllCheckbox.checked = allChecked;
+            selectAllCheckbox.indeterminate = someChecked && !allChecked;
+            updateBulkButtons();
+        });
+    });
+
+    function updateBulkButtons() {
+        const checkedCount = Array.from(songCheckboxes).filter(cb => cb.checked).length;
+        bulkDeleteBtn.disabled = checkedCount === 0;
+        bulkVerifyBtn.disabled = checkedCount === 0;
+    }
+
+    // Bulk Delete button
+    bulkDeleteBtn.addEventListener('click', function() {
+        const selectedIds = Array.from(document.querySelectorAll('.song-checkbox:checked'))
+            .map(cb => parseInt(cb.dataset.songId));
+
+        if (selectedIds.length === 0) return;
+
+        if (!confirm(`Delete ${selectedIds.length} selected song(s)?\n\n` +
+            `This will permanently delete:\n` +
+            `• ${selectedIds.length} song(s)\n` +
+            `• All associated plays and metadata\n\n` +
+            `Artists with no remaining songs will also be deleted.\n\n` +
+            `This action cannot be undone.`)) {
+            return;
+        }
+
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-trash spin"></i> Deleting...';
+
+        fetch('/api/songs/bulk-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ song_ids: selectedIds })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Toast.success(`Deleted ${data.songs_deleted} song(s), ${data.artists_deleted} artist(s)`);
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                Toast.error('Failed to delete: ' + (data.error || 'Unknown error'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-trash"></i> Bulk Delete';
+            }
+        })
+        .catch(error => {
+            Toast.error('Error deleting songs: ' + error.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-trash"></i> Bulk Delete';
+        });
+    });
+
+    // Bulk Verify button
+    bulkVerifyBtn.addEventListener('click', function() {
+        const selectedIds = Array.from(document.querySelectorAll('.song-checkbox:checked'))
+            .map(cb => parseInt(cb.dataset.songId));
+
+        if (selectedIds.length === 0) return;
+
+        const estimatedMinutes = Math.ceil(selectedIds.length / 60);
+
+        if (!confirm(`Verify ${selectedIds.length} selected song(s)?\n\n` +
+            `This will check MusicBrainz and Lidarr for each song.\n` +
+            `Estimated time: ~${estimatedMinutes} minute(s)\n\n` +
+            `Continue?`)) {
+            return;
+        }
+
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Verifying...';
+
+        fetch('/api/songs/bulk-verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ song_ids: selectedIds })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                let message = `Verified ${data.total} song(s):\n`;
+                message += `• ${data.verified} verified\n`;
+                message += `• ${data.not_found} not found\n`;
+                message += `• ${data.unverified} unverified`;
+
+                if (data.verified > 0) {
+                    Toast.success(message);
+                } else {
+                    Toast.warning(message);
+                }
+
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                Toast.error('Failed to verify: ' + (data.error || 'Unknown error'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-circle"></i> Reverify';
+            }
+        })
+        .catch(error => {
+            Toast.error('Error verifying songs: ' + error.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-circle"></i> Reverify';
+        });
+    });
 });
 </script>
 
