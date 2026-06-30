@@ -574,6 +574,99 @@ def api_delete_artist(mbid):
         cursor.close()
 
 
+@artists_bp.route('/api/artists/bulk-delete', methods=['POST'])
+@requires_auth
+def bulk_delete_artists():
+    """Delete multiple artists and all their data (cascade)
+
+    Request JSON:
+        { artist_mbids: ["mbid1", "mbid2", ...] }
+
+    Returns:
+        JSON response with deletion statistics
+    """
+    from radio_monitor.database.crud import delete_artist
+    from radio_monitor.database.activity import log_activity
+
+    db = get_db()
+
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
+
+    data = request.get_json()
+    artist_mbids = data.get('artist_mbids', [])
+
+    if not artist_mbids:
+        return jsonify({'error': 'artist_mbids is required'}), 400
+
+    cursor = db.get_cursor()
+    try:
+        # Get artist details before deletion
+        placeholders = ','.join(['?'] * len(artist_mbids))
+        cursor.execute(f"""
+            SELECT mbid, name
+            FROM artists
+            WHERE mbid IN ({placeholders})
+        """, artist_mbids)
+        artists_to_delete = cursor.fetchall()
+
+        if not artists_to_delete:
+            cursor.close()
+            return jsonify({'error': 'No artists found'}), 404
+
+        # Delete each artist
+        total_songs_deleted = 0
+        total_plays_deleted = 0
+        total_plex_failures_deleted = 0
+        total_overrides_deleted = 0
+
+        for mbid in artist_mbids:
+            result = delete_artist(cursor, db.conn, mbid)
+
+            if result['success']:
+                total_songs_deleted += result['songs_deleted']
+                total_plays_deleted += result['plays_deleted']
+                total_plex_failures_deleted += result['plex_failures_deleted']
+                total_overrides_deleted += result['overrides_deleted']
+            else:
+                logger.warning(f"Failed to delete artist {mbid}: {result.get('error')}")
+
+        db.conn.commit()
+
+        # Log activity
+        log_activity(
+            cursor=cursor,
+            event_type='artists_deleted',
+            title=f"Bulk deleted {len(artist_mbids)} artist(s)",
+            description=f"Deleted {len(artist_mbids)} artist(s), {total_songs_deleted} song(s), {total_plays_deleted} play(s)",
+            metadata={
+                'artist_mbids': artist_mbids,
+                'artists_deleted': len(artists_to_delete),
+                'songs_deleted': total_songs_deleted,
+                'plays_deleted': total_plays_deleted
+            },
+            severity='info',
+            source='user'
+        )
+
+        cursor.close()
+
+        return jsonify({
+            'success': True,
+            'artists_deleted': len(artists_to_delete),
+            'songs_deleted': total_songs_deleted,
+            'plays_deleted': total_plays_deleted,
+            'plex_failures_deleted': total_plex_failures_deleted,
+            'overrides_deleted': total_overrides_deleted
+        })
+
+    except Exception as e:
+        logger.error(f"Bulk delete artists error: {e}")
+        db.conn.rollback()
+        cursor.close()
+        return jsonify({'error': str(e)}), 500
+
+
 @artists_bp.route('/api/artists/retry-pending', methods=['POST'])
 @requires_auth
 def api_retry_pending_artists():

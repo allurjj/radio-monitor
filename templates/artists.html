@@ -181,6 +181,12 @@
                         <i class="bi bi-arrow-clockwise"></i> Retry PENDING
                         <span class="badge bg-danger ms-1" id="pending-count-badge">0</span>
                     </button>
+                    <button class="btn btn-outline-danger btn-sm" id="bulk-delete-artists-btn" disabled>
+                        <i class="bi bi-trash"></i> Bulk Delete
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" id="bulk-verify-artists-btn" disabled>
+                        <i class="bi bi-check-circle"></i> Verify All Songs
+                    </button>
                     <button class="btn btn-outline-primary btn-sm" id="export-csv">
                         <i class="bi bi-download"></i> Export CSV
                     </button>
@@ -197,6 +203,9 @@
                     <table class="table table-hover table-standard mb-0">
                         <thead class="table-light">
                             <tr>
+                                <th class="text-center" style="width: 40px;">
+                                    <input type="checkbox" id="select-all-artists" aria-label="Select all artists">
+                                </th>
                                 <th class="sortable {% if sort == 'name' %}sorted-{{ direction }}{% endif %}"
                                     onclick="sortByColumn('name')">
                                     Artist Name
@@ -240,6 +249,13 @@
                             {% if artists %}
                                 {% for artist in artists %}
                                 <tr data-mbid="{{ artist.mbid }}">
+                                    <td class="text-center">
+                                        <input type="checkbox" class="artist-checkbox"
+                                               data-artist-mbid="{{ artist.mbid }}"
+                                               data-artist-name="{{ artist.name }}"
+                                               data-song-count="{{ artist.song_count }}"
+                                               aria-label="Select artist">
+                                    </td>
                                     <td>
                                         <a href="/artists/{{ artist.mbid }}" class="text-decoration-none">
                                             <strong>{{ artist.name }}</strong>
@@ -337,9 +353,6 @@
                                                     title="Verify All Songs">
                                                 <i class="bi bi-check-circle"></i>
                                             </button>
-                                            <a href="/artists/{{ artist.mbid }}" class="btn btn-outline-primary" title="View Details">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
                                             <button class="btn btn-outline-warning btn-edit-mbid" data-artist-name="{{ artist.name }}" data-current-mbid="{{ artist.mbid }}" title="Edit MBID">
                                                 <i class="bi bi-pencil-square"></i>
                                             </button>
@@ -388,7 +401,7 @@
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="8">
+                                    <td colspan="9">
                                         <div class="empty-state">
                                             {% if filters.mbid_status == 'pending' %}
                                                 <i class="bi bi-check-circle text-success empty-state-icon"></i>
@@ -1455,6 +1468,169 @@ document.addEventListener('click', function(e) {
                 `<div class="alert alert-danger">Error: ${error}</div>`;
         });
     }
+});
+
+// ==================== Bulk Actions for Artists ====================
+
+// Setup checkbox handlers
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAllCheckbox = document.getElementById('select-all-artists');
+    const artistCheckboxes = document.querySelectorAll('.artist-checkbox');
+    const bulkDeleteBtn = document.getElementById('bulk-delete-artists-btn');
+    const bulkVerifyBtn = document.getElementById('bulk-verify-artists-btn');
+
+    if (!selectAllCheckbox || artistCheckboxes.length === 0) {
+        return; // No checkboxes on this page
+    }
+
+    // Select all functionality
+    selectAllCheckbox.addEventListener('change', function() {
+        artistCheckboxes.forEach(cb => cb.checked = this.checked);
+        updateBulkButtons();
+    });
+
+    // Individual checkbox functionality
+    artistCheckboxes.forEach(cb => {
+        cb.addEventListener('change', function() {
+            // Update select all checkbox state
+            const allChecked = Array.from(artistCheckboxes).every(c => c.checked);
+            const someChecked = Array.from(artistCheckboxes).some(c => c.checked);
+            selectAllCheckbox.checked = allChecked;
+            selectAllCheckbox.indeterminate = someChecked && !allChecked;
+            updateBulkButtons();
+        });
+    });
+
+    function updateBulkButtons() {
+        const checkedCount = Array.from(artistCheckboxes).filter(cb => cb.checked).length;
+        bulkDeleteBtn.disabled = checkedCount === 0;
+        bulkVerifyBtn.disabled = checkedCount === 0;
+    }
+
+    // Bulk Delete Artists button
+    bulkDeleteBtn.addEventListener('click', function() {
+        const selectedArtists = Array.from(document.querySelectorAll('.artist-checkbox:checked'))
+            .map(cb => ({
+                mbid: cb.dataset.artistMbid,
+                name: cb.dataset.artistName,
+                songCount: parseInt(cb.dataset.songCount) || 0
+            }));
+
+        if (selectedArtists.length === 0) return;
+
+        const totalSongs = selectedArtists.reduce((sum, a) => sum + a.songCount, 0);
+        const totalPlays = selectedArtists.reduce((sum, a) => sum + (a.songCount * 2), 0); // Estimate
+
+        if (!confirm(`Delete ${selectedArtists.length} selected artist(s)?\n\n` +
+            `This will permanently delete:\n` +
+            `• ${selectedArtists.length} artist(s)\n` +
+            `• ${totalSongs} song(s) total\n` +
+            `• Estimated ${totalPlays} play(s)\n` +
+            `• All associated data (blocklists, Plex failures, overrides, etc.)\n\n` +
+            `This action cannot be undone.`)) {
+            return;
+        }
+
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-trash spin"></i> Deleting...';
+
+        fetch('/api/artists/bulk-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ artist_mbids: selectedArtists.map(a => a.mbid) })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Toast.success(`Deleted ${data.artists_deleted} artist(s), ${data.songs_deleted} song(s)`);
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                Toast.error('Failed to delete: ' + (data.error || 'Unknown error'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-trash"></i> Bulk Delete';
+            }
+        })
+        .catch(error => {
+            Toast.error('Error deleting artists: ' + error.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-trash"></i> Bulk Delete';
+        });
+    });
+
+    // Bulk Verify All Songs button
+    bulkVerifyBtn.addEventListener('click', function() {
+        const selectedArtists = Array.from(document.querySelectorAll('.artist-checkbox:checked'))
+            .map(cb => ({
+                mbid: cb.dataset.artistMbid,
+                name: cb.dataset.artistName,
+                songCount: parseInt(cb.dataset.songCount) || 0
+            }));
+
+        if (selectedArtists.length === 0) return;
+
+        const totalSongs = selectedArtists.reduce((sum, a) => sum + a.songCount, 0);
+        const estimatedMinutes = Math.ceil(totalSongs / 60);
+
+        if (!confirm(`Verify all songs for ${selectedArtists.length} selected artist(s)?\n\n` +
+            `Total songs to verify: ${totalSongs}\n` +
+            `Estimated time: ~${estimatedMinutes} minute(s)\n\n` +
+            `Continue?`)) {
+            return;
+        }
+
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Verifying...';
+
+        // Sequentially verify each artist
+        let completedCount = 0;
+        let totalVerified = 0;
+        let totalNotFound = 0;
+
+        function verifyNextArtist() {
+            if (completedCount >= selectedArtists.length) {
+                // All done
+                let message = `Verified ${selectedArtists.length} artist(s):\n`;
+                message += `• ${totalVerified} songs verified\n`;
+                message += `• ${totalNotFound} songs not found`;
+
+                if (totalVerified > 0) {
+                    Toast.success(message);
+                } else {
+                    Toast.warning(message);
+                }
+
+                setTimeout(() => location.reload(), 2000);
+                return;
+            }
+
+            const artist = selectedArtists[completedCount];
+            const currentNum = completedCount + 1;
+
+            // Update button text to show progress
+            btn.innerHTML = `<i class="bi bi-arrow-clockwise spin"></i> ${currentNum}/${selectedArtists.length}`;
+
+            fetch(`/api/artists/${artist.mbid}/verify-all`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                totalVerified += data.verified || 0;
+                totalNotFound += data.not_found || 0;
+                completedCount++;
+                verifyNextArtist();
+            })
+            .catch(error => {
+                console.error(`Error verifying ${artist.name}:`, error);
+                completedCount++;
+                verifyNextArtist();
+            });
+        }
+
+        verifyNextArtist();
+    });
 });
 </script>
 
