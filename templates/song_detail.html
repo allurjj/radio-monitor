@@ -176,6 +176,98 @@
                                 <i class="bi bi-arrow-left"></i> Back to Songs
                             </a>
                         </div>
+
+                        <hr>
+
+                        <h5>Verification & Recording Status</h5>
+                        <table class="table table-borderless table-standard">
+                            <tr>
+                                <th width="30%" colspan="2">
+                                    <i class="bi bi-shield-check"></i> Artist-Song Verification
+                                </th>
+                            </tr>
+                            <tr>
+                                <td width="30%">MusicBrainz</td>
+                                <td>
+                                    {% if song.get('verified_mb') %}
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle"></i> Verified
+                                        </span>
+                                        {% if song.get('verification_mb_details') %}
+                                            {% set mb_details = song.verification_mb_details %}
+                                            {% if mb_details.get('recording_mbid') %}
+                                            <small class="text-muted ms-2">
+                                                Recording: <code>{{ mb_details.recording_mbid[:16] }}...</code>
+                                            {% endif %}
+                                            {% if mb_details.get('song_similarity') %}
+                                            <span class="text-muted"> ({{ (mb_details.song_similarity * 100)|round(1) }}% match)</span>
+                                            {% endif %}
+                                            </small>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="bi bi-question-circle"></i> Not Verified
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Lidarr</td>
+                                <td>
+                                    {% if song.get('verified_lidarr') %}
+                                        <span class="badge bg-primary">
+                                            <i class="bi bi-check-circle"></i> Verified
+                                        </span>
+                                        {% if song.get('verification_lidarr_details') %}
+                                            {% set lidarr_details = song.verification_lidarr_details %}
+                                            {% if lidarr_details.get('album_title') %}
+                                            <small class="text-muted ms-2">
+                                                Album: {{ lidarr_details.album_title }}
+                                            </small>
+                                            {% endif %}
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="bi bi-question-circle"></i> Not Verified
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th colspan="2">
+                                    <i class="bi bi-music-note-list"></i> Recording Validation
+                                </th>
+                            </tr>
+                            <tr>
+                                <td>Status</td>
+                                <td>
+                                    {% set validation_status = song.get('validation_status', 'unvalidated') %}
+                                    {% if validation_status == 'valid' %}
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle"></i> Validated
+                                        </span>
+                                        {% if song.get('validated_at') %}
+                                            <small class="text-muted ms-2">
+                                                {{ song.validated_at[:10] }}
+                                            </small>
+                                        {% endif %}
+                                        {% if song.get('validation_method') %}
+                                            <small class="text-muted">
+                                                ({{ song.validation_method }})
+                                            </small>
+                                        {% endif %}
+                                    {% elif validation_status == 'invalid' %}
+                                        <span class="badge bg-danger">
+                                            <i class="bi bi-x-circle"></i> Not Found
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="bi bi-question-circle"></i> Unvalidated
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </table>
                     </div>
                 </div>
             </div>

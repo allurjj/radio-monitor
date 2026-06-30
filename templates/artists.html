@@ -235,6 +235,13 @@
                                 <th class="sortable {% if sort == 'verified_count' %}sorted-{{ direction }}{% endif %}"
                                     onclick="sortByColumn('verified_count')">
                                     Verification
+                                    <i class="bi bi-info-circle text-muted ms-1 verification-legend-icon"
+                                       data-bs-toggle="popover"
+                                       data-bs-placement="top"
+                                       data-bs-html="true"
+                                       data-bs-trigger="hover focus"
+                                       title="Verification Status Legend"
+                                       data-bs-content="<strong>Icons:</strong><br>🎵 MusicBrainz verified songs<br>💿 Lidarr verified songs<br><br><strong>Numbers:</strong> Count per source (can overlap - a song may be verified by both)"></i>
                                     <span class="sort-indicator"></span>
                                 </th>
                                 <th class="sortable {% if sort == 'status' %}sorted-{{ direction }}{% endif %}"
@@ -629,6 +636,16 @@
 {% block custom_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize verification legend popovers
+    const verificationLegendIcons = document.querySelectorAll('.verification-legend-icon');
+    verificationLegendIcons.forEach(icon => {
+        new bootstrap.Popover(icon);
+        // Prevent click from triggering parent's sort
+        icon.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    });
+
     // Export CSV button
     document.getElementById('export-csv').addEventListener('click', function() {
         exportTableToCSV('artists');

@@ -15,6 +15,7 @@ Query Categories:
 import logging
 from datetime import datetime
 import re
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -711,20 +712,26 @@ def get_artist_songs(cursor, mbid, limit=50):
         List of song dicts
     """
     cursor.execute("""
-        SELECT
+        SELECT DISTINCT
             s.id,
             s.song_title,
             s.year,
             s.play_count,
             s.first_seen_at,
-            s.last_seen_at
+            s.last_seen_at,
+            s.validation_status,
+            COALESCE(v_mb.is_verified, 0) as verified_mb,
+            COALESCE(v_lidarr.is_verified, 0) as verified_lidarr
         FROM songs s
+        LEFT JOIN artist_song_verification v_mb ON s.id = v_mb.song_id AND v_mb.verification_source = 'musicbrainz'
+        LEFT JOIN artist_song_verification v_lidarr ON s.id = v_lidarr.song_id AND v_lidarr.verification_source = 'lidarr'
         WHERE s.artist_mbid = ?
         ORDER BY s.play_count DESC
         LIMIT ?
     """, (mbid, limit))
 
-    columns = ['id', 'song_title', 'year', 'play_count', 'first_seen_at', 'last_seen_at']
+    columns = ['id', 'song_title', 'year', 'play_count', 'first_seen_at', 'last_seen_at',
+               'validation_status', 'verified_mb', 'verified_lidarr']
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 def get_artist_play_history(cursor, mbid, days=30):
@@ -998,7 +1005,11 @@ def get_song_detail(cursor, song_id):
             s.play_count,
             s.first_seen_at,
             s.last_seen_at,
-            a.lidarr_imported_at
+            a.lidarr_imported_at,
+            s.verification_status,
+            s.validation_status,
+            s.validated_at,
+            s.validation_method
         FROM songs s
         LEFT JOIN artists a ON s.artist_mbid = a.mbid
         WHERE s.id = ?
@@ -1010,8 +1021,34 @@ def get_song_detail(cursor, song_id):
 
     columns = ['id', 'song_title', 'year', 'artist_name', 'artist_mbid',
                'artist_name_canonical', 'play_count', 'first_seen_at',
-               'last_seen_at', 'lidarr_imported_at']
+               'last_seen_at', 'lidarr_imported_at', 'verification_status',
+               'validation_status', 'validated_at', 'validation_method']
     result = dict(zip(columns, row))
+
+    # Get verification details from artist_song_verification table
+    cursor.execute("""
+        SELECT verification_source, is_verified, metadata_json
+        FROM artist_song_verification
+        WHERE song_id = ?
+    """, (song_id,))
+
+    verifications = cursor.fetchall()
+    for v in verifications:
+        source, is_verified, metadata_json = v
+        if source == 'musicbrainz':
+            result['verified_mb'] = bool(is_verified)
+            result['verification_mb_details'] = json.loads(metadata_json) if metadata_json else None
+        elif source == 'lidarr':
+            result['verified_lidarr'] = bool(is_verified)
+            result['verification_lidarr_details'] = json.loads(metadata_json) if metadata_json else None
+
+    # Set defaults for missing verification data
+    if 'verified_mb' not in result:
+        result['verified_mb'] = False
+        result['verification_mb_details'] = None
+    if 'verified_lidarr' not in result:
+        result['verified_lidarr'] = False
+        result['verification_lidarr_details'] = None
 
     # Add first station info separately
     result['first_seen_station'] = first_station_id

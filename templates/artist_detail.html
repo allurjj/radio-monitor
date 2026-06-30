@@ -174,6 +174,14 @@
                                             Last Seen
                                             <span class="sort-indicator"></span>
                                         </th>
+                                        <th class="sortable" data-column="recording" data-type="text">
+                                            Recording
+                                            <span class="sort-indicator"></span>
+                                        </th>
+                                        <th class="sortable" data-column="verification" data-type="text">
+                                            Verification
+                                            <span class="sort-indicator"></span>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -185,11 +193,46 @@
                                             <td class="text-center">{{ song.play_count }}</td>
                                             <td>{{ song.first_seen_at[:10] if song.first_seen_at else 'N/A' }}</td>
                                             <td>{{ song.last_seen_at[:10] if song.last_seen_at else 'Never' }}</td>
+                                            <td>
+                                                {% set validation_status = song.get('validation_status', 'unvalidated') %}
+                                                {% if validation_status == 'valid' %}
+                                                    <span class="badge bg-success">
+                                                        <i class="bi bi-check-circle"></i>
+                                                    </span>
+                                                {% elif validation_status == 'invalid' %}
+                                                    <span class="badge bg-danger">
+                                                        <i class="bi bi-x-circle"></i>
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">
+                                                        <i class="bi bi-question-circle"></i>
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <div class="verification-badges">
+                                                    {% if song.get('verified_mb') %}
+                                                        <span class="badge bg-success me-1" title="Verified by MusicBrainz">
+                                                            <i class="bi bi-music-note-list"></i> MB
+                                                        </span>
+                                                    {% endif %}
+                                                    {% if song.get('verified_lidarr') %}
+                                                        <span class="badge bg-primary me-1" title="Verified by Lidarr">
+                                                            <i class="bi bi-disc"></i> Lidarr
+                                                        </span>
+                                                    {% endif %}
+                                                    {% if not song.get('verified_mb') and not song.get('verified_lidarr') %}
+                                                        <span class="badge bg-secondary" title="Not yet verified">
+                                                            <i class="bi bi-question-circle"></i>
+                                                        </span>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
                                         </tr>
                                         {% endfor %}
                                     {% else %}
                                         <tr>
-                                            <td colspan="5" class="text-center text-muted py-5">
+                                            <td colspan="7" class="text-center text-muted py-5">
                                                 <i class="bi bi-inbox fs-1 d-block mb-3"></i>
                                                 <p>No songs found for this artist.</p>
                                             </td>
@@ -414,12 +457,23 @@ document.addEventListener('DOMContentLoaded', function() {
         const rows = tbody.querySelectorAll('tr');
         rows.forEach(row => {
             const cells = row.querySelectorAll('td');
-            if (cells.length >= 4) {
+            if (cells.length >= 5) {
+                // Helper to check badge status
+                const getBadgeStatus = (cell) => {
+                    const successBadge = cell.querySelector('.badge.bg-success');
+                    const dangerBadge = cell.querySelector('.badge.bg-danger');
+                    if (successBadge) return 'verified';
+                    if (dangerBadge) return 'not_found';
+                    return 'unverified';
+                };
+
                 songsData.push({
                     title: cells[0].textContent.trim(),
-                    plays: parseInt(cells[1].textContent.trim()) || 0,
-                    firstSeen: cells[2].textContent.trim(),
-                    lastSeen: cells[3].textContent.trim(),
+                    plays: parseInt(cells[2].textContent.trim()) || 0,
+                    firstSeen: cells[3].textContent.trim(),
+                    lastSeen: cells[4].textContent.trim(),
+                    recording: getBadgeStatus(cells[5]),
+                    verification: getBadgeStatus(cells[6]),
                     row: row
                 });
             }
