@@ -7,7 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.7] - 2026-06-30
+
+### Added
+- **Play History Retention** - Configurable retention policy for song_plays_daily table
+  - Default retention: 365 days (1 year) - preserves full year of analytics
+  - Scheduled cleanup: Daily at 4:25 AM via APScheduler
+  - Configurable via Settings → Database → Play History Retention (days)
+  - Settings template and wizard integration
+  - Max UI value: 3650 days (10 years)
+  - Graceful degradation: Uses 365-day default if setting missing
+  - Prevents unbounded growth of play history data
+- **Cleanup Now Button** - Manual cleanup trigger for play history
+  - API endpoint: `/api/settings/cleanup`
+  - Button in Settings → Database section
+  - Confirm dialog before cleanup with retention days shown
+  - Toast notification with results (deleted count, retention days)
+  - Allows immediate cleanup when lowering retention settings
+
+### Technical Details
+- New function: `cleanup_play_history(db, days=365)` in `radio_monitor/cleanup.py`
+- Updated `run_all_cleanup()` to include play history cleanup
+- Updated `add_cleanup_jobs()` to accept `play_history_cleanup_func` parameter
+- UI field: `play-history-retention` with min=1, max=3650
+
+---
+
 ## [1.5.6] - 2026-06-29
+
+### Added
+- **Play History Retention** - Configurable retention policy for song_plays_daily table (moved from v1.5.7)
 
 ### Fixed
 - **Releases endpoint for accurate song year extraction** - Added hybrid approach (releases → recordings fallback) to get accurate original release dates
