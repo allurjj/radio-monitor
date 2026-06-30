@@ -389,8 +389,16 @@ def lookup_artist_mbid(artist_name, db, song_title=None, user_agent=None, max_re
             else:
                 # Valid cached MBID found
                 logger.debug(f"Using cached MBID for {artist_name}: {artist_mbid}")
-                # Return cached MBID and the artist's name from database (year not available in cache)
-                return artist_mbid, artist.get('name'), None, 'cache'
+
+                # If song_title is provided, continue to combined lookup to get the year
+                # The cache doesn't store years, so we need to query MusicBrainz for the song's year
+                if song_title and len(song_title.strip()) >= 3:
+                    logger.debug(f"Artist cached but year needed - querying MusicBrainz for: {artist_name} - {song_title}")
+                    # Continue to combined lookup below (don't return yet)
+                    # We'll use the cached MBID in the combined lookup
+                else:
+                    # No song title provided - return cached data (year not available)
+                    return artist_mbid, artist.get('name'), None, 'cache'
         else:
             # Artist exists but MBID is NULL - retry lookup
             logger.info(f"Retrying MBID lookup for {artist_name}")
