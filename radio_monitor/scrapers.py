@@ -827,6 +827,7 @@ def scrape_all_stations(db=None, station_ids=None):
                     # Initialize verified name (will be set by MusicBrainz lookup)
                     primary_artist_verified_name = None
                     song_year = None  # Initialize year (will be set by MusicBrainz lookup)
+                    lookup_method = None  # Initialize lookup method (will be set by MusicBrainz lookup)
 
                     # Get MBID with manual override support
                     # Priority: Station MBID > Manual override > MusicBrainz API > PENDING
@@ -846,6 +847,7 @@ def scrape_all_stations(db=None, station_ids=None):
                             if mbid_with_source:
                                 primary_artist_mbid = mbid_with_source
                                 primary_artist_verified_name = None  # Override doesn't provide verified name
+                                lookup_method = 'override'  # Manual override doesn't count as recording-level match
                             elif source == 'musicbrainz_needed':
                                 # No override found, try MusicBrainz lookup
                                 try:
@@ -860,6 +862,7 @@ def scrape_all_stations(db=None, station_ids=None):
                                 except Exception as e:
                                     logger.warning(f"MBID lookup failed for '{primary_artist}': {e}")
                                     primary_artist_verified_name = None
+                                    lookup_method = 'not_found'
                         finally:
                             cursor.close()
 
@@ -963,6 +966,34 @@ def scrape_all_stations(db=None, station_ids=None):
                                 logger.debug(f"Marked song {play_id} as validated via MBID during scrape")
                             except Exception as e:
                                 logger.warning(f"Failed to mark song {play_id} as validated: {e}")
+
+                        # Set VERIFIED_MB status if we got a perfect MusicBrainz combined lookup during scrape
+                        # This is more robust than the verify button because it uses recording-level matching
+                        if lookup_method in ['combined', 'cache'] and not primary_artist_mbid.startswith('PENDING-'):
+                            try:
+                                cursor = db.get_cursor()
+                                from radio_monitor.database.crud import update_song_verification_status, add_song_verification
+                                import json
+
+                                # Update verification status on songs table
+                                update_song_verification_status(cursor, play_id, 'VERIFIED_MB')
+                                logger.debug(f"Set VERIFIED_MB status for song {play_id} during scrape (lookup_method: {lookup_method})")
+
+                                # Add record to artist_song_verification table
+                                metadata = {
+                                    'recording_mbid': None,  # We don't have the specific recording MBID from lookup_artist_mbid
+                                    'artist_credit': primary_artist_verified_name or primary_artist,
+                                    'song_similarity': 100.0,  # Perfect match from combined lookup
+                                    'verification_method': f'initial_scrape_{lookup_method}'
+                                }
+                                add_song_verification(cursor, play_id, 'musicbrainz', True, json.dumps(metadata))
+                                logger.debug(f"Added verification record for song {play_id} (source: musicbrainz, method: {lookup_method})")
+
+                                # Commit the verification status updates
+                                db.conn.commit() if hasattr(db, 'conn') else None
+                                cursor.close()
+                            except Exception as e:
+                                logger.warning(f"Failed to set verification status for song {play_id}: {e}")
                     else:
                         # Song already exists - check if we should mark it as validated
                         # This handles the case where validation was previously disabled or skipped
