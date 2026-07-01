@@ -48,13 +48,19 @@ def _initialize_schema(cursor, conn, db_path, SCHEMA_VERSION):
         db_path: Path to database file
         SCHEMA_VERSION: Current schema version (from database module)
     """
+    print(f"[_initialize_schema] Starting schema initialization...")
+    print(f"[_initialize_schema] db_path: {db_path}")
+    print(f"[_initialize_schema] SCHEMA_VERSION: {SCHEMA_VERSION}")
+
     # Check if schema_version table exists
     cursor.execute("""
         SELECT name FROM sqlite_master
         WHERE type='table' AND name='schema_version'
     """)
+    schema_version_table_exists = cursor.fetchone()
+    print(f"[_initialize_schema] schema_version table exists: {schema_version_table_exists is not None}")
 
-    if not cursor.fetchone():
+    if not schema_version_table_exists:
         # No schema_version table - need to check if this is legacy DB
         cursor.execute("""
             SELECT name FROM sqlite_master
@@ -71,8 +77,12 @@ def _initialize_schema(cursor, conn, db_path, SCHEMA_VERSION):
         # Schema version table exists - check version
         cursor.execute("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1")
         result = cursor.fetchone()
+        print(f"[_initialize_schema] Current schema version: {result[0] if result else 'None'}")
 
         if not result or result[0] < SCHEMA_VERSION:
+            print(f"[_initialize_schema] Migration needed: {result[0] if result else 'None'} < {SCHEMA_VERSION}")
+            current_version = result[0] if result else 0
+            print(f"[_initialize_schema] current_version: {current_version}")
             # Need to upgrade to latest schema version
             current_version = result[0] if result else 0
 
@@ -164,8 +174,9 @@ def _initialize_schema(cursor, conn, db_path, SCHEMA_VERSION):
             if current_version < 23:
                 _migrate_to_v23(cursor, conn)
 
-            # REPAIR: Ensure all expected columns exist (defensive check for corrupted migrations)
-            _repair_missing_columns(cursor, conn)
+    # REPAIR: Ensure all expected columns exist (defensive check for corrupted migrations)
+    # This runs unconditionally to fix any missing columns, even if schema version is correct
+    _repair_missing_columns(cursor, conn)
 
 
 def _repair_missing_columns(cursor, conn):
@@ -177,35 +188,53 @@ def _repair_missing_columns(cursor, conn):
 
     Ensures v15+ columns exist in playlists and manual_playlists tables.
     """
+    print("Running _repair_missing_columns to ensure all expected columns exist...")
     try:
         # Check playlists table for v15 columns (Various Artists fallback)
         cursor.execute("PRAGMA table_info(playlists)")
         playlists_columns = {row[1] for row in cursor.fetchall()}
+        print(f"  playlists table columns: {sorted(playlists_columns)}")
 
         if 'enable_various_artists_fallback' not in playlists_columns:
+            print("  - Missing enable_various_artists_fallback in playlists table - adding it")
             logger.warning("Missing enable_various_artists_fallback in playlists table - adding it")
             cursor.execute("ALTER TABLE playlists ADD COLUMN enable_various_artists_fallback BOOLEAN DEFAULT 0")
+        else:
+            print("  - enable_various_artists_fallback already exists in playlists table")
 
         if 'various_artists_timeout_ms' not in playlists_columns:
+            print("  - Missing various_artists_timeout_ms in playlists table - adding it")
             logger.warning("Missing various_artists_timeout_ms in playlists table - adding it")
             cursor.execute("ALTER TABLE playlists ADD COLUMN various_artists_timeout_ms INTEGER DEFAULT 5000")
+        else:
+            print("  - various_artists_timeout_ms already exists in playlists table")
 
         # Check manual_playlists table for v15 columns (Various Artists fallback)
         cursor.execute("PRAGMA table_info(manual_playlists)")
         manual_playlists_columns = {row[1] for row in cursor.fetchall()}
+        print(f"  manual_playlists table columns: {sorted(manual_playlists_columns)}")
 
         if 'enable_various_artists_fallback' not in manual_playlists_columns:
+            print("  - Missing enable_various_artists_fallback in manual_playlists table - adding it")
             logger.warning("Missing enable_various_artists_fallback in manual_playlists table - adding it")
             cursor.execute("ALTER TABLE manual_playlists ADD COLUMN enable_various_artists_fallback BOOLEAN DEFAULT 0")
+        else:
+            print("  - enable_various_artists_fallback already exists in manual_playlists table")
 
         if 'various_artists_timeout_ms' not in manual_playlists_columns:
+            print("  - Missing various_artists_timeout_ms in manual_playlists table - adding it")
             logger.warning("Missing various_artists_timeout_ms in manual_playlists table - adding it")
             cursor.execute("ALTER TABLE manual_playlists ADD COLUMN various_artists_timeout_ms INTEGER DEFAULT 5000")
+        else:
+            print("  - various_artists_timeout_ms already exists in manual_playlists table")
 
         conn.commit()
+        print("  - Repair complete and committed")
 
     except Exception as e:
+        print(f"  - ERROR repairing missing columns: {e}")
         logger.error(f"Error repairing missing columns: {e}")
+        raise
 
 
 def _create_new_schema(cursor, conn, SCHEMA_VERSION):

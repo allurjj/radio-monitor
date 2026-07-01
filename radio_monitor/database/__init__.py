@@ -718,11 +718,21 @@ class RadioDatabase:
         finally:
             cursor.close()
 
-    def get_random_songs(self, station_ids=None, min_plays=1, max_plays=None, days=None, limit=50):
-        """Get random songs from filtered results"""
+    def get_random_songs(self, station_ids=None, min_plays=1, max_plays=None, days=None, year_from=None, year_to=None, limit=50):
+        """Get random songs from filtered results
+
+        Args:
+            station_ids: Filter by stations (None or empty list = all stations)
+            min_plays: Minimum play count (default: 1)
+            max_plays: Maximum play count (default: None = no limit)
+            days: Only include plays from last N days (None = all time)
+            year_from: Only include songs from this year onwards (None = all years)
+            year_to: Only include songs up to this year (None = all years)
+            limit: Maximum number of results
+        """
         cursor = self.conn.cursor()
         try:
-            return queries.get_random_songs(cursor, station_ids, min_plays, max_plays, days, limit)
+            return queries.get_random_songs(cursor, station_ids, min_plays, max_plays, days, year_from, year_to, limit)
         finally:
             cursor.close()
 
