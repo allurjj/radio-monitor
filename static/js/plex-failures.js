@@ -136,9 +136,6 @@ class PlexFailuresView {
                     <td>
                         ${!failure.resolved ? `
                             <div class="btn-group btn-group-sm">
-                                <button class="btn btn-primary" onclick="spotiFLAC.openDownloadModal(${failure.id}, '${this.escapeHtml(song.song_title)}', '${this.escapeHtml(song.artist_name)}')" title="Download with SpotiFLAC">
-                                    <i class="bi bi-cloud-download"></i>
-                                </button>
                                 <button class="btn btn-outline-primary" onclick="plexFailures.retryOne(${failure.id})" title="Retry Match">
                                     <i class="bi bi-arrow-clockwise"></i>
                                 </button>

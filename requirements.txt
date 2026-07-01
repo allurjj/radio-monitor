@@ -18,12 +18,3 @@ APScheduler==3.10.4
 musicbrainzngs==0.7.1
 rapidfuzz==3.6.1
 plexapi==4.15.0
-
-# SpotiFLAC Integration
-# Real SpotiFLAC Python module integration
-mutagen>=1.47.0  # Audio metadata handling (for tagging FLAC files)
-pyotp>=2.9.0  # One-time password generation (for authentication)
-yt-dlp>=2026.6.9  # YouTube downloader (for YouTube Music downloads) - FIXED VERSION
-pycryptodome>=3.19.0  # Encryption (for Qobuz/Amazon DRM)
-spotipy>=2.23.0  # Spotify API client (for metadata lookup)
-certifi>=2024.0.0  # SSL certificates for HTTPS requests

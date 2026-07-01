@@ -156,6 +156,26 @@ options = [
     '--hidden-import=spotipy',             # Spotify API client
     '--hidden-import=spotipy.oauth2',      # Spotify OAuth2
 
+    # SpotiFLAC v1.3.1 - Dynamic API discovery module
+    '--hidden-import=SpotiFLAC',           # Main SpotiFLAC module
+    '--hidden-import=SpotiFLAC.providers', # Provider base classes
+    '--hidden-import=SpotiFLAC.providers.tidal',   # Tidal provider (async)
+    '--hidden-import=SpotiFLAC.providers.qobuz',   # Qobuz provider (async)
+    '--hidden-import=SpotiFLAC.providers.amazon',  # Amazon provider (async)
+    '--hidden-import=SpotiFLAC.providers.deezer',  # Deezer provider (async)
+    '--hidden-import=SpotiFLAC.providers.youtube', # YouTube provider
+    '--hidden-import=SpotiFLAC.core',             # Core module
+    '--hidden-import=SpotiFLAC.core.endpoints',   # Dynamic endpoint discovery
+    '--hidden-import=SpotiFLAC.core.models',      # TrackMetadata models
+    '--hidden-import=SpotiFLAC.core.http',        # HTTP client wrappers
+    # Async dependencies for SpotiFLAC
+    '--hidden-import=aiofiles',            # Async file operations
+    '--hidden-import=httpx',               # Async HTTP client
+    '--hidden-import=anyio',               # Async compatibility layer
+    '--hidden-import=httpcore',            # HTTP core for httpx
+    '--hidden-import=pyotp',               # One-time password generation
+    '--hidden-import=certifi',             # SSL certificates
+
     '--hidden-import=email',
     '--hidden-import=email.mime',
     '--hidden-import=email.mime.text',

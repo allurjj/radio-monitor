@@ -22,7 +22,6 @@ Tables:
 - playlist_builder_state: In-progress playlist builder state (v12)
 - blocklist: Blocked artists and songs (v14)
 - plex_manual_overrides: Manual Plex track matching overrides (v16)
-- spotiflac_downloads: SpotiFLAC download job tracking (v19)
 - artist_song_verification: Song verification tracking (v21)
 - validation tracking: validated_at, validation_status, validation_method (v22)
 - song year: year column for release year tracking (v23)
@@ -378,30 +377,6 @@ def create_tables(cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_plex_overrides_song_id ON plex_manual_overrides(song_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_plex_overrides_plex_key ON plex_manual_overrides(plex_track_key)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_plex_overrides_active ON plex_manual_overrides(is_active)")
-
-    # 18. spotiflac_downloads table (v19)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS spotiflac_downloads (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            plex_match_failure_id INTEGER,
-            song_title TEXT NOT NULL,
-            artist_name TEXT NOT NULL,
-            album_name TEXT,
-            spotify_url TEXT,
-            download_status TEXT NOT NULL DEFAULT 'starting',
-            service_used TEXT,
-            file_path TEXT,
-            file_size_mb REAL,
-            error_message TEXT,
-            started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            completed_at TIMESTAMP,
-            FOREIGN KEY (plex_match_failure_id) REFERENCES plex_match_failures(id) ON DELETE SET NULL
-        )
-    """)
-
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_spotiflac_downloads_plex_failure_id ON spotiflac_downloads(plex_match_failure_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_spotiflac_downloads_status ON spotiflac_downloads(download_status)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_spotiflac_downloads_started_at ON spotiflac_downloads(started_at)")
 
     # 19. artist_song_verification table (v21)
     cursor.execute("""

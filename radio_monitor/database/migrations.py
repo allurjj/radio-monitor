@@ -20,8 +20,7 @@ This module handles all database migrations:
 - v15 → v16 (add Plex manual overrides system)
 - v16 → v17 (fix NULL artist_mbid values and clean up orphaned artists)
 - v17 → v18 (add retry_match_succeeded column)
-- v18 → v19 (add spotiflac_downloads table)
-- v19 → v20 (add match_key column for duplicate detection)
+- v18 → v20 (add match_key column for duplicate detection)
 - v20 → v21 (add song verification tracking)
 - v21 → v22 (add recording-level validation tracking)
 - v22 → v23 (add year column to songs table and year range filtering to playlists)
@@ -153,10 +152,6 @@ def _initialize_schema(cursor, conn, db_path, SCHEMA_VERSION):
             # Migrate to version 18 (add retry_match_succeeded column)
             if current_version < 18:
                 _migrate_to_v18(cursor, conn)
-
-            # Migrate to version 19 (add spotiflac_downloads table)
-            if current_version < 19:
-                _migrate_to_v19(cursor, conn)
 
             # Migrate to version 20 (add match_key column for duplicate detection)
             if current_version < 20:
@@ -1399,40 +1394,8 @@ def _migrate_to_v18(cursor, conn):
     print("Migration to version 18 complete!")
 
 
-def _migrate_to_v19(cursor, conn):
-    """Migrate database from v17 to v18 (add spotiflac_downloads table)
-
-    This migration adds tracking for SpotiFLAC download jobs:
-    - spotiflac_downloads table with job tracking
-    - Links to plex_match_failures for download context
-    - Tracks download status, service used, file paths
-    """
-    from pathlib import Path
-
-    print("Migrating from schema v18 to v19...")
-    print("  - Adding spotiflac_downloads table...")
-
-    # Execute migration SQL
-    migration_file = Path(__file__).parent / 'migrations' / 'migrate_v18_to_v19.sql'
-    with open(migration_file, 'r') as f:
-        sql = f.read()
-
-    cursor.executescript(sql)
-
-    print("  - Added spotiflac_downloads table")
-
-    # Log migration completion
-    cursor.execute("""
-        INSERT INTO activity_log (event_type, title, description, event_severity, source)
-        VALUES ('system', 'success', 'Database Migration', 'Migrated from schema v18 to v19: added spotiflac_downloads table for tracking SpotiFLAC download jobs', 'system')
-    """)
-
-    conn.commit()
-    print("Migration to version 19 complete!")
-
-
 def _migrate_to_v20(cursor, conn):
-    """Migrate database from v19 to v20 (add match_key column)
+    """Migrate database from v18 to v20 (add match_key column)
 
     This migration adds aggressive normalization for duplicate detection:
     - match_key column to artists table
@@ -1441,7 +1404,7 @@ def _migrate_to_v20(cursor, conn):
     """
     from pathlib import Path
 
-    print("Migrating from schema v19 to v20...")
+    print("Migrating from schema v18 to v20...")
     print("  - Adding match_key column for duplicate detection...")
 
     # Check if match_key column already exists (for fresh databases)
@@ -1450,7 +1413,7 @@ def _migrate_to_v20(cursor, conn):
     column_names = [col[1] for col in columns]
 
     if 'match_key' not in column_names:
-        # Add the column for existing v19 databases
+        # Add the column for existing v18 databases
         print("  - Adding match_key column to existing table...")
         cursor.execute("ALTER TABLE artists ADD COLUMN match_key TEXT")
     else:
@@ -1490,7 +1453,7 @@ def _migrate_to_v20(cursor, conn):
     # Log migration completion
     cursor.execute("""
         INSERT INTO activity_log (event_type, title, description, event_severity, source)
-        VALUES ('system', 'success', 'Database Migration', 'Migrated from schema v19 to v20: added match_key column for aggressive duplicate detection', 'system')
+        VALUES ('system', 'success', 'Database Migration', 'Migrated from schema v18 to v20: added match_key column for aggressive duplicate detection', 'system')
     """)
 
     conn.commit()

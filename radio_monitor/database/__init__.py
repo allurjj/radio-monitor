@@ -57,7 +57,6 @@ class RadioDatabase:
     - playlist_builder_state: In-progress playlist builder state (v12)
     - blocklist: Blocked artists and songs (v14)
     - plex_manual_overrides: Manual Plex track matching overrides (v16)
-    - spotiflac_downloads: SpotiFLAC download job tracking (v19)
     - artist_song_verification: Song verification tracking (v21)
     - recording_validation: Recording-level validation tracking (v22)
     - song_year: Song release year tracking (v23)
