@@ -12,6 +12,10 @@ from mutagen.id3 import PictureType
 from mutagen.mp4 import MP4, MP4Cover
 from pathlib import Path
 
+# Suppress urllib3 SSL warnings for external API calls
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 # Rate limiting protection (shared with Tidal)
 _last_api_call_time = 0
 _min_delay_between_calls = 2.0  # Minimum seconds between API calls
@@ -87,6 +91,8 @@ class AmazonDownloader:
     def __init__(self, timeout: float = 120.0):
         self.session = requests.Session()
         self.session.timeout = timeout
+        # Disable SSL verification for external API calls (certificate chain issues)
+        self.session.verify = False
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
         })

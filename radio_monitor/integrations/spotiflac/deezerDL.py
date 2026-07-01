@@ -3,9 +3,15 @@ import asyncio
 from mutagen.flac import FLAC
 import os
 
+# Suppress urllib3 SSL warnings for external API calls
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 class DeezerDownloader:
     def __init__(self):
         self.session = requests.Session()
+        # Disable SSL verification for external API calls (certificate chain issues)
+        self.session.verify = False
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
         })

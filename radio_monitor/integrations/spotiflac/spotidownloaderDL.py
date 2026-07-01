@@ -6,6 +6,10 @@ from typing import Callable
 from mutagen.flac import FLAC, Picture
 from mutagen.id3 import PictureType
 
+# Suppress urllib3 SSL warnings for external API calls
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 def sanitize_filename(value: str) -> str:
     return re.sub(r'[\\/*?:"<>|]', "", value).strip()
 
@@ -22,6 +26,8 @@ class SpotiDownloader:
     def __init__(self, timeout: float = 15.0):
         self.session = requests.Session()
         self.session.timeout = timeout
+        # Disable SSL verification for external API calls (certificate chain issues)
+        self.session.verify = False
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         })

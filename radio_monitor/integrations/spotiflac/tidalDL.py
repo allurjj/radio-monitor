@@ -14,6 +14,10 @@ from mutagen.flac import FLAC, Picture
 from mutagen.id3 import PictureType
 from pathlib import Path
 
+# Suppress urllib3 SSL warnings for external API calls
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 # Rate limiting protection
 _last_api_call_time = 0
 _min_delay_between_calls = 2.0  # Minimum seconds between API calls
@@ -191,6 +195,8 @@ class TidalDownloader:
     def __init__(self, timeout: float = 15.0):
         self.session = requests.Session()
         self.session.timeout = timeout
+        # Disable SSL verification for external API calls (certificate chain issues)
+        self.session.verify = False
         self.session.headers.update({
             "User-Agent": get_random_user_agent()
         })

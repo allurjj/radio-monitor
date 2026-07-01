@@ -9,6 +9,10 @@ import requests
 from mutagen.flac import FLAC, Picture
 from mutagen.id3 import PictureType
 
+# Suppress urllib3 SSL warnings for external API calls
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 def _sanitize_filename(value: str, fallback: str = "Unknown") -> str:
     if not value:
         return fallback
@@ -65,6 +69,8 @@ class QobuzDownloader:
         self.app_id = app_id
         self.session = requests.Session()
         self.session.timeout = timeout
+        # Disable SSL verification for external API calls (certificate chain issues)
+        self.session.verify = False
         self.progress_callback = lambda current, total: None
 
     def set_progress_callback(self, callback: Callable[[int, int], None]) -> None:
