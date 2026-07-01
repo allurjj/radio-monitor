@@ -1,14 +1,15 @@
+"""
+Working YouTube Downloader using yt-dlp directly.
+
+This replaces the broken SpotubeDL and Cobalt APIs with yt-dlp.
+"""
+
 import os
 import re
-import requests
+import yt_dlp
 from typing import Callable
-from urllib.parse import quote
 from mutagen.id3 import ID3, ID3NoHeaderError, TIT2, TPE1, TALB, TPE2, TDRC, TRCK, TPOS, APIC, TPUB, WXXX, COMM
 from mutagen.mp3 import MP3
-
-# Suppress urllib3 SSL warnings for external API calls
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def sanitize_filename(value: str) -> str:
     return re.sub(r'[\\/*?:"<>|]', "", value).strip()
@@ -20,28 +21,35 @@ def safe_int(value) -> int:
         return 0
 
 class YouTubeDownloader:
+    """
+    YouTube downloader using yt-dlp library.
+
+    This replaces the old SpotubeDL/Cobalt approach which no longer works.
+    """
+
     def __init__(self, timeout: float = 120.0):
-        self.session = requests.Session()
-        self.session.timeout = timeout
-        # Disable SSL verification for external API calls (certificate chain issues)
-        self.session.verify = False
-        self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
-        })
+        self.timeout = timeout
         self.progress_callback: Callable[[int, int], None] = None
 
     def set_progress_callback(self, callback: Callable[[int, int], None]) -> None:
         self.progress_callback = callback
 
     def get_youtube_url_from_spotify(self, spotify_track_id: str, track_name: str = None, artist_name: str = None) -> str:
-        print("Fetching YouTube URL via Songlink HTML...")
+        """
+        Get YouTube URL via Songlink (the working method from earlier tests).
+        """
+        import requests
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
         url = f"https://song.link/s/{spotify_track_id}"
         headers = {"User-Agent": "Mozilla/5.0", "Accept-Language": "en-US,en;q=0.9"}
 
         try:
-            # ATTEMPT 1: Try to extract from Songlink
-            resp = self.session.get(url, headers=headers, timeout=10)
+            # Try to extract from Songlink
+            session = requests.Session()
+            session.verify = False
+            resp = session.get(url, headers=headers, timeout=10)
             resp.raise_for_status()
             html = resp.text
 
@@ -60,188 +68,207 @@ class YouTubeDownloader:
         except Exception as e:
             print(f"[!] Error accessing Songlink: {e}")
 
-        # ATTEMPT 2: Direct YouTube Fallback (Text Search)
-        print("Starting direct YouTube search (Fallback)...")
+        # Fallback: direct YouTube search (scrape YouTube search results page)
         if track_name and artist_name:
-            yt_url = self._search_youtube_direct(track_name, artist_name)
-            if yt_url:
-                return yt_url
-                
-        raise Exception("Failed to resolve YouTube URL: Songlink failed and direct search did not find the track.")
+            from urllib.parse import quote
+            query = quote(f"{track_name} {artist_name}")
+            search_url = f"https://www.youtube.com/results?search_query={query}"
 
-    def _search_youtube_direct(self, track_name: str, artist_name: str) -> str:
-        """
-        Performs a silent search on YouTube and grabs the first video ID.
-        This prevents reliance on Songlink for old/famous tracks.
-        """
-        # "audio" helps filter out music videos with long intros
-        query = quote(f"{track_name} {artist_name} audio")
-        search_url = f"https://www.youtube.com/results?search_query={query}"
-        
-        try:
-            resp = self.session.get(search_url, timeout=10)
-            resp.raise_for_status()
-            
-            # YouTube stores search data inside a JS variable called ytInitialData
-            # This regex captures the first Video ID that appears on the search page
-            match = re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', resp.text)
-            if match:
-                video_id = match.group(1)
-                yt_url = f"https://music.youtube.com/watch?v={video_id}"
-                print(f"[OK] Video found via YouTube Search: {yt_url}")
-                return yt_url
-                
-        except Exception as e:
-            print(f"Error in direct YouTube search: {e}")
-            
-        return None
-
-    def _extract_video_id(self, url: str) -> str:
-        match = re.search(r'(?:v=|/v/|youtu\.be/|/embed/)([a-zA-Z0-9_-]{11})', url)
-        return match.group(1) if match else None
-
-    def _request_spotube_dl(self, video_id: str, audio_format="mp3", bitrate="320"):
-        engines = ["v1", "v3", "v2"]
-        for engine in engines:
-            api_url = f"https://spotubedl.com/api/download/{video_id}?engine={engine}&format={audio_format}&quality={bitrate}"
             try:
-                print(f"Fetching from SpotubeDL (Engine: {engine})...")
-                resp = self.session.get(api_url, timeout=15)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    download_url = data.get("url")
-                    
-                    if download_url:
-                        if download_url.startswith("/"):
-                            download_url = "https://spotubedl.com" + download_url
-                            
-                        return download_url
-            except Exception:
-                continue
-        return None
+                session = requests.Session()
+                session.verify = False
+                resp = session.get(search_url, timeout=10)
+                resp.raise_for_status()
 
-    def _request_cobalt(self, video_id: str, audio_format="mp3", bitrate="320"):
-        print("SpotubeDL failed. Trying Cobalt API (Fallback)...")
-        api_url = "https://api.qwkuns.me"
-        payload = {
-            "url": f"https://music.youtube.com/watch?v={video_id}",
-            "audioFormat": audio_format,
-            "audioBitrate": str(bitrate),
-            "downloadMode": "audio",
-            "filenameStyle": "basic",
-            "disableMetadata": True
-        }
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        }
-        try:
-            resp = self.session.post(api_url, json=payload, headers=headers, timeout=15)
-            if resp.status_code == 200:
-                data = resp.json()
-                if data.get("status") in ["tunnel", "redirect"] and data.get("url"):
-                    return data["url"]
-        except Exception:
-            pass
-        return None
+                # YouTube stores search data inside a JS variable called ytInitialData
+                match = re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', resp.text)
+                if match:
+                    video_id = match.group(1)
+                    yt_url = f"https://music.youtube.com/watch?v={video_id}"
+                    print(f"[OK] Video found via YouTube Search: {yt_url}")
+                    return yt_url
+            except Exception as e:
+                print(f"Error in direct YouTube search: {e}")
+
+        raise Exception("Failed to resolve YouTube URL")
 
     def download_by_spotify_id(self, spotify_track_id, **kwargs):
+        """
+        Download track using yt-dlp.
+
+        Process:
+        1. Get YouTube URL via Songlink/scraping
+        2. Download the audio using yt-dlp
+        3. Convert to MP3 and embed metadata
+        """
         output_dir = kwargs.get("output_dir", ".")
         os.makedirs(output_dir, exist_ok=True)
-        
-        # Passing names in case Songlink fails!
-        yt_url = self.get_youtube_url_from_spotify(
-            spotify_track_id,
-            track_name=kwargs.get("spotify_track_name"),
-            artist_name=kwargs.get("spotify_artist_name")
-        )
-        
-        video_id = self._extract_video_id(yt_url)
-        if not video_id:
-            raise Exception("Could not extract video ID.")
 
-        safe_title = sanitize_filename(kwargs.get("spotify_track_name", "Unknown"))
-        safe_artist = sanitize_filename(kwargs.get("spotify_artist_name", "Unknown").split(",")[0])
-        
-        expected_filename = f"{safe_artist} - {safe_title}.mp3" 
+        track_name = kwargs.get("spotify_track_name", "Unknown")
+        artist_name = kwargs.get("spotify_artist_name", "Unknown").split(",")[0]
+
+        safe_title = sanitize_filename(track_name)
+        safe_artist = sanitize_filename(artist_name)
+
+        expected_filename = f"{safe_artist} - {safe_title}.mp3"
         expected_path = os.path.join(output_dir, expected_filename)
 
         if os.path.exists(expected_path) and os.path.getsize(expected_path) > 0:
             print(f"File already exists: {expected_path}")
             return expected_path
 
-        download_url = self._request_spotube_dl(video_id, "mp3", "320")
-        if not download_url:
-            download_url = self._request_cobalt(video_id, "mp3", "320")
-            
-        if not download_url:
-            raise Exception("All YouTube download APIs failed.")
-
-        print("Downloading track from YouTube...")
-        with self.session.get(download_url, stream=True) as r:
-            r.raise_for_status()
-            total = int(r.headers.get("Content-Length") or 0)
-            downloaded = 0
-            with open(expected_path, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        if self.progress_callback:
-                            self.progress_callback(downloaded, total)
-        print()
-
-        self.embed_metadata(
-            expected_path, 
-            kwargs.get("spotify_track_name"), kwargs.get("spotify_artist_name"),
-            kwargs.get("spotify_album_name"), kwargs.get("spotify_album_artist"),
-            kwargs.get("spotify_release_date"), kwargs.get("spotify_track_number", 1),
-            kwargs.get("spotify_total_tracks", 1), kwargs.get("spotify_disc_number", 1),
-            kwargs.get("spotify_total_discs", 1), kwargs.get("spotify_cover_url"),
-            kwargs.get("spotify_publisher"), kwargs.get("spotify_url") 
+        # Get YouTube URL using Songlink (works!) or direct search (fallback)
+        yt_url = self.get_youtube_url_from_spotify(
+            spotify_track_id,
+            track_name=track_name,
+            artist_name=artist_name
         )
 
-        return expected_path
+        print(f"Using YouTube URL: {yt_url}")
+
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '320',
+            }],
+            'outtmpl': os.path.join(output_dir, f"{safe_artist} - {safe_title}.%(ext)s"),
+            'quiet': False,
+            'no_warnings': False,
+            'nocheckcertificate': True,
+            # Enhanced YouTube options to bypass restrictions
+            'extractor_args': {
+                'youtube': [
+                    'player_client=android,androidembed',
+                    'player_skip=configs,js,webpage,age_gate',
+                ]
+            },
+            # Use mobile user agent
+            'http_headers': {
+                'User-Agent': 'com.google.android.youtube/17.36.4 (Linux; U; Android 12) gzip',
+            },
+            # Additional options
+            'ignoreerrors': True,
+            'retries': 10,
+            'fragment_retries': 10,
+            # Progress hook
+            'progress_hooks': [self._yt_dlp_progress_hook] if self.progress_callback else [],
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # Download the video using the direct URL
+                info = ydl.extract_info(yt_url, download=True)
+
+                # Find the downloaded file - yt-dlp may have named it differently
+                from glob import glob
+                potential_files = list(glob(os.path.join(output_dir, "*.mp3")))
+
+                # Try to find the most recent file matching our pattern
+                downloaded_path = None
+                for f in sorted(potential_files, key=os.path.getmtime, reverse=True):
+                    if safe_artist in f and safe_title in f:
+                        downloaded_path = f
+                        break
+
+                # Fallback to expected path
+                if not downloaded_path and os.path.exists(expected_path):
+                    downloaded_path = expected_path
+
+                # Last resort: use the most recently modified MP3
+                if not downloaded_path and potential_files:
+                    downloaded_path = sorted(potential_files, key=os.path.getmtime, reverse=True)[0]
+
+                if not downloaded_path or not os.path.exists(downloaded_path):
+                    raise Exception(f"Downloaded file not found. Expected: {expected_path}. Available: {potential_files}")
+
+                # Rename to expected filename if needed
+                if downloaded_path != expected_path:
+                    try:
+                        os.rename(downloaded_path, expected_path)
+                        downloaded_path = expected_path
+                        print(f"Renamed to: {downloaded_path}")
+                    except:
+                        pass  # Keep the original name if rename fails
+
+                print(f"Downloaded to: {downloaded_path}")
+
+                # Embed metadata
+                self.embed_metadata(
+                    downloaded_path,
+                    kwargs.get("spotify_track_name"),
+                    kwargs.get("spotify_artist_name"),
+                    kwargs.get("spotify_album_name"),
+                    kwargs.get("spotify_album_artist"),
+                    kwargs.get("spotify_release_date"),
+                    kwargs.get("spotify_track_number", 1),
+                    kwargs.get("spotify_total_tracks", 1),
+                    kwargs.get("spotify_disc_number", 1),
+                    kwargs.get("spotify_total_discs", 1),
+                    kwargs.get("spotify_cover_url"),
+                    kwargs.get("spotify_publisher"),
+                    kwargs.get("spotify_url")
+                )
+
+                return downloaded_path
+
+        except Exception as e:
+            raise Exception(f"yt-dlp download failed: {e}")
+
+    def _yt_dlp_progress_hook(self, d):
+        """Progress hook for yt-dlp."""
+        if self.progress_callback and d['status'] == 'downloading':
+            total = d.get('total', 0) or d.get('total_bytes_estimate', 0)
+            downloaded = d.get('downloaded_bytes', 0)
+            self.progress_callback(downloaded, total)
 
     def embed_metadata(self, filepath, title, artist, album, album_artist, date, track_num, total_tracks, disc_num, total_discs, cover_url, publisher=None, url=None):
         print("Embedding metadata and cover art...")
         try:
             try:
                 audio = ID3(filepath)
-                audio.delete() 
+                audio.delete()
             except ID3NoHeaderError:
                 audio = ID3()
-            
+
             if title: audio.add(TIT2(encoding=3, text=str(title)))
             if artist: audio.add(TPE1(encoding=3, text=str(artist)))
             if album: audio.add(TALB(encoding=3, text=str(album)))
             if album_artist: audio.add(TPE2(encoding=3, text=str(album_artist)))
             if date: audio.add(TDRC(encoding=3, text=str(date)))
-            
+
             audio.add(TRCK(encoding=3, text=f"{safe_int(track_num)}/{safe_int(total_tracks)}"))
             audio.add(TPOS(encoding=3, text=f"{safe_int(disc_num)}/{safe_int(total_discs)}"))
 
-            if publisher: 
+            if publisher:
                 audio.add(TPUB(encoding=3, text=[str(publisher)]))
-            if url: 
+            if url:
                 audio.add(WXXX(encoding=3, desc=u'', url=str(url)))
-                
+
             audio.add(COMM(
-                encoding=3, 
-                lang='eng', 
-                desc=u'', 
-                text=[u"https://github.com/ShuShuzinhuu/SpotiFLAC-Module-Version"]
+                encoding=3,
+                lang='eng',
+                desc=u'',
+                text=[u"Downloaded by Radio Monitor SpotiFLAC integration"]
             ))
 
             if cover_url:
                 try:
-                    resp = self.session.get(cover_url, timeout=10)
+                    import requests
+                    # Use SSL-disabled session
+                    session = requests.Session()
+                    session.verify = False
+                    import urllib3
+                    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+                    resp = session.get(cover_url, timeout=10)
                     if resp.status_code == 200:
                         audio.add(APIC(
-                            encoding=3, 
-                            mime='image/jpeg', 
-                            type=3, 
-                            desc='Cover', 
+                            encoding=3,
+                            mime='image/jpeg',
+                            type=3,
+                            desc='Cover',
                             data=resp.content
                         ))
                 except Exception as e:
@@ -249,6 +276,6 @@ class YouTubeDownloader:
 
             audio.save(filepath, v2_version=3)
             print("Metadata embedded successfully")
-            
+
         except Exception as e:
             print(f"Warning: Failed to embed metadata: {e}")
