@@ -548,8 +548,25 @@ def api_start_spotiflac_download():
             )
 
             if result['success']:
+                # Log SpotiFLAC download to database
+                from radio_monitor.database import spotiflac, activity
+
+                download_id = spotiflac.log_download(
+                    cursor,
+                    plex_match_failure_id=plex_failure_id,
+                    song_id=song['id'],
+                    song_title=song['song_title'],
+                    artist_name=song['artist_name'],
+                    album_name=song.get('album_name'),
+                    spotify_url=spotify_url,
+                    download_status='completed',
+                    service_used=result.get('service_used'),
+                    file_path=result.get('file_path'),
+                    file_size_mb=result.get('file_size_mb'),
+                    completed_at=datetime.now()
+                )
+
                 # Log activity
-                from radio_monitor.database import activity
                 activity.log_activity(
                     cursor,
                     event_type='spotiflac_download_success',
@@ -558,6 +575,7 @@ def api_start_spotiflac_download():
                     metadata={
                         'failure_id': plex_failure_id,
                         'song_id': song['id'],
+                        'download_id': download_id,
                         'file_path': result['file_path'],
                         'service_used': result['service_used']
                     },
@@ -574,6 +592,23 @@ def api_start_spotiflac_download():
                     'url_type': 'track'
                 })
             else:
+                # Log failed download to database
+                from radio_monitor.database import spotiflac
+
+                spotiflac.log_download(
+                    cursor,
+                    plex_match_failure_id=plex_failure_id,
+                    song_id=song['id'],
+                    song_title=song['song_title'],
+                    artist_name=song['artist_name'],
+                    album_name=song.get('album_name'),
+                    spotify_url=spotify_url,
+                    download_status='failed',
+                    error_message=result.get('error', 'Download failed'),
+                    completed_at=datetime.now()
+                )
+                db.conn.commit()
+
                 return jsonify({
                     'success': False,
                     'error': result.get('error', 'Download failed')

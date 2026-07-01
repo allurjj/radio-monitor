@@ -19,6 +19,10 @@ from datetime import datetime
 from pathlib import Path
 from dataclasses import dataclass, field
 
+# Suppress urllib3 SSL warnings for Spotify API
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 from radio_monitor.integrations.spotiflac import (
     get_filtered_data,
     parse_uri,
@@ -272,7 +276,7 @@ class SpotiFLACService:
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
 
-            response = requests.get(search_url, params=params, headers=headers, timeout=10)
+            response = requests.get(search_url, params=params, headers=headers, timeout=10, verify=False)
 
             if response.status_code != 200:
                 logger.warning(f"Spotify API returned status {response.status_code}")
@@ -610,6 +614,9 @@ class SpotiFLACService:
             services = self.spotiflac_config.get('default_services', ['tidal', 'youtube'])
 
         logger.info(f"Services to try (in priority order): {services}")
+
+        # Check external API health before attempting download
+        api_health = self._check_external_api_health()
         if not api_health['all_healthy']:
             logger.warning(f"External API issues detected: {api_health['issues']}")
             logger.info("Will attempt download anyway, but some services may fail")

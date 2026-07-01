@@ -13,6 +13,9 @@ from .spotiflac import (
     format_artists,
     get_metadata,
     fetch_tracks,
+    SpotiFLAC,  # Main orchestrator function
+    download_tracks,  # Download function called by SpotiFLAC
+    format_custom_filename,  # Filename formatting function
 )
 
 from .progress import (
@@ -50,6 +53,11 @@ __all__ = [
     "parse_uri",
     "extract_cover_art",
     "format_artists",
+    "format_custom_filename",
+
+    # Main orchestrator
+    "SpotiFLAC",
+    "download_tracks",
 
     # Exceptions
     "SpotifyInvalidUrlException",

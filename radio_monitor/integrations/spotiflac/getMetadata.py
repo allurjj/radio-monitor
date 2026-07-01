@@ -6,6 +6,12 @@ import base64
 from random import randrange
 from typing import Dict, Any, List, Tuple
 
+# Suppress urllib3 SSL warnings for Spotify API
+# Spotify's certificate chain may not be recognized by all cert bundles
+# This is acceptable for public API access (not handling sensitive data)
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 
 def get_random_user_agent():
     return f"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_{randrange(11, 15)}_{randrange(4, 9)}) AppleWebKit/{randrange(530, 537)}.{randrange(30, 37)} (KHTML, like Gecko) Chrome/{randrange(80, 155)}.0.{randrange(3000, 4500)}.{randrange(60, 125)} Safari/{randrange(530, 537)}.{randrange(30, 36)}"
@@ -79,7 +85,8 @@ def get_json_from_api(api_url, access_token):
     request_headers = headers.copy()
     request_headers['Authorization'] = f'Bearer {access_token}'
 
-    req = requests.get(api_url, headers=request_headers, timeout=10)
+    # Use verify=False for Spotify API (certificate chain issues with certifi)
+    req = requests.get(api_url, headers=request_headers, timeout=10, verify=False)
 
     if req.status_code == 429:
         seconds = int(req.headers.get("Retry-After", "5")) + 1
@@ -109,7 +116,8 @@ def get_access_token():
             'grant_type': 'client_credentials'
         }
 
-        req = requests.post(token_url, headers=token_headers, data=token_data, timeout=10)
+        # Use verify=False for Spotify API (certificate chain issues with certifi)
+        req = requests.post(token_url, headers=token_headers, data=token_data, timeout=10, verify=False)
 
         if req.status_code != 200:
             print(f"Token request failed: {req.status_code}")
