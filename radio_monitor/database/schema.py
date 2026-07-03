@@ -267,23 +267,26 @@ def create_tables(cursor):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ai_playlist_generations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            instructions TEXT NOT NULL,
-            station_ids TEXT,
-            min_plays INTEGER DEFAULT 1,
-            date_range_days INTEGER,
-            max_songs INTEGER DEFAULT 50,
-            generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            song_count INTEGER DEFAULT 0,
-            hallucinated_count INTEGER DEFAULT 0,
-            songs_json TEXT NOT NULL,
-            plex_playlist_name TEXT,
-            model_used TEXT,
-            status TEXT DEFAULT 'completed'
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            playlist_name TEXT NOT NULL,
+            model TEXT NOT NULL,
+            instructions TEXT,
+            filters_json TEXT,
+            status TEXT NOT NULL,
+            songs_requested INTEGER,
+            songs_returned INTEGER,
+            songs_added_to_plex INTEGER,
+            songs_skipped INTEGER,
+            songs_hallucinated INTEGER DEFAULT 0,
+            error_message TEXT,
+            plex_url TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_generations_created_at ON ai_playlist_generations(generated_at DESC)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_generations_status ON ai_playlist_generations(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_gen_timestamp ON ai_playlist_generations(timestamp DESC)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_gen_status ON ai_playlist_generations(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_gen_playlist_name ON ai_playlist_generations(playlist_name)")
 
     # 13. manual_playlists table (v12)
     cursor.execute("""
