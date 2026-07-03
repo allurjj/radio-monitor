@@ -15,8 +15,8 @@
     gap: 10px !important;
 }
 
-/* Override Bootstrap's .toast class */
-div.toast {
+/* Override Bootstrap's .toast class (only for ToastManager toasts) */
+#toast-container .toast {
     background: #ffffff !important;
     border: 1px solid #dee2e6 !important;
     border-left: 4px solid #0d6efd !important;
@@ -32,10 +32,10 @@ div.toast {
     visibility: visible !important;
 }
 
-.toast-success { border-color: #198754; }
-.toast-error { border-color: #dc3545; }
-.toast-warning { border-color: #ffc107; }
-.toast-info { border-color: #0d6efd; }
+#toast-container .toast-success { border-color: #198754; }
+#toast-container .toast-error { border-color: #dc3545; }
+#toast-container .toast-warning { border-color: #ffc107; }
+#toast-container .toast-info { border-color: #0d6efd; }
 
 .toast-icon {
     font-size: 1.25rem;

@@ -4,6 +4,11 @@
 
 {% block custom_css %}
 <style>
+/* Fix songs card - remove extra left padding for alignment */
+.songs-table-row .col-12 {
+    padding-left: 0 !important;
+}
+
 /* Sortable column headers */
 .sortable {
     cursor: pointer;
@@ -302,8 +307,11 @@
     </div>
 </div>
 
+<!-- Spacer -->
+<div style="height: 1.5rem;"></div>
+
 <!-- Songs Table Card -->
-<div class="row">
+<div class="row songs-table-row mb-4">
     <div class="col-12">
         <div class="card card-standard">
             <div class="card-header d-flex justify-content-between align-items-center">
