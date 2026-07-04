@@ -951,27 +951,37 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False,
                         if debug:
                             logger.debug(f"  Artist has {len(all_tracks)} tracks")
 
-                        # Collect all matching tracks, then use tiebreaking
-                        artist_first_matches = []
+                        # Priority-based matching: exact → normalized → fuzzy
+                        # Each match type returns immediately, no cross-pool competition
 
-                        # Search for matching title within artist's catalog
-                        # Try all title variations
+                        # Priority 1: EXACT match (case-insensitive) - HIGHEST PRIORITY
+                        exact_matches = []
                         for search_title in get_title_variations(song_title):
-                            # Match using all strategies (exact, normalized, fuzzy)
                             for track in all_tracks:
                                 try:
-                                    # Strategy 0a: Exact match (case-insensitive)
                                     if track.title.lower() == search_title.lower():
                                         version_preference = get_track_version_preference(track.title)
-                                        artist_first_matches.append({
+                                        exact_matches.append({
                                             'track': track,
                                             'version_preference': version_preference
                                         })
                                         if debug:
                                             version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][version_preference] if version_preference < 5 else 'unknown'
                                             logger.debug(f"  ✓ Artist-first exact match: {track.title} (version: {version_label})")
+                                except Exception:
+                                    continue
 
-                                    # Strategy 0b: Normalized match
+                        if exact_matches:
+                            if debug:
+                                logger.debug(f"  → Strategy 0 exact match found, using tiebreak...")
+                            return break_tie_by_year(exact_matches, debug=debug)
+
+                        # Priority 2: NORMALIZED match (substring with normalization) - SECOND PRIORITY
+                        # Only run if NO exact match found above
+                        normalized_matches = []
+                        for search_title in get_title_variations(song_title):
+                            for track in all_tracks:
+                                try:
                                     track_norm = normalize_song_title(track.title)
                                     search_norm = normalize_song_title(search_title)
 
@@ -979,38 +989,45 @@ def find_song_in_library(music_library, song_title, artist_name, debug=False,
                                         track_norm.lower() in search_norm.lower() or
                                         search_norm.lower() in track_norm.lower()):
                                         version_preference = get_track_version_preference(track.title)
-                                        # Avoid duplicates if already added by exact match
-                                        if not any(m['track'] == track for m in artist_first_matches):
-                                            artist_first_matches.append({
-                                                'track': track,
-                                                'version_preference': version_preference
-                                            })
-                                            if debug:
-                                                version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][version_preference] if version_preference < 5 else 'unknown'
-                                                logger.debug(f"  ✓ Artist-first normalized match: {track.title} (version: {version_label})")
-
-                                    # Strategy 0c: Adaptive fuzzy match
-                                    # Uses 85% threshold for single-character differences
-                                    if adaptive_fuzzy_match(track.title, search_title, debug=debug):
-                                        version_preference = get_track_version_preference(track.title)
-                                        # Avoid duplicates if already added by exact or normalized match
-                                        if not any(m['track'] == track for m in artist_first_matches):
-                                            artist_first_matches.append({
-                                                'track': track,
-                                                'version_preference': version_preference
-                                            })
-                                            if debug:
-                                                version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][version_preference] if version_preference < 5 else 'unknown'
-                                                logger.debug(f"  ✓ Artist-first fuzzy match: {track.title} (version: {version_label})")
+                                        normalized_matches.append({
+                                            'track': track,
+                                            'version_preference': version_preference
+                                        })
+                                        if debug:
+                                            version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][version_preference] if version_preference < 5 else 'unknown'
+                                            logger.debug(f"  ✓ Artist-first normalized match: {track.title} (version: {version_label})")
                                 except Exception:
                                     continue
 
-                        # If we found matches in Strategy 0, use tiebreaking and return
-                        if artist_first_matches:
+                        if normalized_matches:
                             if debug:
-                                logger.debug(f"  → Strategy 0 found {len(artist_first_matches)} matches, using tiebreaking...")
-                            return break_tie_by_year(artist_first_matches, debug=debug)
+                                logger.debug(f"  → Strategy 0 normalized match found, using tiebreak...")
+                            return break_tie_by_year(normalized_matches, debug=debug)
 
+                        # Priority 3: FUZZY match (adaptive threshold) - LOWEST PRIORITY within Strategy 0
+                        # Only run if NO exact or normalized match found above
+                        fuzzy_matches = []
+                        for search_title in get_title_variations(song_title):
+                            for track in all_tracks[:20]:  # Limit to top 20 for performance
+                                try:
+                                    if adaptive_fuzzy_match(track.title, search_title, debug=debug):
+                                        version_preference = get_track_version_preference(track.title)
+                                        fuzzy_matches.append({
+                                            'track': track,
+                                            'version_preference': version_preference
+                                        })
+                                        if debug:
+                                            version_label = ['studio', 'radio edit', 'remix', 'acoustic', 'live'][version_preference] if version_preference < 5 else 'unknown'
+                                            logger.debug(f"  ✓ Artist-first fuzzy match: {track.title} (version: {version_label})")
+                                except Exception:
+                                    continue
+
+                        if fuzzy_matches:
+                            if debug:
+                                logger.debug(f"  → Strategy 0 fuzzy match found, using tiebreak...")
+                            return break_tie_by_year(fuzzy_matches, debug=debug)
+
+                        # Strategy 0 found NO matches - continue to Strategy 1, 2, 3...
                         break
     except Exception as e:
         if debug:
