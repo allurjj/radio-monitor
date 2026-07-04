@@ -80,7 +80,7 @@ python -m radio_monitor.cli --plex-playlist "Radio Hits" --days 7 --limit 50
 Version: 1.3.2
 """
 
-__version__ = "1.5.9"
+__version__ = "1.5.10"
 __author__ = "Radio Monitor Team"
 __github_url__ = "https://github.com/allurjj/radio-monitor"
 
