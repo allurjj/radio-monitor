@@ -637,6 +637,57 @@ def _validate_artist_song_pair(artist_name, song_title):
     return True
 
 
+def song_needs_validation(db, artist_mbid, song_title):
+    """Check if a song needs MusicBrainz validation.
+
+    Returns False if song exists and is already validated.
+    Returns True if song is new or unvalidated.
+
+    Args:
+        db: RadioDatabase instance
+        artist_mbid: Artist's MusicBrainz ID
+        song_title: Song title (will be normalized for matching)
+
+    Returns:
+        tuple: (needs_validation: bool, reason: str)
+            - needs_validation: True if validation needed, False if already validated
+            - reason: 'new_song', 'unvalidated', 'already_validated', or 'pending_mbid'
+    """
+    # Don't validate PENDING MBIDs
+    if artist_mbid and artist_mbid.startswith('PENDING-'):
+        return False, 'pending_mbid'
+
+    from radio_monitor.normalization import normalize_song_title
+    normalized_song_title = normalize_song_title(song_title)
+
+    cursor = db.get_cursor()
+    try:
+        # Check if song exists and is validated
+        cursor.execute("""
+            SELECT id, validation_status, validated_at, validation_method
+            FROM songs
+            WHERE artist_mbid = ? AND song_title = ?
+            LIMIT 1
+        """, (artist_mbid, normalized_song_title))
+        result = cursor.fetchone()
+
+        if not result:
+            # Song doesn't exist - needs validation
+            return True, 'new_song'
+
+        song_id, validation_status, validated_at, validation_method = result
+
+        # Song exists but not validated
+        if validation_status in (None, '', 'unvalidated', 'NOT_FOUND'):
+            return True, 'unvalidated'
+
+        # Song already validated - no need to validate again
+        return False, 'already_validated'
+
+    finally:
+        cursor.close()
+
+
 def scrape_single_station(db, station_id):
     """Scrape a single station and return current songs
 
@@ -911,35 +962,44 @@ def scrape_all_stations(db=None, station_ids=None):
                     validate_recordings = settings.get('monitor', {}).get('validate_recordings', False) if settings else False
                     recording_found = False
                     method = 'not_validated'
-                    logger.info(f"[VALIDATION CHECK] validate_recordings={validate_recordings}, mbid={primary_artist_mbid[:30] if primary_artist_mbid else 'None'}...")
+
                     if validate_recordings and not primary_artist_mbid.startswith('PENDING-'):
-                        logger.info(f"[VALIDATION START] {primary_artist} - {song_title}")
-                        try:
-                            from radio_monitor.recording_validation import validate_recording_with_fallback
+                        # Check if we need to validate (song is new or unvalidated)
+                        needs_validation, reason = song_needs_validation(db, primary_artist_mbid, song_title)
 
-                            # Use the verified MusicBrainz name for validation (not the split collaboration name)
-                            # This ensures we validate "KC & The Sunshine Band" not "Kc"
-                            artist_for_validation = primary_artist_verified_name if primary_artist_verified_name else primary_artist
-                            recording_found, method = validate_recording_with_fallback(
-                                primary_artist_mbid, artist_for_validation, song_title
-                            )
+                        if needs_validation:
+                            logger.info(f"[VALIDATION START] {primary_artist} - {song_title} (reason: {reason})")
+                            try:
+                                from radio_monitor.recording_validation import validate_recording_with_fallback
 
-                            if not recording_found:
-                                logger.warning(
-                                    f"Recording not found in MusicBrainz: {primary_artist} - {song_title} "
-                                    f"(method: {method})"
+                                # Use the verified MusicBrainz name for validation (not the split collaboration name)
+                                # This ensures we validate "KC & The Sunshine Band" not "Kc"
+                                artist_for_validation = primary_artist_verified_name if primary_artist_verified_name else primary_artist
+                                recording_found, method = validate_recording_with_fallback(
+                                    primary_artist_mbid, artist_for_validation, song_title
                                 )
 
-                                # Option: Skip storing this song if validation is strict
-                                skip_unvalidated = settings.get('monitor', {}).get('skip_unvalidated_recordings', False) if settings else False
-                                if skip_unvalidated:
-                                    logger.info(f"Skipping unvalidated recording: {primary_artist} - {song_title}")
-                                    continue
-                            else:
-                                logger.debug(f"Recording validated: {primary_artist} - {song_title} (method: {method})")
-                        except Exception as e:
-                            logger.warning(f"Recording validation error for {primary_artist} - {song_title}: {e}")
-                            # Continue storing even if validation fails (validation is optional)
+                                if not recording_found:
+                                    logger.warning(
+                                        f"Recording not found in MusicBrainz: {primary_artist} - {song_title} "
+                                        f"(method: {method})"
+                                    )
+
+                                    # Option: Skip storing this song if validation is strict
+                                    skip_unvalidated = settings.get('monitor', {}).get('skip_unvalidated_recordings', False) if settings else False
+                                    if skip_unvalidated:
+                                        logger.info(f"Skipping unvalidated recording: {primary_artist} - {song_title}")
+                                        continue
+                                else:
+                                    logger.debug(f"Recording validated: {primary_artist} - {song_title} (method: {method})")
+                            except Exception as e:
+                                logger.warning(f"Recording validation error for {primary_artist} - {song_title}: {e}")
+                                # Continue storing even if validation fails (validation is optional)
+                        else:
+                            # Skip validation - song already validated
+                            logger.debug(f"[VALIDATION SKIP] {primary_artist} - {song_title} (reason: {reason})")
+                            recording_found = True  # Assume already validated
+                            method = 'already_validated'
 
                     # Add artist and song to database atomically (prevents orphaned artists)
                     # Use MusicBrainz's canonical name if available, otherwise fall back to scraped name
