@@ -283,6 +283,11 @@ function checkPlexStatus() {
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Check system statuses on page load
+    checkMonitorStatus();
+    checkLidarrStatus();
+    checkPlexStatus();
+
     // Export CSV button
     const exportBtn = document.getElementById('export-csv');
     if (exportBtn) {
